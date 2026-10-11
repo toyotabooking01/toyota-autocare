@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const authorize = require('../middleware/authorize');
 const HttpError = require('../utils/HttpError');
 const engagement = require('../services/engagementService');
+const { listResponse } = require('../utils/pagination');
 
 function available(req, res, next) {
   res.set('Cache-Control', 'no-store');
@@ -19,5 +20,5 @@ notifications.patch('/:id/read', async (req, res) => res.json({ item: await enga
 
 const reminders = express.Router();
 reminders.use(available, authenticate, authorize('client', 'admin'));
-reminders.get('/', async (req, res) => res.json({ items: await engagement.reminders(req.user.role === 'client' ? req.user._id : undefined) }));
+reminders.get('/', async (req, res) => res.json(listResponse(await engagement.reminders(req.user.role === 'client' ? req.user._id : undefined, req.query))));
 module.exports = { notifications, reminders };

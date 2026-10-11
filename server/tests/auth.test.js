@@ -21,12 +21,12 @@ const errorHandler = require('../middleware/errorHandler');
 const User = require('../models/User');
 const EmailOtp = require('../models/EmailOtp');
 
-const input = { fullName: ' Test Client ', email: ' CLIENT@Example.invalid ', phone: '+63 912 345 6789',
-  password: 'A long test passphrase 42!' };
+const input = { termsAccepted: true, firstName: ' Test ', lastName: ' Client ', fullName: ' Test Client ', email: ' CLIENT@Example.invalid ', phone: '+639123456789',
+  password: 'A long test passphrase 42!', confirmPassword: 'A long test passphrase 42!' };
 
 test('Registration allowlist forces public callers to supply only client profile fields', () => {
   const result = validation.registration({ ...input, role: 'admin', emailVerified: true, authVersion: 100, isArchived: true });
-  assert.deepEqual(Object.keys(result).sort(), ['email', 'fullName', 'password', 'phone']);
+  assert.deepEqual(Object.keys(result).sort(), ['email', 'firstName', 'fullName', 'lastName', 'middleName', 'password', 'phone', 'suffix', 'termsAcceptedAt']);
   assert.equal(result.email, 'client@example.invalid');
   assert.equal(result.fullName, 'Test Client');
 });
@@ -36,7 +36,7 @@ test('Password validation prevents weak values, mismatch and bcrypt byte truncat
   assert.throws(() => validation.password('a'.repeat(73)));
   assert.throws(() => validation.password('🌟'.repeat(19)));
   assert.throws(() => validation.password(input.password, 'different'));
-  assert.equal(validation.password('a'.repeat(72)), 'a'.repeat(72));
+  assert.equal(validation.password('Aa1!' + 'a'.repeat(68)), 'Aa1!' + 'a'.repeat(68));
   assert.equal(validation.password(input.password), input.password);
 });
 
@@ -45,7 +45,7 @@ test('Request validators reject object injection, malformed profiles and malform
   assert.throws(() => validation.email({ $ne: null }));
   assert.throws(() => validation.email('extra,recipient@example.invalid'));
   assert.throws(() => validation.registration({ ...input, phone: '' }));
-  assert.throws(() => validation.registration({ ...input, fullName: ' ' }));
+  assert.throws(() => validation.registration({ ...input, firstName: ' ' }));
   for (const code of [123456, '12345', '1234567', 'ABCDEF']) {
     assert.throws(() => validation.otp({ email: input.email, otp: code }));
   }
@@ -78,6 +78,7 @@ test('JWT signature, expiry, algorithm, issuer and audience are enforced', () =>
   const token = tokenService.signAccessToken(user);
   const payload = tokenService.verifyAccessToken(token);
   assert.equal(payload.sub, String(user._id));
+  assert.equal(payload.role, 'client');
   assert.equal(payload.version, 2);
   assert.equal(payload.email, undefined);
   const config = jwtConfig();
@@ -87,12 +88,13 @@ test('JWT signature, expiry, algorithm, issuer and audience are enforced', () =>
   assert.throws(() => tokenService.verifyAccessToken(jwt.sign({}, config.secret, { ...options, issuer: 'other' })));
   assert.throws(() => tokenService.verifyAccessToken(jwt.sign({}, config.secret, { ...options, algorithm: 'HS384' })));
   assert.throws(() => tokenService.verifyAccessToken(jwt.sign({}, 'incorrect-secret', options)));
+  assert.throws(() => tokenService.signAccessToken({ _id: user._id, authVersion: 0 }));
 });
 
 test('Authentication loads current roles and rejects revoked, inactive, archived or unverified users', async t => {
   const user = { _id: new mongoose.Types.ObjectId(), role: 'client', authVersion: 0,
     status: 'active', isArchived: false, emailVerified: true };
-  const token = tokenService.signAccessToken({ ...user, role: 'admin' });
+  const token = tokenService.signAccessToken(user);
   t.mock.method(User, 'findById', () => ({ select: async () => user }));
   async function run(authorization = `Bearer ${token}`) {
     const req = { get: () => authorization };
@@ -101,6 +103,8 @@ test('Authentication loads current roles and rejects revoked, inactive, archived
     return { req, failure };
   }
   assert.equal((await run()).req.user.role, 'client');
+  const mismatchedRole = tokenService.signAccessToken({ ...user, role: 'admin' });
+  assert.equal((await run(`Bearer ${mismatchedRole}`)).failure.status, 401);
   assert.equal((await run('')).failure.status, 401);
   assert.equal((await run('Bearer invalid')).failure.status, 401);
   for (const change of [{ authVersion: 1 }, { isArchived: true }, { status: 'inactive' }, { emailVerified: false }]) {
@@ -149,9 +153,12 @@ test('Configuration rejects unsafe secrets and unbounded expiry', () => {
   delete process.env.OTP_EXPIRY_MINUTES;
 });
 
-test('Brevo transport requires TLS, uses SMTP credentials and produces minimal OTP emails', async t => {
-  process.env.BREVO_SMTP_USER = 'fixture-user';
-  process.env.BREVO_SMTP_PASS = 'fixture-pass';
+test('Mailjet SMTP transport uses implicit TLS, SMTP credentials and unchanged OTP emails', async t => {
+  process.env.SMTP_HOST = 'in-v3.mailjet.com';
+  process.env.SMTP_PORT = '465';
+  process.env.SMTP_SECURE = 'true';
+  process.env.SMTP_USER = 'mailjet-api-key';
+  process.env.SMTP_PASS = 'mailjet-secret-key';
   process.env.EMAIL_FROM = 'Toyota AutoCare <sender@example.invalid>';
   let options;
   let message;
@@ -161,14 +168,16 @@ test('Brevo transport requires TLS, uses SMTP credentials and produces minimal O
     return { sendMail: async mail => { message = mail; return { accepted: [mail.to] }; }, close: () => { closed = true; } };
   });
   await emailService.sendOtp({ email: 'recipient@example.invalid', code: '012345', purpose: 'email_verification', minutes: 5 });
-  assert.equal(options.host, 'smtp-relay.brevo.com');
-  assert.equal(options.requireTLS, true);
+  assert.equal(options.host, 'in-v3.mailjet.com');
+  assert.equal(options.secure, true);
+  assert.equal(options.requireTLS, false);
   assert.equal(options.logger, false);
-  assert.equal(options.auth.pass, 'fixture-pass');
+  assert.equal(options.auth.user, 'mailjet-api-key');
+  assert.equal(options.auth.pass, 'mailjet-secret-key');
   assert.match(message.text, /012345/);
   assert.match(message.html, /Toyota AutoCare/);
   assert.equal(closed, true);
-  delete process.env.BREVO_SMTP_PASS;
+  delete process.env.SMTP_PASS;
   assert.throws(() => emailService.ensureConfigured(), { status: 503 });
 });
 
@@ -182,8 +191,11 @@ test('Unexpected errors never expose their message or stack through the API', ()
 });
 
 test('SMTP failures are sanitized and transport is closed', async t => {
-  process.env.BREVO_SMTP_USER = 'fixture-user';
-  process.env.BREVO_SMTP_PASS = 'fixture-pass';
+  process.env.SMTP_HOST = 'in-v3.mailjet.com';
+  process.env.SMTP_PORT = '465';
+  process.env.SMTP_SECURE = 'true';
+  process.env.SMTP_USER = 'mailjet-api-key';
+  process.env.SMTP_PASS = 'mailjet-secret-key';
   process.env.EMAIL_FROM = 'sender@example.invalid';
   let closed = false;
   t.mock.method(nodemailer, 'createTransport', () => ({
@@ -193,5 +205,5 @@ test('SMTP failures are sanitized and transport is closed', async t => {
   await assert.rejects(emailService.sendOtp({ email: 'recipient@example.invalid', code: '012345',
     purpose: 'password_reset', minutes: 5 }), error => error.status === 503 && !error.message.includes('private'));
   assert.equal(closed, true);
-  delete process.env.BREVO_SMTP_PASS;
+  delete process.env.SMTP_PASS;
 });

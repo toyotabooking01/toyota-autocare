@@ -8,6 +8,7 @@ const Schedule = require('../models/Schedule');
 const Booking = require('../models/Booking');
 const bookings = require('../services/bookingService');
 const engagement = require('../services/engagementService');
+const resourceAvailability = require('../services/resourceAvailabilityService');
 const originalRecordEvent = engagement.recordBookingEvent;
 before(() => { engagement.recordBookingEvent = async () => {}; });
 after(() => { engagement.recordBookingEvent = originalRecordEvent; });
@@ -41,6 +42,23 @@ test('Admin lookup returns only selected Client fields and current owned vehicle
   } finally { User.find = oldFind; User.exists = oldExists; Vehicle.find = oldVehicleFind; }
 });
 
+test('client active-service lookup is ownership-scoped and includes every active booking status', async () => {
+  const oldExists = Vehicle.exists; const oldFind = Booking.find;
+  const vehicleId = id(); const clientId = id(); const serviceId = id();
+  let bookingFilter;
+  Vehicle.exists = async filter => { assert.equal(String(filter._id), vehicleId); assert.equal(String(filter.owner), clientId); return { _id: vehicleId }; };
+  Booking.find = filter => {
+    bookingFilter = filter;
+    return { select: () => ({ lean: async () => [{ services: [serviceId] }, { services: [serviceId, id()] }] }) };
+  };
+  try {
+    const ids = await bookings.activeServiceIds(vehicleId, clientId);
+    assert.equal(bookingFilter.vehicle, vehicleId); assert.equal(bookingFilter.client, clientId);
+    assert.deepEqual(bookingFilter.status.$in, ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release']);
+    assert.equal(ids.length, 2); assert.equal(new Set(ids).size, 2);
+  } finally { Vehicle.exists = oldExists; Booking.find = oldFind; }
+});
+
 test('walk-in requires an eligible Client and rejects arbitrary status or source', async () => {
   const oldTransaction = mongoose.connection.transaction;
   const oldUser = User.exists;
@@ -58,7 +76,10 @@ test('online and walk-in calls use the same atomic reservation, with distinct fi
   const oldTransaction = mongoose.connection.transaction;
   const oldUser = User.exists;
   const oldVehicle = Vehicle.exists;
-  const oldService = Service.countDocuments;
+  const oldVehicleUpdate = Vehicle.updateOne;
+  const oldService = Service.find;
+  const oldActiveBookings = Booking.find;
+  const oldResourceFit = resourceAvailability.canFitBooking;
   const oldSlot = Schedule.findById;
   const oldReserve = Schedule.findOneAndUpdate;
   const oldCreate = Booking.create;
@@ -72,10 +93,13 @@ test('online and walk-in calls use the same atomic reservation, with distinct fi
     assert.equal(filter.isArchived, false);
     return { _id: body.vehicle };
   } });
-  Service.countDocuments = filter => ({ session: async () => {
+  Vehicle.updateOne = async () => ({ matchedCount: 1 });
+  Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
+  Service.find = filter => ({ select: () => ({ session: () => ({ lean: async () => {
     assert.equal(filter.isActive, true); assert.equal(filter.isArchived, false);
-    return body.services.length;
-  } });
+    return body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60 }));
+  } }) }) });
+  resourceAvailability.canFitBooking = async () => ({ available: true });
   Schedule.findById = () => ({ session: () => ({ lean: async () => ({ date: '2035-05-12', timeSlot: '09:00', isEnabled: true }) }) });
   Schedule.findOneAndUpdate = async filter => {
     reservations.push(filter);
@@ -92,7 +116,8 @@ test('online and walk-in calls use the same atomic reservation, with distinct fi
     assert.equal(created[1].bookingType, 'walk-in'); assert.equal(created[1].status, 'confirmed');
   } finally {
     mongoose.connection.transaction = oldTransaction; User.exists = oldUser; Vehicle.exists = oldVehicle;
-    Service.countDocuments = oldService; Schedule.findById = oldSlot;
+    Vehicle.updateOne = oldVehicleUpdate; Booking.find = oldActiveBookings;
+    Service.find = oldService; resourceAvailability.canFitBooking = oldResourceFit; Schedule.findById = oldSlot;
     Schedule.findOneAndUpdate = oldReserve; Booking.create = oldCreate; Booking.findOne = oldFind;
   }
 });
@@ -101,7 +126,10 @@ test('walk-in rejects another Client vehicle, unavailable Services, and full Sch
   const oldTransaction = mongoose.connection.transaction;
   const oldUser = User.exists;
   const oldVehicle = Vehicle.exists;
-  const oldService = Service.countDocuments;
+  const oldVehicleUpdate = Vehicle.updateOne;
+  const oldService = Service.find;
+  const oldActiveBookings = Booking.find;
+  const oldResourceFit = resourceAvailability.canFitBooking;
   const oldSlot = Schedule.findById;
   const oldReserve = Schedule.findOneAndUpdate;
   const body = request();
@@ -109,7 +137,10 @@ test('walk-in rejects another Client vehicle, unavailable Services, and full Sch
   mongoose.connection.transaction = async callback => callback({});
   User.exists = () => ({ session: async () => ({ _id: body.client }) });
   Vehicle.exists = () => ({ session: async () => ownerMatches ? { _id: body.vehicle } : null });
-  Service.countDocuments = () => ({ session: async () => activeServices });
+  Vehicle.updateOne = async () => ({ matchedCount: 1 });
+  Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
+  Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => Array.from({ length: activeServices }, (_, index) => ({ _id: body.services[index], estimatedDuration: index ? 120 : 60 })) }) }) });
+  resourceAvailability.canFitBooking = async () => ({ available: true });
   Schedule.findById = () => ({ session: () => ({ lean: async () => ({ date: '2035-05-12', timeSlot: '09:00', isEnabled: true }) }) });
   Schedule.findOneAndUpdate = async () => capacity ? { date: '2035-05-12', timeSlot: '09:00' } : null;
   try {
@@ -120,7 +151,8 @@ test('walk-in rejects another Client vehicle, unavailable Services, and full Sch
     await assert.rejects(bookings.createWalkIn(body), { status: 409 });
   } finally {
     mongoose.connection.transaction = oldTransaction; User.exists = oldUser; Vehicle.exists = oldVehicle;
-    Service.countDocuments = oldService; Schedule.findById = oldSlot; Schedule.findOneAndUpdate = oldReserve;
+    Vehicle.updateOne = oldVehicleUpdate; Booking.find = oldActiveBookings;
+    Service.find = oldService; resourceAvailability.canFitBooking = oldResourceFit; Schedule.findById = oldSlot; Schedule.findOneAndUpdate = oldReserve;
   }
 });
 
@@ -149,3 +181,4 @@ test('check-in changes only confirmed to checked_in and never adjusts capacity',
     assert.equal(capacityWrites, 0);
   } finally { mongoose.connection.transaction = oldTransaction; Booking.findOneAndUpdate = oldUpdate; Booking.findOne = oldFind; Schedule.updateOne = oldCapacity; }
 });
+

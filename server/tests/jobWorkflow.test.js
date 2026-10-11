@@ -37,6 +37,30 @@ test('active JobOrder lookup is scoped to the signed-in Mechanic', async () => {
   } finally { JobOrder.findOne = oldFind; }
 });
 
+test('final inspection is blocked until every snapshotted checklist item is complete', async () => {
+  const original = { transaction: mongoose.connection.transaction, jobFind: JobOrder.findOne,
+    jobUpdate: JobOrder.findOneAndUpdate, bookingUpdate: Booking.findOneAndUpdate };
+  const mechanic = id(); const jobId = id(); const bookingId = id();
+  let items = [{ description: 'Inspect brake pads', isCompleted: false }]; let bookingWrites = 0;
+  mongoose.connection.transaction = async callback => callback({});
+  JobOrder.findOne = filter => ({
+    session: () => ({ lean: async () => ({ _id: jobId, booking: bookingId, mechanic, serviceBay: id(), status: 'in_progress', checklistRequired: true, serviceChecklist: items }) }),
+    populate: () => ({ lean: async () => ({ _id: jobId }) }),
+  });
+  Booking.findOneAndUpdate = async () => { bookingWrites++; return {}; };
+  JobOrder.findOneAndUpdate = async () => ({});
+  try {
+    await assert.rejects(jobs.transition(jobId, { role: 'mechanic', _id: mechanic }, 'final-inspection'), { status: 409 });
+    assert.equal(bookingWrites, 0);
+    items = [{ description: 'Inspect brake pads', isCompleted: true }];
+    await jobs.transition(jobId, { role: 'mechanic', _id: mechanic }, 'final-inspection');
+    assert.equal(bookingWrites, 1);
+  } finally {
+    mongoose.connection.transaction = original.transaction; JobOrder.findOne = original.jobFind;
+    JobOrder.findOneAndUpdate = original.jobUpdate; Booking.findOneAndUpdate = original.bookingUpdate;
+  }
+});
+
 test('Mechanic and Admin transitions keep Booking and JobOrder synchronized and release resources on completion', async () => {
   const original = { transaction: mongoose.connection.transaction, jobFind: JobOrder.findOne,
     jobUpdate: JobOrder.findOneAndUpdate, bookingUpdate: Booking.findOneAndUpdate,

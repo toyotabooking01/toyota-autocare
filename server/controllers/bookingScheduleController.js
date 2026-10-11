@@ -1,22 +1,30 @@
 const schedules = require('../services/scheduleService');
 const bookings = require('../services/bookingService');
 const jobs = require('../services/jobOrderService');
+const { listResponse } = require('../utils/pagination');
 
-exports.scheduleList = async (req, res) => res.json({ items: await schedules.list(req.query) });
+exports.scheduleList = async (req, res) => res.json(listResponse(await schedules.list(req.query)));
 exports.scheduleAvailable = async (req, res) => res.json({ items: await schedules.available() });
+exports.bookingAvailability = async (req, res) => {
+  const serviceIds = typeof req.query.services === 'string' ? req.query.services.split(',').filter(Boolean) : [];
+  res.json(await schedules.availability({ serviceIds, fromDate: req.query.fromDate, toDate: req.query.toDate }));
+};
 exports.scheduleGet = async (req, res) => res.json({ item: await schedules.get(req.params.id) });
 exports.scheduleCreate = async (req, res) => res.status(201).json({ item: await schedules.create(req.body) });
+exports.scheduleGenerate = async (req, res) => res.status(201).json(await schedules.generate(req.body));
 exports.scheduleUpdate = async (req, res) => res.json({ item: await schedules.update(req.params.id, req.body) });
 exports.scheduleEnabled = async (req, res) => res.json({ item: await schedules.setEnabled(req.params.id, req.body) });
 exports.bookingOptions = async (req, res) => res.json({ services: await bookings.options() });
+exports.activeServiceIds = async (req, res) => res.json({ serviceIds: await bookings.activeServiceIds(req.query.vehicle, req.user._id) });
 exports.walkInOptions = async (req, res) => res.json({ services: await bookings.options(), schedules: await schedules.available() });
 exports.assignmentOptions = async (req, res) => res.json(await jobs.options());
 exports.walkInClients = async (req, res) => res.json({ items: await bookings.walkInClients(req.query.search) });
 exports.walkInVehicles = async (req, res) => res.json({ items: await bookings.walkInVehicles(req.params.clientId) });
-exports.bookingList = async (req, res) => res.json({ items: await bookings.list(req.query, req.user.role === 'client' ? req.user._id : undefined) });
+exports.bookingList = async (req, res) => res.json(listResponse(await bookings.list(req.query, req.user.role === 'client' ? req.user._id : undefined)));
 exports.bookingGet = async (req, res) => res.json({ item: await bookings.get(req.params.id, req.user.role === 'client' ? req.user._id : undefined) });
 exports.bookingCreate = async (req, res) => res.status(201).json({ item: await bookings.create(req.user._id, req.body) });
 exports.walkInCreate = async (req, res) => res.status(201).json({ item: await bookings.createWalkIn(req.body) });
+exports.newWalkInCreate = async (req, res) => res.status(201).json(await require('../services/newWalkInService').create(req.body));
 exports.bookingConfirm = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'confirm') });
 exports.bookingReject = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'reject') });
 exports.bookingCancel = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'cancel') });

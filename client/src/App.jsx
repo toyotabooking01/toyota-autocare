@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { Alert, Button, CircularProgress } from '@mui/material'
 import { useAuth } from './auth/AuthContext'
-import { dashboards } from './auth/session'
+import { dashboards, accountHome } from './auth/session'
+import ForcedPasswordChange from './pages/ForcedPasswordChange'
 import AuthLayout from './components/AuthLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import ApplicationLayout from './layouts/ApplicationLayout'
-import ModuleFoundation from './pages/ModuleFoundation'
 import AdminMasterData from './pages/AdminMasterData'
 import AdminMechanics from './pages/AdminMechanics'
 import ClientVehicles from './pages/ClientVehicles'
@@ -23,16 +23,18 @@ import { ClientDashboard, MechanicDashboard, AdminDashboard } from './pages/Role
 import { roleNavigation } from './app/navigation'
 import { ForgotPassword, Login, Register, ResetPassword, VerifyCode } from './pages/AuthPages'
 import './App.css'
+import './redesign.css'
 
 export default function App() {
   const { user, loading, restoreError, retryRestore, logout } = useAuth()
   const [resetGrant, setResetGrant] = useState(null)
-  const home = user ? dashboards[user.role] : '/login'
+  const home = accountHome(user)
   let content
   if (loading) content = <div className="session-state" role="status"><CircularProgress size={28} /><p>Restoring your session…</p></div>
   else if (restoreError) content = <div className="form-card"><Alert severity="warning">We couldn’t check your session. Please try again.</Alert><Button onClick={retryRestore}>Retry</Button><Button onClick={logout}>Back to sign in</Button></div>
   else return <Routes>
     <Route element={<AuthLayout><Outlet /></AuthLayout>}>
+    <Route path="/change-password" element={!user ? <Navigate to="/login" replace /> : user.mustChangePassword ? <ForcedPasswordChange /> : <Navigate to={home} replace />} />
     <Route path="/login" element={user ? <Navigate to={home} replace /> : <Login />} />
     <Route path="/register" element={user ? <Navigate to={home} replace /> : <Register />} />
     <Route path="/verify-email" element={<VerifyCode key="email" />} />
@@ -59,7 +61,7 @@ export default function App() {
               : role === 'client' && item.path === 'bookings' ? <BookingList role="client" />
                 : role === 'client' && item.path === 'notifications' ? <NotificationsPage />
                   : role === 'client' && item.path === 'reminders' ? <MaintenanceReminders role="client" />
-            : <ModuleFoundation role={role} label={item.label} icon={item.icon} />} />)}
+            : <Navigate to={dashboards[role]} replace />} />)}
       <Route path="*" element={<Navigate to={dashboards[role]} replace />} />
     </Route>)}
     <Route path="*" element={<Navigate to={home} replace />} />

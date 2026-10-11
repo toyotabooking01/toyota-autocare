@@ -14,6 +14,8 @@ const vehicleSchema = new mongoose.Schema({
   },
   transmission: { type: String, required: true, enum: ['manual', 'automatic', 'cvt'] },
   currentMileage: { ...nonNegativeInteger },
+  // Transactional guard serializes active-service duplicate checks per Vehicle.
+  bookingLockVersion: { type: Number, min: 0, default: 0, select: false },
   ...archive,
 }, { timestamps: true });
 

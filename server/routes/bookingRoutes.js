@@ -12,12 +12,15 @@ router.use((req, res, next) => {
   next();
 });
 router.use(authenticate, authorize('client', 'admin'));
+router.get('/availability', actions.bookingAvailability);
 router.get('/options', authorize('client'), actions.bookingOptions);
+router.get('/active-services', authorize('client'), actions.activeServiceIds);
 router.get('/walk-in/options', authorize('admin'), actions.walkInOptions);
 router.get('/assignment-options', authorize('admin'), actions.assignmentOptions);
 router.get('/walk-in/clients', authorize('admin'), actions.walkInClients);
 router.get('/walk-in/clients/:clientId/vehicles', authorize('admin'), actions.walkInVehicles);
 router.post('/walk-in', authorize('admin'), actions.walkInCreate);
+router.post('/walk-in/new-client', authorize('admin'), actions.newWalkInCreate);
 router.get('/', actions.bookingList);
 router.post('/', authorize('client'), actions.bookingCreate);
 router.get('/:id', actions.bookingGet);

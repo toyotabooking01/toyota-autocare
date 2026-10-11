@@ -15,6 +15,7 @@ const fixtures = {
   Notification: { user: id(), title: 'Update', message: 'Booking updated', type: 'booking' },
   MaintenanceReminder: { client: id(), vehicle: id(), service: id(), lastServiceDate: '2026-10-10', nextRecommendedServiceDate: '2026-11-10' },
   EmailOtp: { email: ' USER@Example.com ', otpHash: 'a'.repeat(64), purpose: 'email_verification', expiresAt: new Date(Date.now() + 600000) },
+  Counter: { _id: 'testCounter', sequence: 1 },
 };
 
 for (const [name, Model] of Object.entries(models)) {
@@ -25,8 +26,10 @@ for (const [name, Model] of Object.entries(models)) {
       const element = schemaType.getEmbeddedSchemaType();
       if (element?.options.ref) assert.ok(models[element.options.ref], `${name}.${path} array ref missing`);
     });
-    assert.ok(Model.schema.path('createdAt'));
-    assert.ok(Model.schema.path('updatedAt'));
+    if (name !== 'Counter') {
+      assert.ok(Model.schema.path('createdAt'));
+      assert.ok(Model.schema.path('updatedAt'));
+    }
   });
 }
 
@@ -52,14 +55,20 @@ test('Vehicle normalization, mileage and year limits', async () => {
   await invalid('Vehicle', { currentMileage: -1 }, 'currentMileage');
   await invalid('Vehicle', { currentMileage: 0.5 }, 'currentMileage');
   await invalid('Vehicle', { plateNumber: '!!!' }, 'plateNumber');
+  await invalid('Vehicle', { currentMileage: -1 }, 'currentMileage');
+  await invalid('Vehicle', { currentMileage: 0.5 }, 'currentMileage');
   await invalid('Vehicle', { year: new Date().getUTCFullYear() + 2 }, 'year');
 });
 
 test('Service supports configurable or disabled reminders', async () => {
   await new models.Service({ ...fixtures.Service, maintenanceReminderInterval: 120 }).validate();
+  await new models.Service({ ...fixtures.Service, checklistTemplate: ['Inspect pads', 'Check fluid'] }).validate();
   await invalid('Service', { maintenanceReminderInterval: 0 }, 'maintenanceReminderInterval');
   await invalid('Service', { estimatedPrice: -1 }, 'estimatedPrice');
   await invalid('Service', { estimatedDuration: 1.5 }, 'estimatedDuration');
+  await invalid('Service', { checklistTemplate: Array.from({ length: 11 }, (_, index) => `Item ${index + 1}`) }, 'checklistTemplate');
+  await invalid('Service', { checklistTemplate: ['Inspect pads', ' inspect PADS '] }, 'checklistTemplate');
+  await invalid('Service', { checklistTemplate: ['   '] }, 'checklistTemplate.0');
 });
 
 test('Booking channels, statuses and real calendar dates', async () => {
@@ -81,6 +90,20 @@ test('Booking requires a nonempty array of distinct service IDs and a schedule',
   await assert.rejects(new models.Booking({ ...fixtures.Booking, services: ['bad-id'] }).validate());
   await invalid('Booking', { schedule: undefined }, 'schedule');
   await invalid('Booking', { services: undefined, service: id() }, 'services');
+});
+
+test('Booking reservation intervals remain optional for legacy records and may be shortened on completion', async () => {
+  const legacy = new models.Booking(fixtures.Booking);
+  await legacy.validate();
+  const valid = new models.Booking({ ...fixtures.Booking, reservedStartAt: new Date('2035-05-12T01:00:00Z'),
+    reservedEndAt: new Date('2035-05-12T04:00:00Z'), estimatedDurationMinutes: 180 });
+  await valid.validate();
+  const invalid = new models.Booking({ ...fixtures.Booking, reservedStartAt: new Date('2035-05-12T01:00:00Z'),
+    reservedEndAt: new Date('2035-05-12T03:00:00Z'), estimatedDurationMinutes: 180,
+    status: 'completed', actualDurationMinutes: 120 });
+  await invalid.validate();
+  invalid.reservedEndAt = invalid.reservedStartAt;
+  await assert.rejects(invalid.validate(), error => Boolean(error.errors?.reservedEndAt));
 });
 
 test('All approved booking statuses and both channels remain valid', async () => {

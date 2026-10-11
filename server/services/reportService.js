@@ -1,6 +1,5 @@
 const Booking = require('../models/Booking');
 const scheduleService = require('./scheduleService');
-const HttpError = require('../utils/HttpError');
 
 const statuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
   'final_inspection', 'ready_for_release', 'completed', 'cancelled', 'rejected', 'no_show'];
@@ -9,10 +8,9 @@ function range(query = {}) {
   const today = scheduleService.manilaNow().date;
   const defaultFrom = new Date(`${today}T00:00:00.000Z`);
   defaultFrom.setUTCDate(defaultFrom.getUTCDate() - 29);
-  const from = query.from ? scheduleService.date(query.from) : defaultFrom.toISOString().slice(0, 10);
-  const to = query.to ? scheduleService.date(query.to) : today;
-  const days = (new Date(`${to}T00:00:00.000Z`) - new Date(`${from}T00:00:00.000Z`)) / 86400000;
-  if (days < 0 || days > 366) throw new HttpError(400, 'Choose a date range of at most 367 days, from earliest to latest.');
+  const from = query.from || defaultFrom.toISOString().slice(0, 10);
+  const to = query.to || today;
+  require('../utils/validateForm')('report', { from, to });
   return { from, to };
 }
 function summarize(bookings, selectedRange) {

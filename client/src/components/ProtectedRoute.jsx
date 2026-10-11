@@ -4,6 +4,8 @@ import { dashboards } from '../auth/session'
 export default function ProtectedRoute({ role, children }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
+  if (!dashboards[user.role]) return <Navigate to="/login" replace />
+  if (user.mustChangePassword) return <Navigate to="/change-password" replace />
   if (user.role !== role) return <Navigate to={dashboards[user.role]} replace />
   return children
 }

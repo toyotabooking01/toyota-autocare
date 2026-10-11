@@ -2,6 +2,9 @@ const jwt = require('jsonwebtoken');
 const { jwtConfig } = require('../config/auth');
 
 function signAccessToken(user) {
+  if (!['client', 'mechanic', 'admin'].includes(user?.role)) {
+    throw new Error('Cannot create an access token without a valid account role.');
+  }
   const config = jwtConfig();
   return jwt.sign({ role: user.role, version: user.authVersion || 0, tokenUse: 'access' }, config.secret, {
     algorithm: 'HS256', subject: String(user._id), expiresIn: config.seconds,

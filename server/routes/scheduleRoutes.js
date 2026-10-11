@@ -15,6 +15,7 @@ router.use(authenticate);
 router.get('/available', authorize('client'), actions.scheduleAvailable);
 router.use(authorize('admin'));
 router.get('/', actions.scheduleList);
+router.post('/generate', actions.scheduleGenerate);
 router.post('/', actions.scheduleCreate);
 router.get('/:id', actions.scheduleGet);
 router.patch('/:id', actions.scheduleUpdate);

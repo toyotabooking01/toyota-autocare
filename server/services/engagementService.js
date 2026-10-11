@@ -63,11 +63,12 @@ async function markAllRead(userId) {
   const result = await Notification.updateMany({ user: userId, isRead: false }, { $set: { isRead: true } });
   return { updated: result.modifiedCount };
 }
-async function reminders(clientId) {
-  return MaintenanceReminder.find(clientId ? { client: clientId } : {})
-    .sort({ nextRecommendedServiceDate: 1 })
+async function reminders(clientId, query = {}) {
+  const filter = clientId ? { client: clientId } : {};
+  return require('../utils/pagination').listPage(MaintenanceReminder, filter, clientId ? {} : query, () => MaintenanceReminder.find(filter)
+    .sort({ nextRecommendedServiceDate: 1, _id: 1 })
     .populate([{ path: 'vehicle', select: 'make model year plateNumber' },
       { path: 'service', select: 'name maintenanceReminderInterval' },
-      { path: 'client', select: 'fullName' }]).lean();
+      { path: 'client', select: 'fullName' }]));
 }
 module.exports = { recordBookingEvent, updateReminders, notifications, unreadCount, markRead, markAllRead, reminders };

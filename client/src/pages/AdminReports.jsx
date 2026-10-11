@@ -1,3 +1,4 @@
+import useFormValidation from '../components/useFormValidation'
 import { useEffect, useState } from 'react'
 import { Alert, Box, Button, CircularProgress, Paper, Stack, TextField, Typography } from '@mui/material'
 import api from '../services/api'
@@ -5,6 +6,7 @@ import { PageHeading, MetricCards, Panel } from '../components/DashboardParts'
 import StatusChip from '../components/StatusChip'
 import { money } from './bookingDisplay'
 import { manilaToday } from './dashboardData'
+import { friendlyError } from '../utils/friendlyErrors'
 
 const today = manilaToday()
 const start = new Date(`${today}T00:00:00.000Z`)
@@ -12,7 +14,7 @@ start.setUTCDate(start.getUTCDate() - 29)
 const initialRange = { from: start.toISOString().slice(0, 10), to: today }
 const textStyle = { fontSize: 12, color: 'text.secondary' }
 function SmallRows({ items, primary, secondary, empty }) {
-  return !items.length ? <Typography sx={textStyle}>{empty}</Typography> : <Stack spacing={1.5}>{items.map(item => <Stack key={item.id || item.date} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="flex-start" gap={{ xs: .5, sm: 2 }} sx={{ borderBottom: '1px solid #eef1f5', pb: 1 }}>
+  return !items.length ? <Typography sx={textStyle}>{empty}</Typography> : <Stack spacing={1.5}>{items.map(item => <Stack key={item.id || item.date} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="flex-start" gap={{ xs: .5, sm: 2 }} sx={{ borderBottom: '1px solid var(--line)', pb: 1 }}>
     <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{primary(item)}</Typography><Typography sx={{ ...textStyle, textAlign: { xs: 'left', sm: 'right' }, overflowWrap: 'anywhere' }}>{secondary(item)}</Typography>
   </Stack>)}</Stack>
 }
@@ -22,17 +24,18 @@ export default function AdminReports() {
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const validation = useFormValidation('report', draft)
   useEffect(() => {
     const controller = new AbortController()
     api.get('/reports/summary', { params: range, signal: controller.signal })
       .then(response => { setReport(response.data); setError('') })
-      .catch(requestError => { if (!controller.signal.aborted) { setReport(null); setError(requestError.response?.data?.message || 'Reports could not be loaded.') } })
+      .catch(requestError => { if (!controller.signal.aborted) { setReport(null); setError(friendlyError(requestError)) } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [range])
   function apply(event) {
     event.preventDefault()
-    if (!draft.from || !draft.to || draft.from > draft.to) { setReport(null); setError('Choose a valid start and end date.'); return }
+    if (!validation.validate()) return
     setLoading(true); setRange({ ...draft })
   }
   const cards = report ? [
@@ -43,10 +46,10 @@ export default function AdminReports() {
   ] : []
   return <>
     <PageHeading title="Reports" subtitle="Operational summaries from existing service records." preview={false} />
-    <Paper component="form" onSubmit={apply} variant="outlined" sx={{ p: 2, mb: 2.5, borderColor: '#e5eaf1', borderRadius: 2.5 }}>
+    <Paper component="form" noValidate onSubmit={apply} variant="outlined" sx={{ p: 2, mb: 2.5, borderColor: 'var(--line)', borderRadius: 2.5 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
-        <TextField label="From" type="date" size="small" value={draft.from} onChange={event => setDraft(current => ({ ...current, from: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
-        <TextField label="To" type="date" size="small" value={draft.to} onChange={event => setDraft(current => ({ ...current, to: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
+        <TextField label="From" type="date" size="small" required value={draft.from} {...validation.field('from')} onChange={event => setDraft(current => ({ ...current, from: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
+        <TextField label="To" type="date" size="small" required value={draft.to} {...validation.field('to')} onChange={event => setDraft(current => ({ ...current, to: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} />
         <Button type="submit" variant="contained" disabled={loading}>Apply range</Button>
         <Typography sx={textStyle}>Filtered by scheduled visit date. Maximum 367 days.</Typography>
       </Stack>
@@ -55,7 +58,7 @@ export default function AdminReports() {
     {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading reports…</Typography></Stack>
       : report && <>
         <MetricCards items={cards} />
-        <Paper variant="outlined" sx={{ p: 2.5, mb: 2.5, borderColor: '#e5eaf1', borderRadius: 2.5 }}>
+        <Paper variant="outlined" sx={{ p: 2.5, mb: 2.5, borderColor: 'var(--line)', borderRadius: 2.5 }}>
           <Typography sx={{ fontSize: 13, fontWeight: 700 }}>Completed service estimate</Typography>
           <Typography sx={{ fontSize: 25, fontWeight: 750, color: 'primary.main', mt: .5 }}>{money(report.completedEstimate)}</Typography>
           <Typography sx={textStyle}>Sum of current Service catalog prices for completed visits in this range. This is an estimate, not payment or historical revenue.</Typography>

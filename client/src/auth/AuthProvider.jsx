@@ -53,6 +53,25 @@ export default function AuthProvider({ children }) {
     return profile.data.user
   }
   function retryRestore() { setLoading(true); setRestoreError(false); setRetry(value => value + 1) }
+  async function changeTemporaryPassword(values) {
+    const expectedRole = user?.role
+    if (!dashboards[expectedRole]) {
+      logout()
+      throw new Error('Your account session could not be verified. Please sign in again.')
+    }
+    const { data } = await api.post('/auth/change-temporary-password', values)
+    if (!data.accessToken) throw new Error('Your account session could not be verified. Please sign in again.')
+    const profile = await api.get('/auth/me', { headers: { Authorization: `Bearer ${data.accessToken}` } })
+    const updatedUser = profile.data.user
+    if (!dashboards[updatedUser?.role] || updatedUser.role !== expectedRole || updatedUser.mustChangePassword) {
+      logout()
+      throw new Error('Your account session could not be verified. Please sign in again.')
+    }
+    store(TOKEN_KEY, data.accessToken)
+    api.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`
+    setUser(updatedUser)
+    return updatedUser
+  }
 
-  return <AuthContext.Provider value={{ user, loading, restoreError, login, logout, retryRestore }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, restoreError, login, logout, retryRestore, changeTemporaryPassword }}>{children}</AuthContext.Provider>
 }

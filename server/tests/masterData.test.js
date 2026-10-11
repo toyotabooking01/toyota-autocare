@@ -10,6 +10,11 @@ const master = require('../services/masterDataService');
 test('service and bay payloads accept only valid master fields', () => {
   assert.deepEqual(master.input('service', { name: '  General PMS ', estimatedDuration: 60, estimatedPrice: 0 }, true),
     { name: 'General PMS', estimatedDuration: 60, estimatedPrice: 0 });
+  assert.deepEqual(master.input('service', { name: 'Brake Service', checklistTemplate: [' Inspect pads ', 'Check brake fluid'] }),
+    { name: 'Brake Service', checklistTemplate: ['Inspect pads', 'Check brake fluid'] });
+  for (const checklistTemplate of [[''], ['Inspect pads', ' inspect PADS '], Array.from({ length: 11 }, (_, index) => `Item ${index}`)]) {
+    assert.throws(() => master.input('service', { checklistTemplate }), { status: 400 });
+  }
   assert.equal(master.input('bay', { name: ' Bay 01 ', operationalStatus: 'maintenance' }, true).name, 'Bay 01');
   for (const body of [
     { name: 'Service', estimatedDuration: 0, estimatedPrice: 1 },

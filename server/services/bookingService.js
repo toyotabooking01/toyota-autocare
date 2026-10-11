@@ -7,14 +7,16 @@ const User = require('../models/User');
 const HttpError = require('../utils/HttpError');
 const scheduleService = require('./scheduleService');
 const engagement = require('./engagementService');
+const resourceAvailability = require('./resourceAvailabilityService');
 
 const releaseable = ['pending', 'confirmed'];
+const activeServiceStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'];
 const allStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
   'final_inspection', 'ready_for_release', 'completed', 'cancelled', 'rejected', 'no_show'];
 const populate = [
   { path: 'client', select: 'fullName email' },
   { path: 'vehicle', select: 'make model year plateNumber isArchived' },
-  { path: 'services', select: 'name estimatedDuration estimatedPrice isActive isArchived' },
+  { path: 'services', select: 'name estimatedDuration estimatedPrice isOtherService isActive isArchived' },
   { path: 'schedule', select: 'date timeSlot isEnabled maximumCapacity currentBookingCount' },
   { path: 'assignedMechanic', select: 'fullName' },
   { path: 'assignedServiceBay', select: 'name' },
@@ -25,6 +27,7 @@ function id(raw, label) {
   return raw;
 }
 function input(raw) {
+  require('../utils/validateForm')('booking', raw);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !['vehicle', 'services', 'schedule', 'concern'].includes(key))) {
     throw new HttpError(400, 'Invalid or unsupported booking fields.');
   }
@@ -38,7 +41,7 @@ function input(raw) {
 }
 async function options() {
   return Service.find({ isActive: true, isArchived: false })
-    .select('name description estimatedDuration estimatedPrice').sort({ name: 1 }).lean();
+    .select('name description estimatedDuration estimatedPrice isOtherService').sort({ name: 1 }).lean();
 }
 async function walkInClients(rawSearch) {
   if (typeof rawSearch !== 'string' || rawSearch.trim().length < 2 || rawSearch.length > 100) {
@@ -60,34 +63,68 @@ async function walkInVehicles(rawClientId) {
   return vehicles.map(vehicle => ({ _id: vehicle._id, make: vehicle.make, model: vehicle.model,
     year: vehicle.year, plateNumber: vehicle.plateNumber }));
 }
+async function activeServiceIds(rawVehicleId, clientId) {
+  const vehicleId = id(rawVehicleId, 'vehicle');
+  if (!await Vehicle.exists({ _id: vehicleId, owner: clientId, isArchived: false })) throw new HttpError(404, 'Vehicle not found.');
+  const active = await Booking.find({ vehicle: vehicleId, client: clientId, status: { $in: activeServiceStatuses } })
+    .select('services').lean();
+  return [...new Set(active.flatMap(booking => booking.services || []).map(String))];
+}
 async function createFor(clientId, raw, bookingType) {
   const data = input(raw);
-  let createdId;
-  await mongoose.connection.transaction(async session => {
+  const createdId = await mongoose.connection.transaction(session => reserveBooking(session, clientId, data, bookingType));
+  return get(createdId, bookingType === 'online' ? clientId : undefined);
+}
+async function reserveBooking(session, clientId, data, bookingType) {
     if (bookingType === 'walk-in') {
       const client = await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false }).session(session);
-      if (!client) throw new HttpError(400, 'Select an active client account.');
+      if (!client) throw new HttpError(400, 'Select an active client account.', { client: 'Select an active client account.' });
     }
     const vehicle = await Vehicle.exists({ _id: data.vehicle, owner: clientId, isArchived: false }).session(session);
-    if (!vehicle) throw new HttpError(400, 'Select one of your current vehicles.');
-    const serviceCount = await Service.countDocuments({ _id: { $in: data.services }, isActive: true, isArchived: false }).session(session);
-    if (serviceCount !== data.services.length) throw new HttpError(400, 'One or more services are unavailable.');
+    if (!vehicle) throw new HttpError(400, 'Select one of your current vehicles.', { vehicle: 'Select one of your current vehicles.' });
+    // Serialize bookings per vehicle so concurrent requests cannot both pass this check.
+    const vehicleGuard = await Vehicle.updateOne({ _id: data.vehicle, owner: clientId, isArchived: false },
+      { $inc: { bookingLockVersion: 1 } }, { session });
+    if (vehicleGuard.matchedCount !== 1) throw new HttpError(400, 'Select one of your current vehicles.', { vehicle: 'Select one of your current vehicles.' });
+    const selectedServices = await Service.find({ _id: { $in: data.services }, isActive: true, isArchived: false })
+      .select('_id estimatedDuration isOtherService').session(session).lean();
+    if (selectedServices.length !== data.services.length) throw new HttpError(400, 'One or more services are unavailable.', { services: 'One or more services are unavailable.' });
+    const activeBookings = await Booking.find({ vehicle: data.vehicle, status: { $in: activeServiceStatuses }, services: { $in: data.services } })
+      .select('services').session(session).lean();
+    const activeServiceSet = new Set(activeBookings.flatMap(booking => booking.services || []).map(String));
+    const duplicateServiceIds = data.services.filter(serviceId => activeServiceSet.has(String(serviceId)));
+    if (duplicateServiceIds.length) {
+      throw new HttpError(409, 'This vehicle already has an active booking for one or more selected services.', {
+        services: 'This vehicle already has an active booking for one or more selected services.', duplicateServiceIds,
+      });
+    }
+    if (selectedServices.some(service => service.isOtherService) && !data.concern.trim()) {
+      throw new HttpError(400, 'Describe the issue or service needed.', { concern: 'Describe the issue or service needed.' });
+    }
+    let estimatedDurationMinutes;
+    try { estimatedDurationMinutes = resourceAvailability.calculateTotalDuration(selectedServices); }
+    catch { throw new HttpError(409, 'The selected services do not have valid durations.', { services: 'Please choose services with valid durations.' }); }
     const slot = await Schedule.findById(data.schedule).session(session).lean();
-    if (!slot || !slot.isEnabled || !scheduleService.isFuture(slot)) throw new HttpError(409, 'Selected schedule is unavailable. Please choose another time.');
+    if (!slot || !slot.isEnabled || !scheduleService.isFuture(slot)) throw new HttpError(409, 'Selected schedule is unavailable. Please choose another time.', { schedule: 'Selected schedule is unavailable. Please choose another time.' });
+    const period = resourceAvailability.intervalFor(slot.date, slot.timeSlot, estimatedDurationMinutes);
+    if (!period) throw new HttpError(409, 'Selected services do not fit within the scheduled work day.', { schedule: 'Choose an earlier start time for the selected services.' });
+    if (!scheduleService.withinWorkingHours(slot, period)) throw new HttpError(409, 'Selected services do not fit within working hours.', { schedule: 'Choose a time that ends before closing.' });
+    const resourceFit = await resourceAvailability.canFitBooking(period, { session });
+    if (!resourceFit.available) throw new HttpError(409, 'No Mechanic and Service Bay are available for the full service duration.', { schedule: 'Choose another time with enough continuous availability.' });
     const reserved = await Schedule.findOneAndUpdate({
       _id: data.schedule, isEnabled: true, date: slot.date, timeSlot: slot.timeSlot,
       $expr: { $lt: ['$currentBookingCount', '$maximumCapacity'] },
     }, { $inc: { currentBookingCount: 1 } }, { returnDocument: 'after', session });
-    if (!reserved) throw new HttpError(409, 'The selected schedule is already full. Please choose another time.');
+    if (!reserved) throw new HttpError(409, 'The selected schedule is already full. Please choose another time.', { schedule: 'The selected schedule is already full. Please choose another time.' });
     const [booking] = await Booking.create([{
       client: clientId, vehicle: data.vehicle, services: data.services, schedule: data.schedule,
       bookingDate: reserved.date, bookingTime: reserved.timeSlot, bookingType,
+      initialEstimatedDurationMinutes: estimatedDurationMinutes,
+      estimatedDurationMinutes, reservedStartAt: period.startAt, reservedEndAt: period.endAt,
       concern: data.concern, status: bookingType === 'walk-in' ? 'confirmed' : 'pending',
     }], { session });
     if (bookingType === 'walk-in') await engagement.recordBookingEvent(session, booking, 'confirmed');
-    createdId = booking._id;
-  });
-  return get(createdId, bookingType === 'online' ? clientId : undefined);
+    return booking._id;
 }
 async function create(clientId, raw) { return createFor(clientId, raw, 'online'); }
 async function createWalkIn(raw) {
@@ -123,7 +160,8 @@ async function list(query, clientId) {
       if (mongoose.isObjectIdOrHexString(search)) filter.$or.push({ _id: search });
     }
   }
-  return Booking.find(filter).sort({ bookingDate: -1, bookingTime: -1, createdAt: -1 }).populate(populate).lean();
+  return require('../utils/pagination').listPage(Booking, filter, clientId ? {} : query,
+    () => Booking.find(filter).sort({ bookingDate: -1, bookingTime: -1, createdAt: -1, _id: -1 }).populate(populate));
 }
 async function get(rawId, clientId) {
   const filter = { _id: id(rawId, 'booking') };
@@ -169,4 +207,4 @@ async function transition(rawId, actor, action) {
   }
   return get(bookingId, filter.client);
 }
-module.exports = { input, options, walkInClients, walkInVehicles, create, createWalkIn, list, get, transition };
+module.exports = { input, reserveBooking, options, walkInClients, walkInVehicles, activeServiceIds, create, createWalkIn, list, get, transition };

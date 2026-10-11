@@ -1,3 +1,4 @@
+import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useState } from 'react'
 import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
 import api from '../services/api'
@@ -5,6 +6,7 @@ import { statusStyles } from '../app/statuses'
 import StatusChip from '../components/StatusChip'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
+import ListPagination from '../components/ListPagination'
 import { dateLabel, money } from './bookingDisplay'
 import AssignmentDialog from './AssignmentDialog'
 import { Link } from 'react-router-dom'
@@ -18,13 +20,14 @@ export default function BookingList({ role }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [date, setDate] = useState('')
-  const { items, loading, error, setError, reload } = useCatalog('/bookings', { status, search: admin ? search : undefined, date: admin ? date : undefined })
+  const { items, loading, error, setError, fieldErrors, reload, pagination } = useCatalog('/bookings', { status, search: admin ? search : undefined, date: admin ? date : undefined }, admin)
   const [notice, setNotice] = useState('')
   const [details, setDetails] = useState(null)
   const [action, setAction] = useState(null)
   const [assignment, setAssignment] = useState(null)
   const [saving, setSaving] = useState(false)
   async function applyAction() {
+    if (saving || !action) return
     if (!action) return
     setSaving(true)
     try {
@@ -44,20 +47,21 @@ export default function BookingList({ role }) {
     <PageHeading title={admin ? 'Bookings' : 'My bookings'} subtitle={admin ? 'Review upcoming appointments and manage early booking decisions.' : 'Follow your service appointments and view their details.'} preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: '#e5eaf1', borderRadius: 2.5 }}>
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
-        {admin && <TextField size="small" label="Search reference, customer, vehicle" value={search} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />}
+        {admin && <TextField size="small" label="Search reference, customer, vehicle" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />}
         <TextField size="small" select label="Status" value={status} onChange={event => setStatus(event.target.value)} sx={{ minWidth: 175, ...(!admin ? { flex: 1 } : {}) }}><MenuItem value="all">All statuses</MenuItem>{Object.entries(statusStyles).map(([key, item]) => <MenuItem key={key} value={key}>{item.label}</MenuItem>)}</TextField>
-        {admin && <TextField size="small" label="Filter date" type="date" value={date} onChange={event => setDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }} />}
+        {admin && <TextField size="small" label="Filter date" type="date" value={date} error={Boolean(fieldErrors.date)} helperText={fieldErrors.date} onChange={event => setDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }} />}
       </Stack>
       {loading ? <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading bookings…</Typography></Stack>
         : !items.length ? <Typography sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>No bookings match this view.</Typography>
-          : <Stack spacing={1}>{items.map(booking => <Box key={booking._id} sx={{ p: 2, border: '1px solid #e9edf2', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 2, minWidth: 0 }}>
+          : <Stack spacing={1}>{items.map(booking => <Box key={booking._id} sx={{ p: 2, border: '1px solid var(--line)', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 2, minWidth: 0 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{vehicleName(booking.vehicle)}</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', overflowWrap: 'anywhere', mt: .5 }}>{dateLabel(booking.bookingDate)} · {booking.bookingTime} · Ref {booking._id}{admin && booking.client ? ` · ${booking.client.fullName}` : ''}</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: .5 }}>{(booking.services || []).map(service => service?.name || 'Unavailable service').join(', ')}</Typography>
-            </Box><Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"><Chip size="small" label={sourceLabel(booking)} variant="outlined" sx={{ fontSize: 11, borderColor: '#dce3ec', color: 'text.secondary' }} /><StatusChip status={booking.status} /><Button size="small" variant="outlined" onClick={() => setDetails(booking)}>Details</Button></Stack>
+            </Box><Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center"><Chip size="small" label={sourceLabel(booking)} variant="outlined" sx={{ fontSize: 11, borderColor: 'var(--line)', color: 'text.secondary' }} /><StatusChip status={booking.status} /><Button size="small" variant="outlined" onClick={() => setDetails(booking)}>Details</Button></Stack>
           </Box>)}</Stack>}
+      <ListPagination pagination={pagination} />
     </Paper>
     <Dialog open={Boolean(details)} onClose={() => setDetails(null)} fullWidth maxWidth="sm" aria-labelledby="booking-details-title">
       <DialogTitle id="booking-details-title">Booking details</DialogTitle><DialogContent>{details && <Stack spacing={2} sx={{ pt: 1 }}>
@@ -76,7 +80,9 @@ export default function BookingList({ role }) {
         <Button onClick={() => setDetails(null)}>Close</Button>
       </DialogActions>
     </Dialog>
-    <Dialog open={Boolean(action)} onClose={() => { if (!saving) setAction(null) }} aria-labelledby="booking-action-title"><DialogTitle id="booking-action-title">{action && `${actionLabels[action.kind]} booking?`}</DialogTitle><DialogContent><Typography sx={{ fontSize: 13 }}>{action?.kind === 'cancel' || action?.kind === 'reject' ? 'The appointment slot will be released.' : action?.kind === 'check-in' ? 'The customer will be marked checked in. Schedule capacity will not change.' : 'The booking will be marked confirmed.'}</Typography></DialogContent><DialogActions sx={{ p: 2 }}><Button disabled={saving} onClick={() => setAction(null)}>Back</Button><Button disabled={saving} variant="contained" onClick={applyAction}>{saving ? 'Saving…' : action ? actionLabels[action.kind] : 'Continue'}</Button></DialogActions></Dialog>
+    <ConfirmationDialog open={Boolean(action)} busy={saving} onCancel={() => { setDetails(action?.booking || null); setAction(null) }} onConfirm={applyAction}
+      message={action?.kind === 'cancel' ? 'Are you sure you want to cancel this booking?' : `Are you sure you want to ${action?.kind === 'check-in' ? 'check in' : action?.kind} this booking?`}
+      details={action?.kind === 'cancel' || action?.kind === 'reject' ? 'The appointment slot will be released.' : action?.kind === 'check-in' ? 'The customer will be marked checked in. Schedule capacity will not change.' : 'The booking will be marked confirmed.'} />
     {assignment && <AssignmentDialog booking={assignment} onClose={() => setAssignment(null)} onAssigned={() => { setAssignment(null); setNotice('Mechanic and Bay assigned. Job Order created.'); reload() }} />}
   </>
 }

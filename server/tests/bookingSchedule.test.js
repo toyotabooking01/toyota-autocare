@@ -8,6 +8,7 @@ const Service = require('../models/Service');
 const bookings = require('../services/bookingService');
 const schedules = require('../services/scheduleService');
 const engagement = require('../services/engagementService');
+const resourceAvailability = require('../services/resourceAvailabilityService');
 const originalRecordEvent = engagement.recordBookingEvent;
 before(() => { engagement.recordBookingEvent = async () => {}; });
 after(() => { engagement.recordBookingEvent = originalRecordEvent; });
@@ -59,20 +60,31 @@ test('capacity reduction is conditional on the current reserved count', async ()
 test('booking admission validates ownership, services and atomic capacity before insert', async () => {
   const oldTransaction = mongoose.connection.transaction;
   const oldVehicle = Vehicle.exists;
-  const oldService = Service.countDocuments;
+  const oldVehicleUpdate = Vehicle.updateOne;
+  const oldService = Service.find;
+  const oldActiveBookings = Booking.find;
+  const oldResourceFit = resourceAvailability.canFitBooking;
   const oldSchedule = Schedule.findById;
   const oldReserve = Schedule.findOneAndUpdate;
   const oldCreate = Booking.create;
   const oldFind = Booking.findOne;
   const client = id();
   const body = sample();
-  let owned = true; let activeServices = 2; let seats = 1; let inserts = 0; let reserveFilter;
+  const requestedServiceIds = [...body.services];
+  let owned = true; let activeServices = 2; let seats = 1; let inserts = 0; let reserveFilter; let createdRecord; let includeWorkingHours = false; let otherSelected = false;
+  let existingActiveServices = [];
   mongoose.connection.transaction = async fn => fn({});
   Vehicle.exists = query => ({ session: async () => query.owner.equals(client) && owned ? { _id: body.vehicle } : null });
-  Service.countDocuments = () => ({ session: async () => activeServices });
-  Schedule.findById = () => ({ session: () => ({ lean: async () => ({ ...future, maximumCapacity: 1 }) }) });
+  Vehicle.updateOne = async () => ({ matchedCount: 1 });
+  Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => existingActiveServices.length ? [{ services: existingActiveServices }] : [] }) }) });
+  Service.find = filter => ({ select: () => ({ session: () => ({ lean: async () => filter._id.$in.slice(0, activeServices).map(serviceId => ({
+    _id: serviceId, estimatedDuration: String(serviceId) === String(requestedServiceIds[1]) ? 120 : 60,
+    isOtherService: otherSelected && String(serviceId) === String(requestedServiceIds[0]),
+  })) }) }) });
+  resourceAvailability.canFitBooking = async () => ({ available: true });
+  Schedule.findById = () => ({ session: () => ({ lean: async () => ({ ...future, maximumCapacity: 1, ...(includeWorkingHours ? { openingTime: '08:00', closingTime: '11:00' } : {}) }) }) });
   Schedule.findOneAndUpdate = async query => { reserveFilter = query; return seats-- > 0 ? { ...future } : null; };
-  Booking.create = async records => { inserts++; return [{ _id: id(), ...records[0] }]; };
+  Booking.create = async records => { inserts++; createdRecord = records[0]; return [{ _id: id(), ...records[0] }]; };
   Booking.findOne = () => ({ populate: () => ({ lean: async () => ({ _id: id() }) }) });
   try {
     owned = false;
@@ -80,14 +92,38 @@ test('booking admission validates ownership, services and atomic capacity before
     owned = true; activeServices = 1;
     await assert.rejects(bookings.create(client, body), { status: 400 });
     activeServices = 2;
+    otherSelected = true;
+    await assert.rejects(bookings.create(client, body), { status: 400 });
+    body.concern = 'Engine noise during acceleration';
+    existingActiveServices = [requestedServiceIds[0]];
+    await assert.rejects(bookings.create(client, body), error => error.status === 409
+      && error.errors.duplicateServiceIds.some(serviceId => String(serviceId) === String(requestedServiceIds[0])));
+    body.services = [requestedServiceIds[1]];
+    await bookings.create(client, body);
+    assert.deepEqual(createdRecord.services, body.services);
+    body.services = requestedServiceIds;
+    existingActiveServices = []; seats = 1; inserts = 0;
+    includeWorkingHours = true;
+    await assert.rejects(bookings.create(client, body), { status: 409 });
+    assert.equal(inserts, 0);
+    includeWorkingHours = false;
+    resourceAvailability.canFitBooking = async () => ({ available: false });
+    await assert.rejects(bookings.create(client, body), { status: 409 });
+    assert.equal(inserts, 0);
+    resourceAvailability.canFitBooking = async () => ({ available: true });
     await bookings.create(client, body);
     assert.equal(reserveFilter.$expr.$lt[0], '$currentBookingCount');
     assert.equal(inserts, 1);
+    assert.equal(createdRecord.estimatedDurationMinutes, 180);
+    assert.equal(createdRecord.concern, body.concern);
+    assert.equal(createdRecord.reservedStartAt.toISOString(), '2035-05-12T01:00:00.000Z');
+    assert.equal(createdRecord.reservedEndAt.toISOString(), '2035-05-12T04:00:00.000Z');
     await assert.rejects(bookings.create(client, body), { status: 409 });
     assert.equal(inserts, 1);
   } finally {
-    mongoose.connection.transaction = oldTransaction; Vehicle.exists = oldVehicle;
-    Service.countDocuments = oldService; Schedule.findById = oldSchedule;
+    mongoose.connection.transaction = oldTransaction; Vehicle.exists = oldVehicle; Vehicle.updateOne = oldVehicleUpdate;
+    Booking.find = oldActiveBookings;
+    Service.find = oldService; resourceAvailability.canFitBooking = oldResourceFit; Schedule.findById = oldSchedule;
     Schedule.findOneAndUpdate = oldReserve; Booking.create = oldCreate; Booking.findOne = oldFind;
   }
 });
@@ -95,7 +131,10 @@ test('booking admission validates ownership, services and atomic capacity before
 test('failed booking insert aborts the capacity reservation transaction', async () => {
   const oldTransaction = mongoose.connection.transaction;
   const oldVehicle = Vehicle.exists;
-  const oldService = Service.countDocuments;
+  const oldVehicleUpdate = Vehicle.updateOne;
+  const oldService = Service.find;
+  const oldActiveBookings = Booking.find;
+  const oldResourceFit = resourceAvailability.canFitBooking;
   const oldSchedule = Schedule.findById;
   const oldReserve = Schedule.findOneAndUpdate;
   const oldCreate = Booking.create;
@@ -103,7 +142,10 @@ test('failed booking insert aborts the capacity reservation transaction', async 
   let reserved = 0;
   mongoose.connection.transaction = async fn => { try { return await fn({}); } catch (error) { reserved = 0; throw error; } };
   Vehicle.exists = () => ({ session: async () => ({ _id: body.vehicle }) });
-  Service.countDocuments = () => ({ session: async () => 2 });
+  Vehicle.updateOne = async () => ({ matchedCount: 1 });
+  Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
+  Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60 })) }) }) });
+  resourceAvailability.canFitBooking = async () => ({ available: true });
   Schedule.findById = () => ({ session: () => ({ lean: async () => ({ ...future }) }) });
   Schedule.findOneAndUpdate = async () => { reserved++; return future; };
   Booking.create = async () => { throw new Error('Simulated insert failure'); };
@@ -111,8 +153,9 @@ test('failed booking insert aborts the capacity reservation transaction', async 
     await assert.rejects(bookings.create(id(), body), /Simulated insert failure/);
     assert.equal(reserved, 0);
   } finally {
-    mongoose.connection.transaction = oldTransaction; Vehicle.exists = oldVehicle;
-    Service.countDocuments = oldService; Schedule.findById = oldSchedule;
+    mongoose.connection.transaction = oldTransaction; Vehicle.exists = oldVehicle; Vehicle.updateOne = oldVehicleUpdate;
+    Booking.find = oldActiveBookings;
+    Service.find = oldService; resourceAvailability.canFitBooking = oldResourceFit; Schedule.findById = oldSchedule;
     Schedule.findOneAndUpdate = oldReserve; Booking.create = oldCreate;
   }
 });
@@ -191,3 +234,4 @@ test('client booking list includes ownership in its database filter', async () =
     assert.equal(filter.status, 'pending');
   } finally { Booking.find = oldFind; }
 });
+

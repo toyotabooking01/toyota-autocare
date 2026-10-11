@@ -7,9 +7,9 @@ Notifications, Maintenance Reminders, and operational reports. Other
 resource groups below remain plans for later phases.
 See [authentication API and setup](authentication.md) for exact request/response
 bodies, OTP/reset behavior, JWT/RBAC, bootstrap, configuration and test results.
-Brevo delivery code remains in place; this development environment currently has
-a provider-side queue/account issue. The development-only auto-verification
-switch is documented in the README.
+Outbound email uses the generic SMTP settings documented in
+[authentication API and setup](authentication.md), configured for Mailjet.
+The development-only auto-verification switch is documented in the README.
 See [model relationships and capacity rules](model-relationships.md) for the
 enforcement plan and tested atomic capacity example.
 

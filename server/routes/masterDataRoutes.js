@@ -15,6 +15,7 @@ function routes(kind) {
   });
   router.use(authenticate, authorize('admin'));
   router.get('/', actions.list);
+  if (kind === 'bay') router.get('/name-availability', actions.bayNameAvailability);
   router.get('/:id', actions.get);
   router.post('/', actions.create);
   router.patch('/:id', actions.update);

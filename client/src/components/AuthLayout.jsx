@@ -4,14 +4,15 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded'
 import BuildOutlined from '@mui/icons-material/BuildOutlined'
 import HistoryRounded from '@mui/icons-material/HistoryRounded'
 import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRounded'
-import journey from '../assets/journey.svg'
+import ThemeToggle from './ThemeToggle'
 
 export default function AuthLayout({ children }) {
   const { pathname } = useLocation()
-  return <div className="site-wrap">
+  return <div className={`site-wrap${pathname === '/register' ? ' site-wrap--registration' : ''}`}>
     <header className="site-header">
       <Link className="brand" to="/login"><span>Toyota</span> AutoCare<span className="brand-dot">.</span></Link>
       <div className="header-right"><span className="header-note">A little care. A longer journey.</span>
+        <ThemeToggle />
         {pathname !== '/login' && <Button component={Link} to="/login" variant="outlined" size="small" startIcon={<ArrowBackRounded />}>Back to sign in</Button>}
       </div>
     </header>
@@ -21,7 +22,6 @@ export default function AuthLayout({ children }) {
           <h1>Reliable care<br />for every journey.</h1>
           <p>Your Toyota deserves expert care.<br />We make staying connected simple.</p>
         </div>
-        <img className="journey-art" src={journey} alt="Illustration of a silver sedan on a scenic mountain road" />
         <div className="benefits">
           <div><span><BuildOutlined /></span><p>Care you can count on</p></div>
           <div><span><HistoryRounded /></span><p>Your vehicle’s story, in one place</p></div>

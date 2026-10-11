@@ -11,7 +11,10 @@ import JobPreviewList from '../components/JobPreviewList'
 import { dateLabel } from './bookingDisplay'
 import { dateText, vehicleText } from './maintenanceDisplay'
 import { bookingPreview, jobPreview, manilaToday, vehicleName } from './dashboardData'
-import journey from '../assets/journey.svg'
+import { mechanicAvailabilityLabel } from '../utils/mechanicAvailability'
+import journey from '../assets/autocare-scenic.png'
+import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
+import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRounded'
 
 const grid = { display: 'grid', gap: 2.5, alignItems: 'start' }
 const small = { fontSize: 12, color: 'text.secondary' }
@@ -53,21 +56,22 @@ export function ClientDashboard() {
   const nextReminder = reminders.find(item => item.status === 'pending')
   const unread = notifications.filter(item => !item.isRead).length
   return <>{heading}
-    <Box sx={{ ...grid, gridTemplateColumns: { xs: '1fr', md: '1.4fr 1fr', xl: '1.5fr 1fr 1fr' }, mb: 2.5 }}>
-      <Paper variant="outlined" sx={{ position: 'relative', overflow: 'hidden', borderRadius: 2.5, borderColor: '#e5eaf1', bgcolor: '#eaf0f4', minHeight: 240 }}>
-        <Box component="img" src={journey} alt="Silver sedan on a mountain road" sx={{ position: 'absolute', right: 0, bottom: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: .5 }} />
-        <Box sx={{ position: 'relative', p: 3 }}><Typography component="h2" sx={{ fontSize: 24, fontWeight: 750, lineHeight: 1.15, maxWidth: 240 }}>Reliable care<br />for every journey.</Typography>
-          <Typography sx={{ ...small, mt: 1, mb: 3 }}>Expert service. Genuine care.</Typography>
+    <Box className="client-overview" sx={{ ...grid, gridTemplateColumns: theme => theme.palette.mode === 'dark' ? { xs: '1fr', md: '1fr 1fr', lg: '1.5fr 1fr 1fr' } : { xs: '1fr', md: '1fr 1fr' }, mb: 2.5 }}>
+      <Paper className="dashboard-hero" variant="outlined" sx={{ position: 'relative', overflow: 'hidden', borderRadius: 3, minHeight: theme => theme.palette.mode === 'dark' ? 320 : 280, gridColumn: theme => theme.palette.mode === 'dark' ? { xs: '1 / -1', lg: 'auto' } : '1 / -1', color: '#fff' }}>
+        <Box component="img" src={journey} alt="Silver Toyota on a scenic mountain road" sx={{ position: 'absolute', right: 0, bottom: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 62%' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, #07111ce6, #07111c40 60%, transparent)' }} />
+        <Box sx={{ position: 'relative', p: { xs: 3, md: 4 } }}><Typography sx={{ fontSize: 10, letterSpacing: 2.5, mb: 2, color: '#f8cdd1' }}>BUILT FOR THE ROAD AHEAD</Typography><Typography component="h2" sx={{ fontSize: { xs: 28, md: 36 }, fontWeight: 750, lineHeight: 1.15, maxWidth: 340 }}>Reliable care<br />for every journey.</Typography>
+          <Typography sx={{ fontSize: 13, color: '#e2e8ef', mt: 1, mb: 3 }}>Expert service. Genuine care.</Typography>
           <Button component={Link} to="/client/book-service" variant="contained" endIcon={<ArrowForwardRounded />}>Book a service</Button>
         </Box>
       </Paper>
-      <Panel title="Current or upcoming service" to="/client/bookings" action="My bookings" sx={{ minHeight: 240 }}>
+      <Panel title="Current or upcoming service" to="/client/bookings" action="My bookings" sx={{ minHeight: theme => theme.palette.mode === 'dark' ? 320 : 205 }}>
         {current ? <><StatusChip status={current.status} /><Typography sx={{ ...strong, mt: 1.5 }}>{vehicleName(current.vehicle)}</Typography>
           <Typography sx={{ ...small, mt: .5 }}>{(current.services || []).map(item => item?.name).filter(Boolean).join(', ') || 'Service unavailable'}</Typography>
           <Typography sx={{ ...small, mt: 2 }}>Scheduled visit</Typography><Typography sx={strong}>{dateLabel(current.bookingDate)} · {current.bookingTime}</Typography></>
           : <Typography sx={small}>No current or upcoming booking.</Typography>}
       </Panel>
-      <Panel title="Next maintenance" to="/client/reminders" action="View maintenance" sx={{ minHeight: { xl: 240 }, gridColumn: { md: '1 / -1', xl: 'auto' } }}>
+      <Panel title="Next maintenance" to="/client/reminders" action="View maintenance" sx={{ minHeight: theme => theme.palette.mode === 'dark' ? 320 : 205 }}>
         <Typography sx={{ fontSize: nextReminder ? 22 : 14, fontWeight: 700, color: nextReminder ? 'primary.main' : 'text.secondary' }}>{nextReminder ? dateText(nextReminder.nextRecommendedServiceDate) : 'No recommendation yet'}</Typography>
         <Typography sx={{ ...small, mt: 1, mb: 2 }}>{nextReminder ? `${vehicleText(nextReminder.vehicle)} · ${nextReminder.service?.name || 'Service'}` : 'Recommendations appear after completed services with a configured interval.'}</Typography>
         <Button component={Link} to="/client/book-service" variant="outlined" fullWidth>Plan a visit</Button>
@@ -75,12 +79,14 @@ export function ClientDashboard() {
     </Box>
     <Box sx={{ ...grid, gridTemplateColumns: { xs: '1fr', md: '1.3fr 1fr' } }}>
       <Panel title={`My vehicles · ${vehicles.length}`} to="/client/vehicles">
-        {!vehicles.length ? <Typography sx={small}>No vehicles added yet.</Typography> : <Stack spacing={1}>{vehicles.slice(0, 3).map(vehicle => <Typography key={vehicle._id} sx={strong}>{vehicleText(vehicle)}</Typography>)}</Stack>}
+        {!vehicles.length ? <Typography sx={small}>No vehicles added yet.</Typography> : <Stack spacing={1}>{vehicles.slice(0, 3).map(vehicle => <Box key={vehicle._id} component={Link} to="/client/vehicles" className="vehicle-preview">
+          <Box className="vehicle-symbol"><DirectionsCarOutlined /></Box><Box sx={{ flex: 1 }}><Typography sx={strong}>{vehicle.make} {vehicle.model} {vehicle.year}</Typography><Typography sx={small}>{vehicle.plateNumber}</Typography></Box><ArrowForwardRounded sx={{ fontSize: 17 }} />
+        </Box>)}</Stack>}
         <Typography sx={{ ...small, mt: 2 }}>Latest completed service: {latest ? `${(latest.services || []).map(item => item?.name).filter(Boolean).join(', ')} · ${dateLabel(latest.bookingDate)}` : 'None yet'}</Typography>
       </Panel>
-      <Panel title={`Notifications${unread ? ` · ${unread} unread` : ''}`} to="/client/notifications"><Stack spacing={2}>{!notifications.length ? <Typography sx={small}>No notifications yet.</Typography> : notifications.slice(0, 3).map(item => <Box key={item._id}>
-        <Typography sx={{ fontSize: 13, fontWeight: item.isRead ? 550 : 700 }}>{item.title}</Typography><Typography sx={{ ...small, mt: .4 }}>{item.message}</Typography>
-      </Box>)}</Stack></Panel>
+      <Panel title={`Notifications${unread ? ` · ${unread} unread` : ''}`} to="/client/notifications"><Stack spacing={2}>{!notifications.length ? <Typography sx={small}>No notifications yet.</Typography> : notifications.slice(0, 3).map(item => <Stack direction="row" spacing={1.5} key={item._id} sx={{ pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box className="notification-symbol"><NotificationsNoneRounded fontSize="small" /></Box><Box><Typography sx={{ fontSize: 13, fontWeight: item.isRead ? 550 : 700 }}>{item.title}</Typography><Typography sx={{ ...small, mt: .4 }}>{item.message}</Typography></Box>
+      </Stack>)}</Stack></Panel>
     </Box>
   </>
 }
@@ -133,13 +139,13 @@ export function AdminDashboard() {
     <Box sx={{ ...grid, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' } }}>
       <Panel title={`Mechanic availability · ${currentMechanics.filter(item => item.availability === 'available').length}/${currentMechanics.length}`} to="/admin/mechanics">
         {!currentMechanics.length ? <Typography sx={small}>No active mechanics.</Typography> : <Stack spacing={1.5}>{currentMechanics.slice(0, 6).map(item => <Stack key={item._id} direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{item.fullName}</Typography><Chip size="small" label={item.availability.replace('_', ' ')} sx={{ textTransform: 'capitalize', bgcolor: item.availability === 'available' ? '#eaf6ed' : '#eef1f6' }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{item.fullName}</Typography><Chip size="small" label={mechanicAvailabilityLabel(item.availability)} sx={{ bgcolor: item.availability === 'available' ? 'var(--green-soft)' : 'var(--surface-soft)' }} />
         </Stack>)}</Stack>}
       </Panel>
       <Panel title={`Service Bay availability · ${currentBays.filter(item => item.operationalStatus === 'operational' && item.availability === 'available').length}/${currentBays.length}`} to="/admin/service-bays">
         {!currentBays.length ? <Typography sx={small}>No service bays configured.</Typography> : <Stack spacing={1.5}>{currentBays.slice(0, 6).map(item => <Stack key={item._id} direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-          <Stack direction="row" spacing={1} alignItems="center"><GarageOutlined sx={{ color: '#788495', fontSize: 19 }} /><Typography sx={{ fontSize: 13, fontWeight: 600 }}>{item.name}</Typography></Stack>
-          <Chip size="small" label={item.operationalStatus === 'operational' ? item.availability : item.operationalStatus.replaceAll('_', ' ')} sx={{ textTransform: 'capitalize', bgcolor: item.operationalStatus === 'operational' && item.availability === 'available' ? '#eaf6ed' : '#eef1f6' }} />
+          <Stack direction="row" spacing={1} alignItems="center"><GarageOutlined sx={{ color: 'var(--muted)', fontSize: 19 }} /><Typography sx={{ fontSize: 13, fontWeight: 600 }}>{item.name}</Typography></Stack>
+          <Chip size="small" label={item.operationalStatus === 'operational' ? item.availability : item.operationalStatus.replaceAll('_', ' ')} sx={{ textTransform: 'capitalize', bgcolor: item.operationalStatus === 'operational' && item.availability === 'available' ? 'var(--green-soft)' : 'var(--surface-soft)' }} />
         </Stack>)}</Stack>}
       </Panel>
     </Box>

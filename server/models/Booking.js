@@ -23,6 +23,17 @@ const bookingSchema = new mongoose.Schema({
   bookingDate: { ...calendarDate },
   bookingTime: { ...timeSlot },
   bookingType: { type: String, enum: ['online', 'walk-in'], required: true },
+  estimatedDurationMinutes: { type: Number, min: 1, validate: value => value == null || Number.isInteger(value) },
+  initialEstimatedDurationMinutes: { type: Number, min: 1, validate: value => value == null || Number.isInteger(value) },
+  durationHistory: [{
+    previousDurationMinutes: { type: Number, required: true, min: 1 },
+    newDurationMinutes: { type: Number, required: true, min: 1 },
+    changedAt: { type: Date, required: true },
+    changedBy: reference('User'),
+  }],
+  actualDurationMinutes: { type: Number, min: 1, validate: value => value == null || Number.isInteger(value) },
+  reservedStartAt: Date,
+  reservedEndAt: Date,
   concern: { type: String, trim: true, maxlength: 3000, default: '' },
   notes: { type: String, trim: true, maxlength: 5000, default: '' },
   estimatedCompletion: Date,
@@ -34,6 +45,14 @@ const bookingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 bookingSchema.index({ bookingDate: 1, bookingTime: 1, status: 1 });
+bookingSchema.index({ bookingDate: 1, status: 1, reservedStartAt: 1, reservedEndAt: 1 });
 bookingSchema.index({ client: 1, createdAt: -1 });
+
+bookingSchema.pre('validate', function () {
+  const hasStart = this.reservedStartAt != null;
+  const hasEnd = this.reservedEndAt != null;
+  if (hasStart !== hasEnd) this.invalidate('reservedEndAt', 'Reservation needs both start and end times.');
+  else if (hasStart && this.reservedEndAt <= this.reservedStartAt) this.invalidate('reservedEndAt', 'Reservation end must follow its start.');
+});
 
 module.exports = mongoose.model('Booking', bookingSchema);

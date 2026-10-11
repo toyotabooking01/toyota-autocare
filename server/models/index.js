@@ -10,4 +10,5 @@ module.exports = {
   Notification: require('./Notification'),
   MaintenanceReminder: require('./MaintenanceReminder'),
   EmailOtp: require('./EmailOtp'),
+  Counter: require('./Counter'),
 };

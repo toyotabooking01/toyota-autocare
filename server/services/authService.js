@@ -10,30 +10,25 @@ const { jwtConfig, otpConfig } = require('../config/auth');
 const emailService = require('./emailService');
 const otpService = require('./otpService');
 const { signAccessToken } = require('./tokenService');
-const { autoVerifyNewClient } = require('../config/emailBehavior');
 
 const dummyHash = bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
 const genericEmailMessage = 'If the account is eligible, a code will be sent. Please wait 60 seconds before requesting another.';
 
 async function register(body) {
   const input = validation.registration(body);
-  const autoVerified = autoVerifyNewClient();
-  if (!autoVerified) {
-    otpConfig();
-    emailService.ensureConfigured();
-  }
-  if (await User.exists({ email: input.email })) throw new HttpError(409, 'Email is already reserved.');
+  otpConfig();
+  emailService.ensureConfigured();
+  if (await User.exists({ email: input.email })) throw new HttpError(409, 'Email is already reserved.', { email: 'Email is already reserved.' });
   const password = await bcrypt.hash(input.password, 12);
   const result = await mongoose.connection.transaction(async session => {
-    const [user] = await User.create([{ ...input, password, role: 'client', emailVerified: autoVerified }], { session });
-    const challenge = autoVerified ? null : await otpService.createOtp(user.email, 'email_verification', session);
+    const [user] = await User.create([{ ...input, password, role: 'client', emailVerified: false }], { session });
+    const challenge = await otpService.createOtp(user.email, 'email_verification', session);
     return { user, challenge };
   });
   // Never perform SMTP delivery inside a retryable database transaction.
-  if (result.challenge) await otpService.deliver(result.challenge);
+  await otpService.deliver(result.challenge);
   return {
-    message: autoVerified ? 'Development account created. You can now log in.'
-      : 'Registration created. Verify your email before logging in.',
+    message: 'Registration created. Verify your email before logging in.',
     user: safeUser(result.user),
   };
 }
@@ -45,6 +40,9 @@ async function login(body) {
   const valid = await bcrypt.compare(input.password, user?.password || fallback);
   if (!user || !valid || user.isArchived || user.status !== 'active') {
     throw new HttpError(401, 'Invalid email or password.');
+  }
+  if (!['client', 'mechanic', 'admin'].includes(user.role)) {
+    throw new HttpError(401, 'Your account session could not be verified. Please contact support.');
   }
   if (user.role === 'client' && !user.emailVerified) throw new HttpError(403, 'Verify your email before logging in.');
   return { accessToken: signAccessToken(user), tokenType: 'Bearer', expiresIn: jwtConfig().seconds, user: safeUser(user) };
@@ -71,6 +69,7 @@ async function verifyResetOtp(body) {
 }
 async function resetPassword(body) {
   const input = validation.body(body);
+  require('../utils/validateForm')('reset', input);
   const email = validation.email(input.email);
   const newPassword = validation.password(input.newPassword, input.confirmPassword);
   if (typeof input.resetToken !== 'string' || !/^[a-f0-9]{64}$/.test(input.resetToken)) {
@@ -95,4 +94,24 @@ async function resetPassword(body) {
   if (!updated) throw new HttpError(400, 'Invalid or expired reset token.');
   return { message: 'Password reset. Log in with your new password.' };
 }
-module.exports = { register, login, verifyEmail, resendVerification, forgotPassword, verifyResetOtp, resetPassword };
+async function changeTemporaryPassword(actor, body) {
+  require('../utils/validateForm')('reset', body);
+  const newPassword = validation.password(body.newPassword, body.confirmPassword);
+  const current = await User.findById(actor._id).select('+password +authVersion');
+  if (!current || !current.mustChangePassword) throw new HttpError(409, 'Your password has already been changed. Please sign in again.');
+  if (!['client', 'mechanic', 'admin'].includes(current.role) || current.role !== actor.role) {
+    throw new HttpError(401, 'Your account session could not be verified. Please sign in again.');
+  }
+  if (await bcrypt.compare(newPassword, current.password)) {
+    throw new HttpError(400, 'Choose a different password from your temporary password.', { newPassword: 'Choose a different password from your temporary password.' });
+  }
+  const password = await bcrypt.hash(newPassword, 12);
+  const user = await User.findOneAndUpdate({ _id: current._id, password: current.password,
+    authVersion: current.authVersion || 0, mustChangePassword: true, status: 'active', isArchived: false },
+  { $set: { password, mustChangePassword: false }, $inc: { authVersion: 1 } },
+  { returnDocument: 'after', runValidators: true }).select('+authVersion');
+  if (!user) throw new HttpError(409, 'Your account changed. Please sign in again.');
+  if (user.role !== current.role) throw new HttpError(401, 'Your account session could not be verified. Please sign in again.');
+  return { accessToken: signAccessToken(user), user: safeUser(user) };
+}
+module.exports = { register, login, verifyEmail, resendVerification, forgotPassword, verifyResetOtp, resetPassword, changeTemporaryPassword };

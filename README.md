@@ -9,7 +9,7 @@ Express, CommonJS, Mongoose, and MongoDB Atlas run in `server/`.
 - Node.js 24 LTS and npm
 - A MongoDB Atlas cluster, database user, and network access for your IP
 - Two terminals for the backend and frontend
-- Brevo SMTP credentials and a verified sender only when testing email delivery
+- Mailjet SMTP credentials and a verified sender for registration and password recovery
 
 ## Server setup
 
@@ -28,25 +28,24 @@ name. The local Windows setup uses Cloudflare DNS for Atlas SRV lookups. Set
 bytes. `PORT` defaults to `5000`; `CLIENT_ORIGIN` defaults to
 `http://localhost:5173`. `GET /` and `GET /api/health` show database status.
 
-Registration and password recovery use Brevo SMTP when email delivery is enabled.
-Configure `BREVO_SMTP_HOST`, `BREVO_SMTP_PORT`, `BREVO_SMTP_USER`,
-`BREVO_SMTP_PASS`, and `EMAIL_FROM` with the verified sender to test real email.
-Brevo currently has a provider-side queue/account issue in this development
-environment. SMTP acceptance alone does not confirm delivery; check Brevo logs
-and the mailbox before presenting the OTP flow.
+Registration and password recovery use Nodemailer SMTP when email delivery is
+enabled. For Mailjet, configure `SMTP_HOST=in-v3.mailjet.com`, `SMTP_PORT=465`,
+`SMTP_SECURE=true`, `SMTP_USER` with the Mailjet API key, `SMTP_PASS` with the
+Mailjet Secret key, and `EMAIL_FROM` with a verified Mailjet sender.
 
-For local development without email, set the following **only in `server/.env`**:
+For registration, set the following in `server/.env`:
 
 ```ini
 NODE_ENV=development
-EMAIL_DELIVERY_ENABLED=false
-DEV_AUTO_VERIFY_EMAIL=true
+EMAIL_DELIVERY_ENABLED=true
 ```
 
-Newly registered Clients will be verified automatically and can sign in. This
-bypass is disabled by default and ignored in production. To restore the normal
-flow, set `DEV_AUTO_VERIFY_EMAIL=false` and `EMAIL_DELIVERY_ENABLED=true`, then
-configure Brevo. No OTP or password is exposed to the browser.
+Newly registered clients remain unverified until they enter the six-digit OTP
+sent through Mailjet. Successful registration opens the OTP verification page;
+login is allowed only after verification. This also applies in development,
+and the old `DEV_AUTO_VERIFY_EMAIL` setting no longer bypasses verification.
+If delivery fails, the account stays unverified; fix delivery and use the
+verification/resend link. No OTP or password is exposed in API responses.
 
 ## Client setup
 

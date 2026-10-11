@@ -1,8 +1,9 @@
 const service = require('../services/peopleVehiclesService');
+const { listResponse } = require('../utils/pagination');
 
-exports.mechanicList = async (req, res) => res.json({ items: await service.mechanicList(req.query) });
+exports.mechanicList = async (req, res) => res.json(listResponse(await service.mechanicList(req.query)));
 exports.mechanicGet = async (req, res) => res.json({ item: await service.mechanicGet(req.params.id) });
-exports.mechanicCreate = async (req, res) => res.status(201).json({ item: await service.mechanicCreate(req.body) });
+exports.mechanicCreate = async (req, res) => res.status(201).json(await service.mechanicCreate(req.body));
 exports.mechanicUpdate = async (req, res) => res.json({ item: await service.mechanicUpdate(req.params.id, req.body) });
 exports.mechanicArchive = async (req, res) => res.json({ item: await service.mechanicArchive(req.params.id, true) });
 exports.mechanicRestore = async (req, res) => res.json({ item: await service.mechanicArchive(req.params.id, false) });

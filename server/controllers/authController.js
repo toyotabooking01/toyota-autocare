@@ -10,3 +10,4 @@ exports.forgotPassword = async (req, res) => res.status(202).json(await authServ
 exports.verifyResetOtp = async (req, res) => res.json(await authService.verifyResetOtp(req.body));
 exports.resetPassword = async (req, res) => res.json(await authService.resetPassword(req.body));
 exports.me = (req, res) => res.json({ user: safeUser(req.user) });
+exports.changeTemporaryPassword = async (req, res) => res.json(await authService.changeTemporaryPassword(req.user, req.body));

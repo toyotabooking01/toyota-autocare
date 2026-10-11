@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 const app = require('./app');
 require('./models');
 const connectDatabase = require('./config/db');
+const { ensureOtherService } = require('./services/bootstrapServices');
 
 async function startServer() {
   const port = Number(process.env.PORT || 5000);
@@ -12,6 +13,7 @@ async function startServer() {
   }
 
   await connectDatabase();
+  await ensureOtherService();
   const server = app.listen(port, () => {
     console.log(`Toyota AutoCare API running on http://localhost:${port}`);
   });

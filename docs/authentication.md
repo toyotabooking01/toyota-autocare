@@ -38,11 +38,12 @@ keys from `.env.example` without overwriting the existing Atlas configuration.
 | `JWT_EXPIRES_IN` | Default `1h`; positive integer followed by s/m/h/d, at most 24 hours. |
 | `OTP_HASH_SECRET` | Separate random secret of at least 32 bytes for keyed OTP and reset-token digests. |
 | `OTP_EXPIRY_MINUTES` | Default 5; integer 1–15. Applies to each OTP and, separately, each verified reset grant. |
-| `BREVO_SMTP_HOST` | `smtp-relay.brevo.com` by default. |
-| `BREVO_SMTP_PORT` | 587 by default with required STARTTLS; 465 (TLS) and 2525 (STARTTLS) supported. |
-| `BREVO_SMTP_USER` | SMTP login from Brevo, not a role or application user's email. |
-| `BREVO_SMTP_PASS` | Brevo SMTP key, not an API key. |
-| `EMAIL_FROM` | Verified sender, for example `Toyota AutoCare <verified-sender@example.com>`. |
+| `SMTP_HOST` | `in-v3.mailjet.com` for Mailjet SMTP. |
+| `SMTP_PORT` | `465` for implicit TLS. |
+| `SMTP_SECURE` | `true` for implicit TLS; `false` enables required STARTTLS. |
+| `SMTP_USER` | Mailjet API key. |
+| `SMTP_PASS` | Mailjet Secret key. |
+| `EMAIL_FROM` | Verified Mailjet sender, for example `Toyota AutoCare <verified-sender@example.com>`. |
 
 Generate independent random values locally using Node's
 `crypto.randomBytes(32).toString('hex')`; keep the output private. Do not commit
@@ -51,16 +52,9 @@ automatically. Missing/invalid auth configuration fails relevant routes with 503
 while health endpoints remain available. Login/me need JWT configuration; OTP
 operations need the OTP secret. Mail-issuing routes also need SMTP configuration.
 
-During Phase 3A validation, Atlas was connected. A local JWT_SECRET was present
-but did not pass the configuration strength check and must be replaced with a
-strong random secret. OTP_HASH_SECRET and all Brevo settings were absent.
-Tests generated ephemeral process-only secrets
-and intercepted email, leaving local `.env` unchanged. Real Brevo delivery remains
-pending. After setting up a verified sender, use an address you control for a real
-registration/verification/recovery smoke test before connecting the React UI.
-
-See [Brevo SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP)
-for SMTP login/key configuration. The recovery design follows the single-use,
+Email delivery uses generic SMTP settings, configured for Mailjet in the table
+above. Automated email tests stub Nodemailer; test real delivery manually with
+an address you control and a verified sender. The recovery design follows the single-use,
 expiry and throttling guidance in the
 [OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).
 
@@ -219,5 +213,5 @@ missing credentials returned 401 and invalid local JWT configuration returned
 no tracked secret environment files or configured secrets in candidate source files.
 
 The API implementation is ready for Phase 3B UI integration after replacing the
-weak JWT secret, adding OTP/Brevo configuration, and completing a real mailbox
+weak JWT secret, configuring Mailjet SMTP, and completing a real mailbox
 smoke test.

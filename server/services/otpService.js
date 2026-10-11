@@ -93,7 +93,7 @@ async function verifyOtp(email, code, purpose) {
     await record.save({ session });
     return { resetToken, expiresIn: config.minutes * 60 };
   });
-  if (!outcome) throw new HttpError(400, 'Invalid or expired code.');
+  if (!outcome) throw new HttpError(400, 'Invalid or expired code.', { otp: 'Invalid or expired code.' });
   return outcome;
 }
 module.exports = { digest, eligible, lockUser, createOtp, deliver, requestOtp, verifyOtp };

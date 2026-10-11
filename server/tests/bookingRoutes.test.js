@@ -32,6 +32,9 @@ test('schedule mutations require Admin and booking routes exclude Mechanic', asy
     assert.equal(await request('/api/schedules', users[0], 'POST', {}), 400);
     assert.equal(await request('/api/bookings', users[2]), 403);
     assert.equal(await request('/api/bookings', users[0], 'POST', {}), 403);
+    assert.equal(await request('/api/bookings/availability', users[1]), 400); // Client route is reachable; query validation rejects missing service IDs.
+    assert.equal(await request('/api/bookings/availability', users[0]), 400);
+    assert.equal(await request('/api/bookings/availability', users[2]), 403);
   } finally {
     await new Promise(resolve => server.close(resolve));
     User.findById = oldUser; Schedule.find = oldSlots;
