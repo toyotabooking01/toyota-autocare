@@ -11,7 +11,7 @@ test('schedule mutations require Admin and booking routes exclude Mechanic', asy
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
   const oldSlots = Schedule.find;
-  const users = ['admin', 'client', 'mechanic'].map(role => ({ _id: new mongoose.Types.ObjectId(), role, status: 'active', isArchived: false, emailVerified: true, authVersion: 0 }));
+  const users = ['admin', 'client', 'mechanic', 'staff'].map(role => ({ _id: new mongoose.Types.ObjectId(), role, status: 'active', isArchived: false, emailVerified: true, authVersion: 0 }));
   const byId = new Map(users.map(user => [String(user._id), user]));
   process.env.JWT_SECRET = 'test-only-secret-value-with-more-than-thirty-two-bytes';
   Object.defineProperty(mongoose.connection, 'readyState', { value: 1, configurable: true });
@@ -35,6 +35,11 @@ test('schedule mutations require Admin and booking routes exclude Mechanic', asy
     assert.equal(await request('/api/bookings/availability', users[1]), 400); // Client route is reachable; query validation rejects missing service IDs.
     assert.equal(await request('/api/bookings/availability', users[0]), 400);
     assert.equal(await request('/api/bookings/availability', users[2]), 403);
+    for (const action of ['confirm', 'reject', 'check-in', 'assign', 'reschedule']) {
+      assert.equal(await request(`/api/bookings/not-an-id/${action}`, users[0], 'POST', {}), 403);
+    }
+    assert.equal(await request('/api/bookings/not-an-id/reschedule', users[3], 'POST', { schedule: 'invalid' }), 400);
+    assert.equal(await request('/api/bookings/walk-in/options', users[0]), 403);
   } finally {
     await new Promise(resolve => server.close(resolve));
     User.findById = oldUser; Schedule.find = oldSlots;

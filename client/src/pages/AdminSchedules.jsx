@@ -1,14 +1,17 @@
+import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
+import { StatusBadge } from '../components/StatusChip'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useState } from 'react'
-import { Alert, Box, Button, Checkbox, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
-import ListPagination from '../components/ListPagination'
+import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
 import { dateLabel, futureSlot, remaining } from './bookingDisplay'
+import { DetailDialog, DetailInfo, DetailSection } from '../components/RecordDetails'
 
 const emptyEdit = { date: '', timeSlot: '', maximumCapacity: '', openingTime: '', closingTime: '' }
 const week = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 0, label: 'Sun' }]
@@ -19,6 +22,7 @@ function todayManila() {
 const emptyGenerator = () => ({ startDate: todayManila(), endDate: '', workingDays: [1, 2, 3, 4, 5, 6], openingTime: '08:00', closingTime: '17:00', slotIntervalMinutes: '60', maximumCapacity: '5' })
 
 export default function AdminSchedules() {
+  const [selected, setSelected] = useState(null)
   const confirm = useConfirmation()
   const [search, setSearch] = useState('')
   const [date, setDate] = useState('')
@@ -90,30 +94,36 @@ export default function AdminSchedules() {
     <PageHeading title="Schedules" subtitle="Generate working slots and manage capacity." preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
+    <RecordPanel>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
         <TextField size="small" label="Search date or time" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
         <TextField size="small" label="Filter date" type="date" value={date} error={Boolean(fieldErrors.date)} helperText={fieldErrors.date} onChange={event => setDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }} />
         <TextField size="small" select label="Status" value={enabled} onChange={event => setEnabled(event.target.value)} sx={{ minWidth: 145 }}><MenuItem value="all">All</MenuItem><MenuItem value="true">Enabled</MenuItem><MenuItem value="false">Disabled</MenuItem></TextField>
         <Button variant="contained" startIcon={<CalendarMonthRounded />} onClick={() => { setGenerator(emptyGenerator()); setGeneratorError(''); setGeneratorOpen(true) }}>Generate Schedule</Button>
       </Stack>
-      {loading ? <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading schedules…</Typography></Stack>
-        : !items.length ? <Typography sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>No schedules match these filters.</Typography>
-          : <Stack spacing={1}>{items.map(item => {
+      <RecordList items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading schedules…</Typography></Stack>} empty="No schedules match these filters.">
+          {item => {
             const future = futureSlot(item); const left = remaining(item)
             const state = !item.isEnabled ? 'Disabled' : !future ? 'Past' : left === 0 ? 'Full' : 'Available'
-            return <Box key={item._id} sx={{ p: 2, border: '1px solid var(--line)', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 2, minWidth: 0 }}>
-              <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontWeight: 650, fontSize: 14 }}>{dateLabel(item.date)} · {item.timeSlot}</Typography>
+            return <RecordCard key={item._id} entityType="schedule">
+              <Box className="record-card-copy"><Typography sx={{ fontWeight: 650, fontSize: 14 }}>{dateLabel(item.date)} · {item.timeSlot}</Typography>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: .5 }}>Capacity {item.maximumCapacity} · Booked {item.currentBookingCount} · Remaining {left}
                   {item.openingTime && item.closingTime ? ` · ${item.openingTime}–${item.closingTime}` : ' · Legacy hours'}</Typography></Box>
-              <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap"><Chip size="small" label={state} sx={{ bgcolor: state === 'Available' ? 'var(--green-soft)' : 'var(--surface-soft)' }} />
-                {future && <Button size="small" variant="outlined" onClick={() => openEdit(item)}>Edit</Button>}
-                {(future || item.isEnabled) && <Button size="small" color="inherit" onClick={() => setToggleTarget(item)}>{item.isEnabled ? 'Deactivate' : 'Activate'}</Button>}
-              </Stack>
-            </Box>
-          })}</Stack>}
-      <ListPagination pagination={pagination} />
-    </Paper>
+              <RecordActions statuses={<StatusBadge label={state} sx={{ bgcolor: state === 'Available' ? 'var(--green-soft)' : 'var(--surface-soft)' }} />}>
+                <DetailsButton onClick={() => setSelected(item)} />
+                <MoreActionsMenu label={`${item.date} ${item.timeSlot}`} disabled={saving} items={[future && { label: 'Edit', onClick: () => openEdit(item) }, (future || item.isEnabled) && { label: item.isEnabled ? 'Deactivate' : 'Activate', destructive: item.isEnabled, onClick: () => setToggleTarget(item) }]} />
+              </RecordActions>
+            </RecordCard>
+          }}
+      </RecordList>
+    </RecordPanel>
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Schedule details" reference={selected && `${dateLabel(selected.date)} · ${selected.timeSlot}`}>
+      {selected && <DetailSection title="Schedule overview"><DetailInfo items={[
+        ['Date', dateLabel(selected.date)], ['Time', selected.timeSlot],
+        ['Capacity', selected.maximumCapacity], ['Booked', selected.currentBookingCount], ['Remaining', remaining(selected)],
+        ['Hours', selected.openingTime && selected.closingTime ? `${selected.openingTime}–${selected.closingTime}` : 'Legacy hours'],
+      ]} /></DetailSection>}
+    </DetailDialog>
     <Dialog open={generatorOpen} onClose={() => { if (!saving) setGeneratorOpen(false) }} fullWidth maxWidth="sm" aria-labelledby="schedule-generator-title">
       <Box component="form" noValidate onSubmit={generate}><DialogTitle id="schedule-generator-title">Generate Schedule</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         {generatorError && <Alert severity="error">{generatorError}</Alert>}

@@ -6,7 +6,8 @@ const models = require('../models');
 const id = () => new mongoose.Types.ObjectId();
 const fixtures = {
   User: { fullName: 'Test User', email: ' USER@Example.com ', password: '$2b$12$' + 'a'.repeat(53) },
-  Vehicle: { owner: id(), make: 'Toyota', model: 'Vios', year: 2024, plateNumber: ' abc-1234 ', transmission: 'automatic' },
+  Vehicle: { owner: id(), make: 'Toyota', model: 'Vios', year: 2024, plateNumber: ' abc1234 ', transmission: 'automatic' },
+  ToyotaCatalog: { make: 'Toyota', market: 'Philippines', model: 'Vios', year: 2025, variant: '1.3 XLE CVT', category: 'Sedan', fuelType: 'gasoline', transmission: 'cvt', seatingCapacity: 5 },
   Service: { name: 'Inspection', estimatedDuration: 60, estimatedPrice: 1000 },
   Booking: { client: id(), vehicle: id(), services: [id()], schedule: id(), bookingDate: '2026-10-10', bookingTime: '09:00', bookingType: 'online' },
   Schedule: { date: '2026-10-10', timeSlot: '09:00', maximumCapacity: 2 },
@@ -48,10 +49,11 @@ test('User roles, mechanic employee ID, normalized email and secret handling', a
   await invalid('User', { password: 'plaintext-password' }, 'password');
   await invalid('User', { email: 'invalid' }, 'email');
   await new models.User({ ...fixtures.User, role: 'mechanic', employeeId: 'M-1' }).validate();
+  await new models.User({ ...fixtures.User, role: 'staff' }).validate();
 });
 
 test('Vehicle normalization, mileage and year limits', async () => {
-  assert.equal(new models.Vehicle(fixtures.Vehicle).plateNumber, 'ABC1234');
+  assert.equal(new models.Vehicle(fixtures.Vehicle).plateNumber, 'ABC 1234');
   await invalid('Vehicle', { currentMileage: -1 }, 'currentMileage');
   await invalid('Vehicle', { currentMileage: 0.5 }, 'currentMileage');
   await invalid('Vehicle', { plateNumber: '!!!' }, 'plateNumber');

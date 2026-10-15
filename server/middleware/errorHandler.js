@@ -6,7 +6,8 @@ function errorHandler(error, req, res, next) {
   if (error instanceof HttpError) return res.status(error.status).json({ message: error.message, ...(error.errors ? { errors: error.errors } : {}) });
   if (error.code === 11000) {
     const labels = { email: 'Email', employeeId: 'Employee ID', plateNumber: 'Plate number', name: 'Name', nameKey: 'Name', date: 'Date and time', timeSlot: 'Date and time' };
-    const errors = Object.fromEntries(Object.keys(error.keyPattern || error.keyValue || {}).filter(key => labels[key]).map(key => [key === 'nameKey' ? 'name' : key, `${labels[key]} already exists.`]));
+    const errors = Object.fromEntries(Object.keys(error.keyPattern || error.keyValue || {}).filter(key => labels[key]).map(key => [key === 'nameKey' ? 'name' : key,
+      key === 'plateNumber' ? 'This plate number is already registered.' : `${labels[key]} already exists.`]));
     return res.status(409).json({ message: Object.values(errors)[0] || 'A record with those details already exists.', ...(Object.keys(errors).length ? { errors } : {}) });
   }
   if (error.name === 'ValidationError' || error.name === 'CastError') {

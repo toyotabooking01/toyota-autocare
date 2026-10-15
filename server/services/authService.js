@@ -18,7 +18,7 @@ async function register(body) {
   const input = validation.registration(body);
   otpConfig();
   emailService.ensureConfigured();
-  if (await User.exists({ email: input.email })) throw new HttpError(409, 'Email is already reserved.', { email: 'Email is already reserved.' });
+  if (await User.exists({ $or: [{ email: input.email }, { contactEmail: input.email }] })) throw new HttpError(409, 'Email is already reserved.', { email: 'Email is already reserved.' });
   const password = await bcrypt.hash(input.password, 12);
   const result = await mongoose.connection.transaction(async session => {
     const [user] = await User.create([{ ...input, password, role: 'client', emailVerified: false }], { session });
@@ -38,10 +38,10 @@ async function login(body) {
   const user = await User.findOne({ email: input.email }).select('+password +authVersion');
   const fallback = await dummyHash;
   const valid = await bcrypt.compare(input.password, user?.password || fallback);
-  if (!user || !valid || user.isArchived || user.status !== 'active') {
+  if (!user || !valid || user.isArchived || user.status !== 'active' || user.isWalkInCustomer) {
     throw new HttpError(401, 'Invalid email or password.');
   }
-  if (!['client', 'mechanic', 'admin'].includes(user.role)) {
+  if (!require('../config/roles').roles.includes(user.role)) {
     throw new HttpError(401, 'Your account session could not be verified. Please contact support.');
   }
   if (user.role === 'client' && !user.emailVerified) throw new HttpError(403, 'Verify your email before logging in.');
@@ -99,7 +99,7 @@ async function changeTemporaryPassword(actor, body) {
   const newPassword = validation.password(body.newPassword, body.confirmPassword);
   const current = await User.findById(actor._id).select('+password +authVersion');
   if (!current || !current.mustChangePassword) throw new HttpError(409, 'Your password has already been changed. Please sign in again.');
-  if (!['client', 'mechanic', 'admin'].includes(current.role) || current.role !== actor.role) {
+  if (!require('../config/roles').roles.includes(current.role) || current.role !== actor.role) {
     throw new HttpError(401, 'Your account session could not be verified. Please sign in again.');
   }
   if (await bcrypt.compare(newPassword, current.password)) {
@@ -114,4 +114,32 @@ async function changeTemporaryPassword(actor, body) {
   if (user.role !== current.role) throw new HttpError(401, 'Your account session could not be verified. Please sign in again.');
   return { accessToken: signAccessToken(user), user: safeUser(user) };
 }
-module.exports = { register, login, verifyEmail, resendVerification, forgotPassword, verifyResetOtp, resetPassword, changeTemporaryPassword };
+async function updateProfile(actor, body) {
+  const input = validation.body(body);
+  const allowed = actor.role === 'client' ? ['fullName', 'email', 'phone', 'address'] : ['fullName', 'email', 'phone'];
+  if (Object.keys(input).some(key => !allowed.includes(key))) throw new HttpError(400, 'Invalid or unsupported profile fields.');
+  require('../utils/validateForm')('accountProfile', input, { skip: actor.role === 'client' ? [] : ['address'] });
+  const values = {
+    fullName: input.fullName.trim().replace(/\s+/g, ' '),
+    email: validation.email(input.email),
+    phone: require('../../shared/accountValidation.mjs').normalizeMobile(input.phone),
+    ...(actor.role === 'client' ? { address: (input.address || '').trim() } : {}),
+  };
+  const emailChanged = values.email !== actor.email;
+  if (emailChanged && await User.exists({ email: values.email, _id: { $ne: actor._id } }))
+    throw new HttpError(409, 'Email is already reserved.', { email: 'Email is already reserved.' });
+  if (emailChanged && actor.role === 'client') { otpConfig(); emailService.ensureConfigured(); }
+  const user = await User.findOneAndUpdate({ _id: actor._id, email: actor.email, authVersion: actor.authVersion || 0 },
+    { $set: { ...values, ...(emailChanged && actor.role === 'client' ? { emailVerified: false } : {}) },
+      ...(emailChanged ? { $inc: { authVersion: 1 } } : {}) },
+    { returnDocument: 'after', runValidators: true }).select('+authVersion');
+  if (!user) throw new HttpError(409, 'Your account changed. Refresh and try again.');
+  if (emailChanged && actor.role === 'client') {
+    // The existing verification flow sends a code to the new address.
+    await otpService.requestOtp(user.email, 'email_verification');
+    return { user: safeUser(user), verificationRequired: true };
+  }
+  return { user: safeUser(user), ...(emailChanged ? { accessToken: signAccessToken(user) } : {}) };
+}
+const { changePassword } = require('./passwordChangeService');
+module.exports = { register, login, verifyEmail, resendVerification, forgotPassword, verifyResetOtp, resetPassword, changeTemporaryPassword, updateProfile, changePassword };

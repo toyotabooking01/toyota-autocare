@@ -23,6 +23,9 @@ const bookingSchema = new mongoose.Schema({
   bookingDate: { ...calendarDate },
   bookingTime: { ...timeSlot },
   bookingType: { type: String, enum: ['online', 'walk-in'], required: true },
+  createdByStaff: reference('User', false),
+  lastProcessedBy: reference('User', false),
+  lastProcessedAt: Date,
   estimatedDurationMinutes: { type: Number, min: 1, validate: value => value == null || Number.isInteger(value) },
   initialEstimatedDurationMinutes: { type: Number, min: 1, validate: value => value == null || Number.isInteger(value) },
   durationHistory: [{

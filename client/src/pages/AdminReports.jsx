@@ -7,16 +7,17 @@ import StatusChip from '../components/StatusChip'
 import { money } from './bookingDisplay'
 import { manilaToday } from './dashboardData'
 import { friendlyError } from '../utils/friendlyErrors'
+import RecordList, { RecordCard, RecordActions } from '../components/RecordList'
 
 const today = manilaToday()
 const start = new Date(`${today}T00:00:00.000Z`)
 start.setUTCDate(start.getUTCDate() - 29)
 const initialRange = { from: start.toISOString().slice(0, 10), to: today }
 const textStyle = { fontSize: 12, color: 'text.secondary' }
-function SmallRows({ items, primary, secondary, empty }) {
-  return !items.length ? <Typography sx={textStyle}>{empty}</Typography> : <Stack spacing={1.5}>{items.map(item => <Stack key={item.id || item.date} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="flex-start" gap={{ xs: .5, sm: 2 }} sx={{ borderBottom: '1px solid var(--line)', pb: 1 }}>
-    <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{primary(item)}</Typography><Typography sx={{ ...textStyle, textAlign: { xs: 'left', sm: 'right' }, overflowWrap: 'anywhere' }}>{secondary(item)}</Typography>
-  </Stack>)}</Stack>
+function SmallRows({ items, primary, secondary, empty, entityType = 'service' }) {
+  return <RecordList items={items} empty={empty}>{item => <RecordCard key={item.id || item.date} entityType={entityType} entityName={entityType === 'account' ? primary(item) : undefined}>
+    <Box className="record-card-copy"><Typography>{primary(item)}</Typography><Typography>{secondary(item)}</Typography></Box>
+  </RecordCard>}</RecordList>
 }
 export default function AdminReports() {
   const [draft, setDraft] = useState(initialRange)
@@ -65,11 +66,12 @@ export default function AdminReports() {
         </Paper>
         {!report.totalBookings ? <Alert severity="info">No bookings fall within this date range.</Alert> : <>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }, gap: 2.5, mb: 2.5 }}>
-            <Panel title="Bookings by status"><Stack spacing={1}>{Object.entries(report.byStatus).filter(([, count]) => count).map(([status, count]) => <Stack key={status} direction="row" alignItems="center" justifyContent="space-between"><StatusChip status={status} /><Typography sx={{ fontWeight: 700 }}>{count}</Typography></Stack>)}</Stack></Panel>
-            <Panel title="Bookings by date"><SmallRows items={report.bookingsByDate} primary={item => item.date} secondary={item => `${item.bookings} booked · ${item.completed} completed`} empty="No dated bookings." /></Panel>
+            <Panel title="Bookings by status"><RecordList items={Object.entries(report.byStatus).filter(([, count]) => count)}>{([status, count]) => <RecordCard key={status}><Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{count} bookings</Typography></Box><RecordActions statuses={<StatusChip status={status} />} /></RecordCard>}</RecordList></Panel>
+            <Panel title="Bookings by date"><SmallRows entityType="schedule" items={report.bookingsByDate} primary={item => item.date} secondary={item => `${item.bookings} booked · ${item.completed} completed`} empty="No dated bookings." /></Panel>
             <Panel title="Service popularity"><SmallRows items={report.servicePopularity} primary={item => item.name} secondary={item => `${item.bookings} selected · ${item.completed} completed`} empty="No services selected." /></Panel>
-            <Panel title="Mechanic workload"><SmallRows items={report.mechanicWorkload} primary={item => item.name} secondary={item => `${item.assigned} assigned · ${item.active} active · ${item.completed} completed`} empty="No mechanic assignments in range." /></Panel>
-            <Panel title="Service Bay usage"><SmallRows items={report.serviceBayUsage} primary={item => item.name} secondary={item => `${item.visits} visits · ${item.active} active · ${item.completed} completed`} empty="No bay assignments in range." /></Panel>
+            <Panel title="Mechanic workload"><SmallRows entityType="account" items={report.mechanicWorkload} primary={item => item.name} secondary={item => `${item.assigned} assigned · ${item.active} active · ${item.completed} completed`} empty="No mechanic assignments in range." /></Panel>
+            <Panel title="Staff activity"><SmallRows entityType="account" items={report.staffActivity || []} primary={item => item.name} secondary={item => `${item.processed} bookings last processed`} empty="No staff processed bookings in range." /></Panel>
+            <Panel title="Service Bay usage"><SmallRows entityType="bay" items={report.serviceBayUsage} primary={item => item.name} secondary={item => `${item.visits} visits · ${item.active} active · ${item.completed} completed`} empty="No bay assignments in range." /></Panel>
           </Box>
         </>}
       </>}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { validateClientForm, visibleRemoteErrors } from '../utils/formValidation'
 import { friendlyFieldErrors } from '../utils/friendlyErrors'
 import { schemas } from '../utils/validationRules'
+import { hasUnsupportedPlateSymbols, PLATE_FORMAT_ERROR } from '../../../shared/accountValidation.mjs'
 
 export default function useFormValidation(kind, values, options = {}) {
   const [submitted, setSubmitted] = useState(false)
@@ -18,11 +19,12 @@ export default function useFormValidation(kind, values, options = {}) {
       // Update alongside onChange in the bubble phase. A capture-phase state
       // update can restore the old controlled value before onChange reads it.
       onInput: event => {
-        const badInput = event.target.validity?.badInput
+        const badPlate = key === 'plateNumber' && hasUnsupportedPlateSymbols(event.target.value)
+        const badInput = badPlate || event.target.validity?.badInput
         setNativeErrors(current => {
           if (Boolean(current[key]) === Boolean(badInput)) return current
           const next = { ...current }
-          if (badInput) next[key] = 'Enter a complete, valid value.'
+          if (badInput) next[key] = badPlate ? PLATE_FORMAT_ERROR : 'Enter a complete, valid value.'
           else delete next[key]
           return next
         })

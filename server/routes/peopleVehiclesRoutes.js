@@ -15,6 +15,7 @@ function routes(kind) {
   router.use(authenticate, authorize(kind === 'mechanic' ? 'admin' : 'client'));
   if (kind === 'mechanic') {
     router.get('/', actions.mechanicList);
+    router.get('/next-id', actions.mechanicIdPreview);
     router.get('/:id', actions.mechanicGet);
     router.post('/', actions.mechanicCreate);
     router.patch('/:id', actions.mechanicUpdate);

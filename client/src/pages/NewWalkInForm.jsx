@@ -1,19 +1,28 @@
-import { useRef, useState } from 'react'
-import { Alert, Box, Button, Checkbox, FormControlLabel, InputAdornment, MenuItem, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
+import BookingRecordDetails from '../components/BookingRecordDetails'
+import FormWorkspace, { formWorkspaceGrid } from '../components/FormWorkspace'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
 import useFormValidation from '../components/useFormValidation'
 import { useConfirmation } from '../components/ConfirmationContext'
 import { NAME_SUFFIXES, registrationNames, restrictMobileInput, normalizePlateInput } from '../../../shared/accountValidation.mjs'
-import { money, dateLabel } from './bookingDisplay'
+import { money } from './bookingDisplay'
 import BookingDateTimePicker from '../components/BookingDateTimePicker'
+import ToyotaVehiclePicker from '../components/ToyotaVehiclePicker'
+import useToyotaCatalog from '../hooks/useToyotaCatalog'
+import { catalogHasVariants } from '../utils/toyotaCatalog'
+import MileageInput from '../components/MileageInput'
+import ClientCredentialDeliveryDialog from '../components/ClientCredentialDeliveryDialog'
+import { validateForm } from '../utils/validationRules'
 
-const grid = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }
+const grid = formWorkspaceGrid
 const labels = { firstName: 'First Name', lastName: 'Last Name', middleName: 'Middle Name / Initial (optional)',
-  email: 'Email', phone: 'Philippine Mobile Number', make: 'Make', model: 'Model', year: 'Year', plateNumber: 'Plate Number', currentMileage: 'Current mileage (optional)' }
+  email: 'Email (optional)', phone: 'Philippine Mobile Number', address: 'Address (optional)', make: 'Make', model: 'Model', year: 'Year', variant: 'Variant', plateNumber: 'Plate Number', currentMileage: 'Current mileage (optional)' }
 export default function NewWalkInForm({ services = [], loading, refreshKey, onRefresh, onBusy, onComplete }) {
-  const [customer, setCustomer] = useState({ firstName: '', lastName: '', middleName: '', suffix: '', email: '', phone: '' })
-  const [vehicle, setVehicle] = useState({ make: '', model: '', year: '', plateNumber: '', transmission: '', currentMileage: '' })
+  const [customer, setCustomer] = useState({ firstName: '', lastName: '', middleName: '', suffix: '', email: '', phone: '', address: '' })
+  const [vehicle, setVehicle] = useState({ make: 'Toyota', model: '', year: '', variant: '', plateNumber: '', transmission: '', currentMileage: '' })
+  const catalog = useToyotaCatalog()
   const [serviceIds, setServiceIds] = useState([])
   const [concern, setConcern] = useState('')
   const [concernError, setConcernError] = useState('')
@@ -23,15 +32,32 @@ export default function NewWalkInForm({ services = [], loading, refreshKey, onRe
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [completed, setCompleted] = useState(null)
+  const [deliveryNotice, setDeliveryNotice] = useState(null)
+  const [emailCheck, setEmailCheck] = useState({ email: '', message: '' })
   const inFlight = useRef(false)
   const confirm = useConfirmation()
   const customerValidation = useFormValidation('walkInClient', customer)
-  const vehicleValidation = useFormValidation('vehicle', vehicle)
+  const vehicleValidation = useFormValidation('vehicle', vehicle, { requireVariant: catalogHasVariants(catalog.items, vehicle) })
   const validationSlots = slot ? [{ _id: slot.scheduleId, isEnabled: true, date: selectedDate, timeSlot: slot.time, maximumCapacity: 1, currentBookingCount: 0 }] : []
   const serviceOptions = Array.isArray(services) ? services : []
   const bookingValidation = useFormValidation('booking', { services: serviceIds, schedule: slot?.scheduleId || '' }, { skip: ['vehicle'], available: { services: serviceOptions, schedule: validationSlots } })
   const chosen = serviceOptions.filter(item => serviceIds.includes(item._id))
   const otherService = chosen.find(item => item.isOtherService)
+  const normalizedEmail = customer.email.trim().toLowerCase()
+  useEffect(() => {
+    if (!normalizedEmail || validateForm('email', { email: normalizedEmail }).email || completed) return
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/bookings/walk-in/email-check', { params: { email: normalizedEmail }, signal: controller.signal })
+        if (!controller.signal.aborted) setEmailCheck({ email: normalizedEmail, message: data.message || '' })
+      } catch (error) {
+        if (!controller.signal.aborted) setEmailCheck({ email: normalizedEmail,
+          message: error.response?.data?.errors?.email || 'The email will be checked again when the visit is created.' })
+      }
+    }, 300)
+    return () => { clearTimeout(timer); controller.abort() }
+  }, [normalizedEmail, completed])
   function checkVisit() {
     if (!bookingValidation.validate()) return false
     if (otherService && !concern.trim()) {
@@ -56,28 +82,29 @@ export default function NewWalkInForm({ services = [], loading, refreshKey, onRe
   }
   async function submit() {
     if (inFlight.current || !checkAll()) return
-    await confirm('Are you sure you want to create this client account and confirm this service booking?', async () => {
+    await confirm('Create this walk-in service booking?', async () => {
       if (inFlight.current || !checkAll()) return
       inFlight.current = true; setBusy(true); onBusy(true); setError('')
       try {
         const { data } = await api.post('/bookings/walk-in/new-client', { customer, vehicle: { ...vehicle, year: Number(vehicle.year),
           ...(vehicle.currentMileage === '' ? { currentMileage: 0 } : { currentMileage: Number(vehicle.currentMileage) }) }, services: serviceIds, schedule: slot.scheduleId, concern })
-        setCompleted(data); onComplete(data.item)
+        const { deliveryToken, ...result } = data
+        setCompleted(result); onComplete(result.item)
+        if (result.accountCreated && result.account) setDeliveryNotice({ account: result.account, deliveryToken, emailSent: result.emailSent })
       } catch (requestError) {
         const status = requestError.response?.status
         const raw = requestError.response?.data?.errors || {}
         // Only display known, friendly field messages, never raw server details.
         const errors = Object.fromEntries(Object.keys(raw).filter(key => [...Object.keys(customer), ...Object.keys(vehicle), 'services', 'schedule'].includes(key)).map(key => [key,
-          status === 409 && key === 'email' ? 'This email already has an account. Choose Existing Client instead.'
-            : status === 409 && key === 'plateNumber' ? 'Plate number already exists.'
+          status === 409 && key === 'email' ? 'This email could not be linked. Check Existing Customer before trying again.'
+            : status === 409 && key === 'plateNumber' ? 'This plate number is already registered.'
               : key === 'schedule' ? 'Choose another available schedule.' : `Please check ${labels[key] || key}.`]))
         const safe = { response: { data: { errors } } }
         customerValidation.receive(safe); vehicleValidation.receive(safe); bookingValidation.receive(safe)
         if (Object.keys(errors).some(key => key in customer)) setStep(0)
         else if (Object.keys(errors).some(key => key in vehicle)) setStep(1)
         else if (errors.services || errors.schedule) setStep(2)
-        setError(Object.keys(errors).length ? '' : status === 503 ? 'Account email is unavailable. Please try again later.'
-          : 'We could not confirm the result. Check Bookings and Existing Client before trying again.')
+        setError(Object.keys(errors).length ? '' : 'We could not confirm the result. Check Bookings and Existing Customer before trying again.')
         if (errors.schedule || errors.services) { setSlot(null); onRefresh() }
       } finally { inFlight.current = false; setBusy(false); onBusy(false) }
     })
@@ -86,50 +113,44 @@ export default function NewWalkInForm({ services = [], loading, refreshKey, onRe
     const values = isVehicle ? vehicle : customer
     const update = isVehicle ? setVehicle : setCustomer
     const validation = isVehicle ? vehicleValidation : customerValidation
-    const maxLength = { firstName: 40, lastName: 40, middleName: 30, email: 254, phone: 13, make: 80, model: 80, plateNumber: 30 }[key]
+    const maxLength = { firstName: 40, lastName: 40, middleName: 30, email: 254, phone: 13, address: 300, make: 80, model: 80, plateNumber: 8 }[key]
     const isPlate = key === 'plateNumber'
-    const isMileage = key === 'currentMileage'
-    return <TextField key={key} fullWidth size="small" label={labels[key]} required={!['middleName', 'currentMileage'].includes(key)}
-      type={['year', 'currentMileage'].includes(key) ? 'number' : key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
-      value={values[key]} {...validation.field(key)} disabled={busy}
+    return <TextField key={key} fullWidth size="small" label={labels[key]} required={!['middleName', 'email', 'address', 'currentMileage'].includes(key)}
+      type={key === 'year' ? 'number' : key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
+      value={values[key]} {...validation.field(key, key === 'email' ? 'If this email is not yet registered, a Client account and temporary password will be created automatically.' : undefined)} disabled={busy}
       slotProps={{ htmlInput: {
         ...(maxLength ? { maxLength } : {}),
-        ...(isMileage ? { min: 0, max: 9999999, step: 1, inputMode: 'numeric' } : {}),
         ...(isPlate ? { style: { textTransform: 'uppercase' } } : {}),
-      }, input: isMileage ? { endAdornment: <InputAdornment position="end">km</InputAdornment> } : undefined }}
-      onKeyDown={isMileage ? event => {
-        if (!event.ctrlKey && !event.metaKey && ['e', 'E', '+', '-', '.', ','].includes(event.key)) event.preventDefault()
-      } : undefined}
-      onPaste={isMileage ? event => {
-        const pasted = event.clipboardData.getData('text').trim()
-        if (!/^\d+$/.test(pasted)) event.preventDefault()
-      } : undefined}
+      } }}
       onBlur={isPlate ? () => update(current => ({ ...current, plateNumber: normalizePlateInput(current.plateNumber, { trim: true }) })) : undefined}
       onChange={event => update(current => ({ ...current, [key]: key === 'phone' ? restrictMobileInput(event.target.value)
-        : isPlate ? normalizePlateInput(event.target.value)
-          : isMileage ? (/^\d*$/.test(event.target.value) ? event.target.value : current[key])
-            : event.target.value }))} />
+        : isPlate ? normalizePlateInput(event.target.value) : event.target.value }))} />
   }
-  return <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, maxWidth: 960, borderRadius: 2.5 }}>
+  return <><FormWorkspace>
     {completed ? <Stack spacing={2}>
-      <Alert severity={completed.emailSent ? 'success' : 'warning'}>{completed.message}</Alert>
+      <Alert severity="success">Walk-in booking created successfully. The customer is checked in.</Alert>
+      {completed.existingClient && <Typography role="status" sx={{ fontSize: 13, color: 'text.secondary' }}>Existing client account found.</Typography>}
       <Typography>Booking reference: {completed.item._id}</Typography>
-      <Typography>Created as Confirmed. Check-In remains a separate action.</Typography>
-      <Button component={Link} to="/admin/bookings">View bookings</Button>
+      <Stack direction="row" spacing={1}><Button component={Link} to={`/staff/bookings?open=${completed.item._id}`}>View Booking</Button><Button component={Link} to="/staff/job-orders">Continue to Job Coordination</Button></Stack>
     </Stack> : <Stack spacing={3}>
-      <Stepper activeStep={step} alternativeLabel>{['Client', 'Vehicle', 'Date & Time', 'Review'].map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
+      <Stepper activeStep={step} alternativeLabel>{['Customer', 'Vehicle', 'Services & Time', 'Review'].map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
       {error && <Alert severity="error">{error}</Alert>}
-      {step === 0 && <><Alert severity="info">The client will receive a temporary password by email and must change it after signing in.</Alert>
+      {step === 0 && <><Alert severity="info">Email is optional. Provide an email to create or link a Client account, or leave it blank for an offline walk-in.</Alert>
         <Box sx={grid}>{field('firstName')}{field('lastName')}{field('middleName')}
           <TextField select size="small" label="Suffix (optional)" value={customer.suffix} {...customerValidation.field('suffix')} disabled={busy}
             onChange={event => setCustomer({ ...customer, suffix: event.target.value })}>
             {NAME_SUFFIXES.map(value => <MenuItem key={value} value={value}>{value || 'None'}</MenuItem>)}
-          </TextField>{field('email')}{field('phone')}</Box></>}
-      {step === 1 && <Box sx={grid}>{['make', 'model', 'year', 'plateNumber'].map(key => field(key, true))}
-        <TextField select required size="small" label="Transmission" value={vehicle.transmission} {...vehicleValidation.field('transmission')} disabled={busy}
-          onChange={event => setVehicle({ ...vehicle, transmission: event.target.value })}>
-          {['manual', 'automatic', 'cvt'].map(value => <MenuItem key={value} value={value}>{value === 'cvt' ? 'CVT' : value[0].toUpperCase() + value.slice(1)}</MenuItem>)}
-        </TextField>{field('currentMileage', true)}</Box>}
+          </TextField>{field('email')}{field('phone')}{field('address')}</Box>
+        {emailCheck.email === normalizedEmail && emailCheck.message && <Typography role="status" sx={{ fontSize: 13, color: 'text.secondary' }}>{emailCheck.message}</Typography>}
+      </>}
+      {step === 1 && <Stack spacing={2}>
+        <ToyotaVehiclePicker value={vehicle} onChange={changes => setVehicle(current => ({ ...current, ...changes }))}
+          validation={vehicleValidation} catalog={catalog} busy={busy} size="small">
+        <Box sx={grid}>{field('plateNumber', true)}<MileageInput label="Current mileage (optional)" optional size="small"
+          disabled={busy} value={vehicle.currentMileage} {...vehicleValidation.field('currentMileage')}
+          onValueChange={value => setVehicle(current => ({ ...current, currentMileage: value }))} /></Box>
+        </ToyotaVehiclePicker>
+      </Stack>}
       {step === 2 && <>
         <Typography component="h2" variant="h6">Services and schedule</Typography>
         {loading && <Alert severity="info">Loading available visits…</Alert>}
@@ -144,24 +165,22 @@ export default function NewWalkInForm({ services = [], loading, refreshKey, onRe
             onChange={event => { setConcern(event.target.value); if (event.target.value.trim()) setConcernError('') }} />
           <Alert severity="info">Diagnostic estimate: {otherService.estimatedDuration} minutes. Final service duration will be confirmed after assessment.</Alert>
         </Stack>}
-        <BookingDateTimePicker serviceIds={serviceIds} selectedDate={selectedDate} selectedScheduleId={slot?.scheduleId} refreshKey={refreshKey} disabled={busy || loading}
+        <BookingDateTimePicker serviceIds={serviceIds} selectedDate={selectedDate} selectedScheduleId={slot?.scheduleId} refreshKey={refreshKey} disabled={busy || loading} defaultToday
           onChange={(date, value) => { setSelectedDate(date); setSlot(value) }} />
         {bookingValidation.errors.schedule && <Alert severity="error">{bookingValidation.errors.schedule}</Alert>}
       </>}
-      {step === 3 && <Stack spacing={1}>
-        <Typography variant="h6">Review new client and visit</Typography>
-        <Typography>{registrationNames(customer).fullName}</Typography><Typography>{customer.email} · {customer.phone}</Typography>
-        <Typography>{vehicle.make} {vehicle.model} {vehicle.year} · {vehicle.plateNumber} · {vehicle.transmission}</Typography>
-        <Typography>{chosen.map(item => item.name).join(', ')}</Typography>
-        {otherService && <Typography>Issue: {concern.trim()}</Typography>}
-        <Typography>{slot && `${dateLabel(selectedDate)} · ${slot.time}`}</Typography>
-        <Typography>Estimated total: {money(chosen.reduce((total, item) => total + Number(item.estimatedPrice || 0), 0))}</Typography>
-        <Alert severity="info">Creates a Client account, its vehicle, and a Confirmed Walk-In booking. Temporary sign-in details will be emailed to the client.</Alert>
+      {step === 3 && <Stack spacing={2}>
+        <Typography variant="h6">Review walk-in customer and visit</Typography>
+        <BookingRecordDetails business booking={{ client: { ...customer, fullName: registrationNames(customer).fullName }, vehicle, services: chosen,
+          bookingType: 'walk-in', bookingDate: selectedDate, bookingTime: slot?.time, concern: otherService ? concern.trim() : '' }} />
+        <Alert severity="info">Creates a vehicle and Checked-In booking. {normalizedEmail ? 'An existing Client account is linked, or a Client login with a temporary password is created.' : 'The customer remains an offline walk-in without an online login.'}</Alert>
       </Stack>}
       <Stack direction="row" justifyContent="space-between"><Button disabled={busy || step === 0} onClick={() => setStep(step - 1)}>Back</Button>
         {step < 3 ? <Button variant="contained" disabled={busy || loading} onClick={next}>Continue</Button>
-          : <Button variant="contained" disabled={busy} onClick={submit}>{busy ? 'Creating…' : 'Create client and booking'}</Button>}
+          : <Button variant="contained" disabled={busy} onClick={submit}>{busy ? 'Creating…' : 'Create Walk-In Booking'}</Button>}
       </Stack>
     </Stack>}
-  </Paper>
+  </FormWorkspace>
+    {deliveryNotice && <ClientCredentialDeliveryDialog {...deliveryNotice} onClose={() => setDeliveryNotice(null)} />}
+  </>
 }

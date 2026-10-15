@@ -1,3 +1,5 @@
+import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
+import { StatusBadge } from '../components/StatusChip'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
@@ -5,11 +7,12 @@ import useServiceBayNameCheck from '../components/useServiceBayNameCheck'
 import { SERVICE_BAY_DUPLICATE } from '../../../shared/serviceBayName.mjs'
 import { useState } from 'react'
 import useCatalog, { message as errorMessage } from './useCatalog'
-import ListPagination from '../components/ListPagination'
-import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Paper, Stack, Switch, TextField, Typography } from '@mui/material'
+import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material'
 import AddRounded from '@mui/icons-material/AddRounded'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
+import { DetailDialog, DetailInfo, DetailSection } from '../components/RecordDetails'
 
 const definitions = {
   service: {
@@ -47,6 +50,7 @@ export default function AdminMasterData({ kind }) {
   const { items, loading, error, setError, reload, pagination } = useCatalog(definition.endpoint, { archive, status, search }, true)
   const [notice, setNotice] = useState('')
   const [editing, setEditing] = useState(null)
+  const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(definition.empty)
   const [formError, setFormError] = useState('')
   const [checklistError, setChecklistError] = useState('')
@@ -121,7 +125,7 @@ export default function AdminMasterData({ kind }) {
     <PageHeading title={definition.title} subtitle={`Manage your Toyota AutoCare ${definition.title.toLowerCase()} catalog.`} preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
+    <RecordPanel>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
         <TextField label="Search by name" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1, minWidth: 0 }} />
         <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)} sx={{ minWidth: { sm: 145 } }}>
@@ -134,23 +138,37 @@ export default function AdminMasterData({ kind }) {
         </TextField>
         <Button variant="contained" startIcon={<AddRounded />} onClick={() => openForm({})} sx={{ flexShrink: 0 }}>Add {definition.singular}</Button>
       </Stack>
-      {loading ? <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 2, fontSize: 13 }}>Loading {definition.title.toLowerCase()}…</Typography></Stack>
-        : !items.length ? <Typography sx={{ py: 5, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>No {definition.title.toLowerCase()} match these filters.</Typography>
-          : <Stack spacing={1}>{items.map(item => <Box key={item._id} sx={{ p: 2, border: '1px solid var(--line)', borderRadius: 2, bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)', display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 2, minWidth: 0 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Stack direction="row" spacing={1} alignItems="center"><Typography sx={{ fontSize: 14, fontWeight: 650, overflowWrap: 'anywhere' }}>{item.name}</Typography>{kind === 'service' && item.isOtherService && <Chip size="small" label="Diagnostic" />}</Stack>
+      <RecordList items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 2, fontSize: 13 }}>Loading {definition.title.toLowerCase()}…</Typography></Stack>} empty={`No ${definition.title.toLowerCase()} match these filters.`}>
+          {item => <RecordCard key={item._id} entityType={kind === 'service' ? 'service' : 'bay'} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}>
+            <Box className="record-card-copy">
+              <Typography sx={{ fontSize: 14, fontWeight: 650, overflowWrap: 'anywhere' }}>{item.name}</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: .5, overflowWrap: 'anywhere' }}>{kind === 'service'
-                ? `${item.estimatedDuration} min · ₱${Number(item.estimatedPrice).toLocaleString()}${item.description ? ` · ${item.description}` : ''}`
+                ? `${item.estimatedDuration} min · ₱${Number(item.estimatedPrice).toLocaleString()}`
                 : item.operationalStatus.replaceAll('_', ' ')}</Typography>
+              {kind === 'service' && item.description && <Typography>{item.description}</Typography>}
             </Box>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Chip size="small" label={item.isArchived ? 'Archived' : kind === 'service' ? item.isActive ? 'Active' : 'Inactive' : item.operationalStatus.replaceAll('_', ' ')} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : kind === 'service' && item.isActive || kind === 'bay' && item.operationalStatus === 'operational' ? 'var(--green-soft)' : 'var(--amber-soft)', color: item.isArchived ? 'var(--muted)' : 'var(--green-ink)' }} />
-              {!item.isArchived && <Button size="small" variant="outlined" onClick={() => openForm(item)}>Edit</Button>}
-              {!(kind === 'service' && item.isOtherService && !item.isArchived) && <Button size="small" color={item.isArchived ? 'primary' : 'inherit'} onClick={() => setArchiveTarget(item)}>{item.isArchived ? 'Restore' : 'Archive'}</Button>}
-            </Stack>
-          </Box>)}</Stack>}
-      <ListPagination pagination={pagination} />
-    </Paper>
+            <RecordActions statuses={<>
+              <StatusBadge size="small" label={item.isArchived ? 'Archived' : kind === 'service' ? item.isActive ? 'Active' : 'Inactive' : item.operationalStatus.replaceAll('_', ' ')} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : kind === 'service' && item.isActive || kind === 'bay' && item.operationalStatus === 'operational' ? 'var(--green-soft)' : 'var(--amber-soft)', color: item.isArchived ? 'var(--muted)' : 'var(--green-ink)' }} />
+              {kind === 'service' && item.isOtherService && <StatusBadge label="Diagnostic" />}
+            </>}>
+              <DetailsButton onClick={() => setSelected(item)} />
+              <MoreActionsMenu label={item.name} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, !(kind === 'service' && item.isOtherService && !item.isArchived) && { label: item.isArchived ? 'Restore' : 'Archive', destructive: !item.isArchived, onClick: () => setArchiveTarget(item) }]} />
+            </RecordActions>
+          </RecordCard>}
+      </RecordList>
+    </RecordPanel>
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title={kind === 'service' ? 'Service details' : 'Service Bay details'} reference={selected?.name}
+      status={selected && <StatusBadge label={selected.isArchived ? 'Archived' : kind === 'service' ? selected.isActive ? 'Active' : 'Inactive' : selected.operationalStatus.replaceAll('_', ' ')} />}>
+      {selected && <>
+        <DetailSection title={kind === 'service' ? 'Service overview' : 'Service Bay overview'}><DetailInfo items={kind === 'service' ? [
+          ['Service', selected.name], ['Duration', `${selected.estimatedDuration} minutes`],
+          ['Estimated price', `₱${Number(selected.estimatedPrice).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
+          ['Reminder interval', selected.maintenanceReminderInterval ? `${selected.maintenanceReminderInterval} days` : 'Not configured'],
+          ['Description', selected.description],
+        ] : [['Service Bay', selected.name], ['Operational status', selected.operationalStatus.replaceAll('_', ' ')], ['Availability', selected.availability?.replaceAll('_', ' ')]]} /></DetailSection>
+        {kind === 'service' && selected.checklistTemplate?.length > 0 && <DetailSection title="Service checklist"><Stack spacing={1}>{selected.checklistTemplate.map((item, index) => <Typography key={index} sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>{item}</Typography>)}</Stack></DetailSection>}
+      </>}
+    </DetailDialog>
     <Dialog open={formOpen} onClose={() => { if (!saving) setEditing(null) }} fullWidth maxWidth="sm" aria-labelledby="master-form-title">
       <Box component="form" noValidate onSubmit={save}>
         <DialogTitle id="master-form-title">{editing?._id ? 'Edit' : 'Add'} {definition.singular}</DialogTitle>

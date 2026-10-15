@@ -13,17 +13,21 @@ import ClientVehicles from './pages/ClientVehicles'
 import AdminSchedules from './pages/AdminSchedules'
 import ClientBookService from './pages/ClientBookService'
 import BookingList from './pages/BookingList'
-import AdminWalkIn from './pages/AdminWalkIn'
+import StaffWalkIn from './pages/StaffWalkIn'
 import JobOrders from './pages/JobOrders'
 import ActiveJob from './pages/ActiveJob'
 import NotificationsPage from './pages/NotificationsPage'
 import MaintenanceReminders from './pages/MaintenanceReminders'
 import AdminReports from './pages/AdminReports'
-import { ClientDashboard, MechanicDashboard, AdminDashboard } from './pages/RoleDashboards'
+import { ClientDashboard, MechanicDashboard, AdminDashboard, StaffDashboard } from './pages/RoleDashboards'
+import { CustomersDirectory, StaffDirectory } from './pages/PeopleDirectory'
 import { roleNavigation } from './app/navigation'
+import { AccountSettings, HelpSupport, MyProfile } from './pages/AccountPages'
 import { ForgotPassword, Login, Register, ResetPassword, VerifyCode } from './pages/AuthPages'
 import './App.css'
 import './redesign.css'
+import './login.css'
+import './portal.css'
 
 export default function App() {
   const { user, loading, restoreError, retryRestore, logout } = useAuth()
@@ -44,14 +48,21 @@ export default function App() {
     </Route>
     {Object.keys(dashboards).map(role => <Route key={role} path={`/${role}`} element={<ProtectedRoute role={role}><ApplicationLayout role={role} /></ProtectedRoute>}>
       <Route index element={<Navigate to="dashboard" replace />} />
-      <Route path="dashboard" element={role === 'client' ? <ClientDashboard /> : role === 'mechanic' ? <MechanicDashboard /> : <AdminDashboard />} />
+      <Route path="dashboard" element={role === 'client' ? <ClientDashboard /> : role === 'mechanic' ? <MechanicDashboard /> : role === 'staff' ? <StaffDashboard /> : <AdminDashboard />} />
+      <Route path="profile" element={<MyProfile role={role} />} />
+      <Route path="account-settings" element={<AccountSettings role={role} />} />
+      {role === 'client' && <Route path="help-support" element={<HelpSupport />} />}
+      <Route path="notifications" element={<NotificationsPage />} />
       {roleNavigation[role].filter(item => item.path !== 'dashboard').map(item => <Route key={item.path} path={item.path} element={role === 'admin' && ['services', 'service-bays'].includes(item.path)
         ? <AdminMasterData key={item.path} kind={item.path === 'services' ? 'service' : 'bay'} />
         : role === 'admin' && item.path === 'mechanics' ? <AdminMechanics />
+          : role === 'admin' && item.path === 'staff' ? <StaffDirectory />
+            : ['admin', 'staff'].includes(role) && item.path === 'customers' ? <CustomersDirectory role={role} />
           : role === 'admin' && item.path === 'schedules' ? <AdminSchedules />
-            : role === 'admin' && item.path === 'bookings' ? <BookingList role="admin" />
-              : role === 'admin' && item.path === 'walk-in' ? <AdminWalkIn />
-                : role === 'admin' && item.path === 'job-orders' ? <JobOrders role="admin" />
+            : ['admin', 'staff'].includes(role) && item.path === 'bookings' ? <BookingList role={role} />
+              : role === 'staff' && item.path === 'walk-in' ? <StaffWalkIn />
+                : ['admin', 'staff'].includes(role) && item.path === 'job-orders' ? <JobOrders role={role} />
+                  : role === 'staff' && item.path === 'transactions' ? <JobOrders role="staff" view="transactions" />
                   : role === 'mechanic' && item.path === 'jobs' ? <JobOrders role="mechanic" />
                     : role === 'mechanic' && item.path === 'active-job' ? <ActiveJob />
                       : role === 'admin' && item.path === 'reminders' ? <MaintenanceReminders role="admin" />
@@ -59,7 +70,6 @@ export default function App() {
           : role === 'client' && item.path === 'vehicles' ? <ClientVehicles />
             : role === 'client' && item.path === 'book-service' ? <ClientBookService />
               : role === 'client' && item.path === 'bookings' ? <BookingList role="client" />
-                : role === 'client' && item.path === 'notifications' ? <NotificationsPage />
                   : role === 'client' && item.path === 'reminders' ? <MaintenanceReminders role="client" />
             : <Navigate to={dashboards[role]} replace />} />)}
       <Route path="*" element={<Navigate to={dashboards[role]} replace />} />

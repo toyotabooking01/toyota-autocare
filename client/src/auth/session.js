@@ -3,7 +3,7 @@ import { friendlyError } from '../utils/friendlyErrors.js'
 
 export const TOKEN_KEY = 'toyota-autocare.access'
 export const FLOW_KEY = 'toyota-autocare.email-flow'
-export const dashboards = { client: '/client/dashboard', mechanic: '/mechanic/dashboard', admin: '/admin/dashboard' }
+export const dashboards = { client: '/client/dashboard', mechanic: '/mechanic/dashboard', staff: '/staff/dashboard', admin: '/admin/dashboard' }
 export const accountHome = user => dashboards[user?.role]
   ? user.mustChangePassword ? '/change-password' : dashboards[user.role]
   : '/login'

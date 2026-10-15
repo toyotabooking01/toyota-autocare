@@ -1,7 +1,11 @@
-import { Alert, Box, Chip, CircularProgress, Paper, Stack, Typography } from '@mui/material'
+import { DetailsButton } from '../components/RowActions'
+import { StatusBadge } from '../components/StatusChip'
+import { useState } from 'react'
+import { Alert, Box, CircularProgress, Stack, Typography } from '@mui/material'
+import { DetailDialog, DetailGrid, DetailInfo, DetailSection, DetailVehicle } from '../components/RecordDetails'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog from './useCatalog'
-import ListPagination from '../components/ListPagination'
+import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
 import { dateText, vehicleText } from './maintenanceDisplay'
 
 const reminderColors = {
@@ -14,20 +18,29 @@ const reminderColors = {
 export default function MaintenanceReminders({ role }) {
   const admin = role === 'admin'
   const { items, loading, error, setError, pagination } = useCatalog('/maintenance-reminders', {}, admin)
+  const [selected, setSelected] = useState(null)
   return <>
     <PageHeading title={admin ? 'Reminders' : 'Maintenance'} subtitle={admin ? 'Upcoming maintenance recommendations for customers.' : 'Recommended next service dates for your vehicles.'} preview={false} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
-      {loading ? <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading maintenance…</Typography></Stack>
-        : !items.length ? <Typography sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>No maintenance recommendations yet. Recommendations appear after a service with a configured interval is completed.</Typography>
-          : <Stack spacing={1}>{items.map(item => <Box key={item._id} sx={{ p: 2, border: '1px solid var(--line)', borderRadius: 2, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, gap: 2 }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: 14, fontWeight: 700 }}>{vehicleText(item.vehicle)}</Typography>
-              {admin && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.client?.fullName || 'Client unavailable'}</Typography>}
-              <Typography sx={{ fontSize: 13, mt: .5 }}>{item.service?.name || 'Service unavailable'}</Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: .5 }}>Last service: {dateText(item.lastServiceDate)} · Next recommended: {dateText(item.nextRecommendedServiceDate)}</Typography>
-            </Box><Chip size="small" label={item.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[item.status] }} />
-          </Box>)}</Stack>}
-      <ListPagination pagination={pagination} />
-    </Paper>
+    <RecordPanel>
+      <RecordList items={items} pagination={pagination}
+        loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading maintenance…</Typography></Stack>}
+        empty="No maintenance recommendations yet. Recommendations appear after a service with a configured interval is completed.">
+        {item => <RecordCard key={item._id} entityType="service">
+          <Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 700 }}>{vehicleText(item.vehicle)}</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{admin ? `${item.client?.fullName || 'Client unavailable'} · ` : ''}{item.service?.name || 'Service unavailable'}</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Last service: {dateText(item.lastServiceDate)} · Next recommended: {dateText(item.nextRecommendedServiceDate)}</Typography>
+          </Box><RecordActions statuses={<StatusBadge label={item.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[item.status] }} />}><DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton></RecordActions>
+        </RecordCard>}
+      </RecordList>
+    </RecordPanel>
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Maintenance details" reference={selected?._id}
+      status={selected && <StatusBadge size="small" label={selected.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[selected.status] }} />}>
+      {selected && <>
+        <DetailGrid><DetailSection title="Vehicle"><DetailVehicle vehicle={selected.vehicle} /></DetailSection>
+          <DetailSection title="Service"><DetailInfo items={[["Recommended service", selected.service?.name], ...(admin ? [['Client', selected.client?.fullName]] : [])]} /></DetailSection></DetailGrid>
+        <DetailSection title="Maintenance information" summary><DetailInfo items={[["Last service", dateText(selected.lastServiceDate)], ["Next recommended service", dateText(selected.nextRecommendedServiceDate)]]} /></DetailSection>
+      </>}
+    </DetailDialog>
   </>
 }

@@ -12,7 +12,10 @@
     "test:auth:integration": "node scripts/auth-integration.js",
     "bootstrap:admin": "node scripts/bootstrap-admin.js",
     "bootstrap:dev-users": "node scripts/bootstrap-dev-users.js",
-    "seed:demo": "node scripts/seed-demo.js"
+    "seed:demo": "node scripts/seed-demo.js",
+    "seed:toyota": "node scripts/seed-toyota-catalog.js",
+    "verify:toyota": "node scripts/verify-toyota-catalog.js",
+    "audit:toyota-images": "node scripts/audit-toyota-images.js"
   },
   "keywords": [],
   "author": "",

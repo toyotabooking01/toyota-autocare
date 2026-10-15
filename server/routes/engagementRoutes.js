@@ -12,7 +12,7 @@ function available(req, res, next) {
   next();
 }
 const notifications = express.Router();
-notifications.use(available, authenticate, authorize('client'));
+notifications.use(available, authenticate, authorize('client', 'staff', 'mechanic', 'admin'));
 notifications.get('/', async (req, res) => res.json({ items: await engagement.notifications(req.user._id) }));
 notifications.get('/unread-count', async (req, res) => res.json({ count: await engagement.unreadCount(req.user._id) }));
 notifications.patch('/read-all', async (req, res) => res.json(await engagement.markAllRead(req.user._id)));

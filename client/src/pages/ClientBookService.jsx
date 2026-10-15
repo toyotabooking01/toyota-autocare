@@ -1,13 +1,15 @@
+import BookingRecordDetails from '../components/BookingRecordDetails'
+import FormWorkspace, { formWorkspaceGrid } from '../components/FormWorkspace'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, CircularProgress, Divider, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined'
 import RadioButtonUncheckedOutlined from '@mui/icons-material/RadioButtonUncheckedOutlined'
 import { Link } from 'react-router-dom'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
-import { dateLabel, money } from './bookingDisplay'
+import { money } from './bookingDisplay'
 import { message } from './useCatalog'
 import BookingDateTimePicker from '../components/BookingDateTimePicker'
 
@@ -22,9 +24,9 @@ const bookingStepperSx = { mb: 4, display: { xs: 'none', sm: 'flex' },
   '& .MuiStepLabel-label.Mui-completed': { color: 'text.secondary' },
   '& .MuiStepConnector-line': { borderColor: 'divider' },
 }
-const flowPrimaryButtonSx = { bgcolor: 'var(--blue-fill)', color: '#fff', '&:hover': { bgcolor: 'var(--blue-hover)' },
+const flowPrimaryButtonSx = { bgcolor: 'var(--action)', color: 'var(--action-ink)', '&:hover': { bgcolor: 'var(--action-hover)' },
   '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'text.disabled' } }
-const flowBackButtonSx = { color: 'var(--blue-ink)', borderColor: 'var(--blue-ink)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }
+const flowBackButtonSx = { color: 'var(--ink)', borderColor: 'var(--line-strong)', '&:hover': { borderColor: 'var(--ink)', bgcolor: 'var(--surface-soft)' } }
 export default function ClientBookService() {
   const confirm = useConfirmation()
   const [vehicles, setVehicles] = useState([])
@@ -131,7 +133,7 @@ export default function ClientBookService() {
     <PageHeading title="Book a service" subtitle="Select your Toyota, services, and a time that works for you." preview={false} />
     {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ width: '100%', minWidth: 0, p: { xs: 2, md: 3 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
+    <FormWorkspace>
       {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading booking options…</Typography></Stack>
         : optionsError ? <Stack alignItems="flex-start" spacing={2} sx={{ py: 5 }}><Typography sx={{ color: 'text.secondary', fontSize: 13 }}>Booking options could not be loaded.</Typography><Button variant="outlined" onClick={() => { setError(''); setOptionsError(false); setLoading(true); setRefresh(value => value + 1) }}>Retry loading</Button></Stack>
         : completed ? <Stack spacing={2} alignItems="flex-start" sx={{ py: 4 }}><Typography component="h2" sx={{ fontSize: 23, fontWeight: 700 }}>Booking received</Typography><Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Reference: {completed._id}. You can follow its status in My Bookings.</Typography><Button variant="contained" component={Link} to="/client/bookings">View my bookings</Button></Stack>
@@ -139,13 +141,13 @@ export default function ClientBookService() {
             <Stepper activeStep={step} alternativeLabel sx={bookingStepperSx}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
             <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 4 · {steps[step]}</Typography>
             {step === 0 && <>{validation.errors.vehicle && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.vehicle}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Choose your vehicle</Typography>
-              {!vehicles.length ? <Alert severity="info">Add a vehicle in My Vehicles before booking.</Alert> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>{vehicles.map(item => <Paper key={item._id} component="button" type="button" onClick={() => { setVehicleId(item._id); setSlot(null); setSelectedDate(''); setDuplicateNotice('') }} aria-pressed={vehicleId === item._id} variant="outlined" sx={{ ...card, textAlign: 'left', borderColor: vehicleId === item._id ? 'var(--blue-ink)' : 'var(--line)', bgcolor: vehicleId === item._id ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }}><Typography sx={{ fontWeight: 650 }}>{item.make} {item.model} {item.year}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.plateNumber}</Typography></Paper>)}</Box>}
+              {!vehicles.length ? <Alert severity="info">Add a vehicle in My Vehicles before booking.</Alert> : <Box sx={formWorkspaceGrid}>{vehicles.map(item => <Paper key={item._id} component="button" type="button" onClick={() => { setVehicleId(item._id); setSlot(null); setSelectedDate(''); setDuplicateNotice('') }} aria-pressed={vehicleId === item._id} variant="outlined" sx={{ ...card, textAlign: 'left', borderColor: vehicleId === item._id ? 'var(--blue-ink)' : 'var(--line)', bgcolor: vehicleId === item._id ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }}><Typography sx={{ fontWeight: 650 }}>{item.make} {item.model} {item.year}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.plateNumber}</Typography></Paper>)}</Box>}
             </>}
             {step === 1 && <>{validation.errors.services && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.services}</Alert>}{duplicateNotice && <Alert severity="warning" onClose={() => setDuplicateNotice('')} sx={{ mb: 2 }}>{duplicateNotice}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: .5 }}>Choose services</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>Select up to 20 services.</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>You can select more than one.</Typography>
               {!vehicleId && <Alert severity="info" sx={{ mb: 2 }}>Choose a vehicle first to check its active bookings.</Alert>}
               {activeServicesLoading && <Alert severity="info" sx={{ mb: 2 }}>Checking this vehicle’s active bookings…</Alert>}
               {activeServicesError && <Alert severity="warning" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => setActiveServicesRefresh(value => value + 1)}>Retry</Button>}>Could not check active bookings. Services are unavailable until the check is complete.</Alert>}
-              {!services.length ? <Alert severity="info">No services are currently available.</Alert> : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5 }}>{services.map(item => {
+              {!services.length ? <Alert severity="info">No services are currently available.</Alert> : <Box sx={formWorkspaceGrid}>{services.map(item => {
                 const alreadyBooked = activeServiceIds.includes(item._id)
                 const optionDisabled = !vehicleId || activeServicesLoading || activeServicesError || alreadyBooked
                 return <Paper key={item._id} component="button" type="button" disabled={optionDisabled} onClick={() => toggleService(item._id)} aria-pressed={serviceIds.includes(item._id)} aria-disabled={optionDisabled} variant="outlined" sx={{ ...card, opacity: alreadyBooked ? .72 : optionDisabled ? .55 : 1, textAlign: 'left', display: 'flex', gap: 1, alignItems: 'flex-start', borderColor: serviceIds.includes(item._id) ? 'var(--blue-ink)' : 'var(--line)', bgcolor: serviceIds.includes(item._id) ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' }, '&.Mui-disabled': { color: 'text.disabled' } }}>
@@ -160,15 +162,11 @@ export default function ClientBookService() {
             {step === 2 && <>{validation.errors.schedule && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.schedule}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Choose Date &amp; Time</Typography>
               <BookingDateTimePicker serviceIds={serviceIds} selectedDate={selectedDate} selectedScheduleId={slot?.scheduleId} refreshKey={refresh} onChange={(date, value) => { setSelectedDate(date); setSlot(value) }} />
             </>}
-            {step === 3 && <><Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Review your booking</Typography><Stack spacing={2} divider={<Divider />}>
-              <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Vehicle</Typography><Typography sx={{ fontWeight: 600 }}>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</Typography></Box>
-              <Box><Typography sx={{ fontSize: 12, color: 'text.secondary', mb: .5 }}>Services</Typography>{chosen.map(item => <Box key={item._id} sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 2, py: .25 }}><Typography sx={{ fontSize: 13, minWidth: 0 }}>{item.name}</Typography><Typography sx={{ fontSize: 13, whiteSpace: 'nowrap', textAlign: 'right' }}>{money(item.estimatedPrice)}</Typography></Box>)}</Box>
-              {otherService && <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Issue description</Typography><Typography sx={{ fontSize: 13 }}>{concern}</Typography></Box>}
-              <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Schedule</Typography><Typography sx={{ fontWeight: 600 }}>{slot && `${dateLabel(selectedDate)} · ${slot.time}`}</Typography></Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 2 }}><Typography sx={{ fontWeight: 700 }}>Estimated total</Typography><Typography sx={{ fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'right' }}>{money(estimate)}</Typography></Box>
-            </Stack><Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 2 }}>Estimate uses current service prices. No payment is collected here.</Typography></>}
+            {step === 3 && <><Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Review your booking</Typography>
+              <Stack spacing={2}><BookingRecordDetails total={estimate} booking={{ vehicle, services: chosen, bookingDate: selectedDate, bookingTime: slot?.time, concern: otherService ? concern : '' }} /></Stack>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 2 }}>Estimate uses current service prices. No payment is collected here.</Typography></>}
             <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}><Button variant="outlined" sx={flowBackButtonSx} disabled={step === 0 || saving} onClick={() => setStep(value => value - 1)}>Back</Button>{step < 3 ? <Button variant="contained" sx={flowPrimaryButtonSx} disabled={!canContinue} onClick={continueStep}>Continue</Button> : <Button variant="contained" sx={flowPrimaryButtonSx} disabled={saving || !vehicle || !slot || !chosen.length} onClick={submit}>{saving ? 'Submitting…' : 'Submit booking'}</Button>}</Stack>
           </>}
-    </Paper>
+    </FormWorkspace>
   </>
 }

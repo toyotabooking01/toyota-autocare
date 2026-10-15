@@ -21,16 +21,16 @@ async function lockUser(email, purpose, session) {
   return User.findOneAndUpdate({ email, ...eligible(purpose) }, { $inc: { otpSequence: 1 } },
     { returnDocument: 'after', session }).select('+authVersion');
 }
-async function createOtp(email, purpose, session) {
+async function createOtp(email, purpose, session, binding = {}) {
   const config = otpConfig();
   const previous = await EmailOtp.findOne({ email, purpose }).sort({ createdAt: -1, _id: -1 })
     .select('+otpHash').session(session);
-  await EmailOtp.updateMany({ email, purpose }, { $set: { isUsed: true }, $unset: { resetTokenHash: 1 } }, { session });
+  await EmailOtp.updateMany({ email, purpose }, { $set: { isUsed: true }, $unset: { resetTokenHash: 1, verificationTokenHash: 1 } }, { session });
   let code;
   do { code = String(crypto.randomInt(0, 1000000)).padStart(6, '0'); }
   while (previous && digest(email, purpose, code) === previous.otpHash);
   const [record] = await EmailOtp.create([{
-    email, purpose, otpHash: digest(email, purpose, code),
+    ...binding, email, purpose, otpHash: digest(email, purpose, code),
     expiresAt: new Date(Date.now() + config.minutes * 60000),
   }], { session });
   return { id: record._id, email, purpose, code, minutes: config.minutes };
@@ -40,7 +40,7 @@ async function deliver(challenge) {
   try { await emailService.sendOtp(challenge); }
   catch {
     emailDiagnostic('deliveryFailedInvalidatingOtp');
-    await EmailOtp.updateOne({ _id: challenge.id }, { $set: { isUsed: true }, $unset: { resetTokenHash: 1 } });
+    await EmailOtp.updateOne({ _id: challenge.id }, { $set: { isUsed: true }, $unset: { resetTokenHash: 1, verificationTokenHash: 1 } });
     throw new HttpError(503, 'Email delivery is temporarily unavailable. Request a new code later.');
   }
 }

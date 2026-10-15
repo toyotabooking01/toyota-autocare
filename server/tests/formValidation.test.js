@@ -36,7 +36,7 @@ test('mechanic and vehicle validation rejects invalid partial updates with field
   fieldError(() => people.mechanicInput({ fullName: '123' }), 'fullName');
   assert.throws(() => people.mechanicInput({ employeeId: 'MECH / 1' }), { status: 400 });
   fieldError(() => people.mechanicInput({ phone: '' }), 'phone');
-  const vehicle = { make: 'Toyota', model: 'Vios', year: 2025, plateNumber: 'ABC1234', transmission: 'automatic', currentMileage: 1200 };
+  const vehicle = { make: 'Toyota', model: 'Vios', year: 2025, variant: '1.3 XLE CVT', plateNumber: 'ABC1234', transmission: 'cvt', currentMileage: 1200 };
   fieldError(() => people.vehicleInput({ ...vehicle, currentMileage: Number.MAX_SAFE_INTEGER + 1 }, true, true), 'currentMileage');
   fieldError(() => people.vehicleInput({ ...vehicle, year: '2025' }, true, true), 'year');
   fieldError(() => people.vehicleInput({ ...vehicle, year: new Date().getUTCFullYear() + 1 }, true, true), 'year');
@@ -46,8 +46,9 @@ test('mechanic and vehicle validation rejects invalid partial updates with field
   fieldError(() => people.vehicleInput({ ...vehicle, transmission: 'unknown' }, true, true), 'transmission');
   fieldError(() => people.vehicleInput({ ...vehicle, currentMileage: -1 }, true, true), 'currentMileage');
   fieldError(() => people.vehicleInput({ ...vehicle, currentMileage: 1.5 }, true, true), 'currentMileage');
-  for (const key of Object.keys(vehicle)) fieldError(() => people.vehicleInput(Object.fromEntries(Object.entries(vehicle).filter(([field]) => field !== key)), true, true), key);
-  assert.equal(people.vehicleInput({ ...vehicle, plateNumber: ' abc-1234 ' }, true, true).plateNumber, 'ABC1234');
+  for (const key of Object.keys(vehicle).filter(field => field !== 'variant')) fieldError(() => people.vehicleInput(Object.fromEntries(Object.entries(vehicle).filter(([field]) => field !== key)), true, true), key);
+  assert.equal(people.vehicleInput({ ...vehicle, variant: '' }, true, true).variant, null);
+  assert.equal(people.vehicleInput({ ...vehicle, plateNumber: ' abc1234 ' }, true, true).plateNumber, 'ABC 1234');
 });
 
 test('numeric form strings are validated before conversion and API requires actual numbers', () => {

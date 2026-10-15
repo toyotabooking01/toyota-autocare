@@ -9,7 +9,7 @@ import useFormValidation from '../components/useFormValidation'
 import { passwordError } from '../../../shared/accountValidation.mjs'
 
 export default function ForcedPasswordChange() {
-  const { changeTemporaryPassword, logout } = useAuth()
+  const { user, changeTemporaryPassword, logout } = useAuth()
   const navigate = useNavigate()
   const [values, setValues] = useState({ newPassword: '', confirmPassword: '' })
   const [busy, setBusy] = useState(false)
@@ -33,7 +33,7 @@ export default function ForcedPasswordChange() {
     } finally { inFlight.current = false; setBusy(false) }
   }
   return <div className="form-card">
-    <h2>Choose your new password</h2>
+    <h2>{user?.role === 'staff' ? 'Set your new password' : 'Choose your new password'}</h2>
     <p className="form-intro">Replace your temporary password to continue to Toyota AutoCare.</p>
     <form noValidate onSubmit={submit}>
       {error && <Alert severity="error">{error}</Alert>}
@@ -47,7 +47,7 @@ export default function ForcedPasswordChange() {
         slotProps={{ formHelperText: matches ? { sx: { color: 'success.main' } } : undefined }}
         onChange={event => { setValues({ ...values, confirmPassword: event.target.value }); setError('') }} />
       <PasswordRequirements password={values.newPassword} />
-      <Button type="submit" variant="contained" disabled={busy || Boolean(passwordError(values.newPassword)) || !matches}>{busy ? 'Saving…' : 'Save new password'}</Button>
+      <Button type="submit" variant="contained" disabled={busy || Boolean(passwordError(values.newPassword)) || !matches}>{busy ? 'Saving…' : user?.role === 'staff' ? 'Set New Password' : 'Save new password'}</Button>
       <Button disabled={busy} onClick={logout}>Sign out</Button>
     </form>
   </div>

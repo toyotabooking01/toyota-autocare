@@ -47,7 +47,41 @@ export function normalizeMobile(value) {
   return MOBILE_PATTERN.test(mobile) && mobile.startsWith('09') ? `+63${mobile.slice(1)}` : mobile
 }
 
-export function normalizePlateInput(value, { trim = false } = {}) {
-  const normalized = String(value ?? '').toUpperCase().replace(/\s+/g, ' ')
-  return trim ? normalized.trim() : normalized.trimStart()
+export function normalizePlateInput(value) {
+  const clean = String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const letters = (/^[A-Z]*/.exec(clean)[0]).slice(0, 3)
+  if (letters.length < 3) return letters
+  const firstDigit = clean.search(/[0-9]/)
+  const digits = firstDigit < 0 ? '' : clean.slice(firstDigit).replace(/[^0-9]/g, '').slice(0, 4)
+  return digits ? `${letters} ${digits}` : letters
+}
+
+// Validation normalization must never truncate or repair an invalid raw plate.
+function normalizePlateForValidation(value) {
+  return value.toUpperCase().trim().replace(/ +/g, ' ').replace(/^([A-Z]{3})([0-9]+)$/, '$1 $2')
+}
+
+// LTO private motor-vehicle series and optional motor-vehicle special plates.
+// https://www.lto.gov.ph/wp-content/uploads/2023/10/praos_18feb2015.pdf
+// https://lto.gov.ph/wp-content/uploads/2023/10/FDM-vol.-2-2nd-Edition.pdf
+export const PH_MOTOR_VEHICLE_PLATE = /^[A-Z]{3} [0-9]{3,4}$/
+export const PLATE_FORMAT_ERROR = 'Enter a valid Philippine plate number.'
+export function hasUnsupportedPlateSymbols(value) {
+  return typeof value !== 'string' || /[^a-zA-Z0-9 ]/.test(value)
+}
+
+// Existing OMVSP records only; never a general-purpose alphanumeric fallback.
+// https://lto.gov.ph/wp-content/uploads/2023/08/Memo_08102023.pdf
+export function legacyPlateNumber(value) {
+  if (hasUnsupportedPlateSymbols(value)) return ''
+  const normalized = normalizePlateForValidation(value)
+  return /^[A-Z]{3} (?!00$)[0-9]{2}$/.test(normalized) ? normalized : ''
+}
+
+export function canonicalPlateNumber(value, { existingPlate } = {}) {
+  if (hasUnsupportedPlateSymbols(value)) return ''
+  const normalized = normalizePlateForValidation(value)
+  if (PH_MOTOR_VEHICLE_PLATE.test(normalized)) return normalized
+  const legacy = legacyPlateNumber(existingPlate)
+  return legacy && normalized === legacy ? legacy : ''
 }

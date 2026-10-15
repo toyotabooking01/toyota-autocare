@@ -2,6 +2,7 @@
 module.exports = {
   User: require('./User'),
   Vehicle: require('./Vehicle'),
+  ToyotaCatalog: require('./ToyotaCatalog'),
   Service: require('./Service'),
   Booking: require('./Booking'),
   Schedule: require('./Schedule'),

@@ -1,22 +1,6 @@
-:root {
-  --surface: #ffffff; --canvas: #f2f5fa; --surface-soft: #f6f8fb;
-  --ink: #142238; --muted: #63728a; --line: #e3e9f1;
-  --accent-soft: #fff0f2; --blue-soft: #edf4fc; --green-soft: #edf7f0;
-  --blue-fill: #315b91; --blue-hover: #284d7a; --blue-done: #527aa8; --blue-active: #244a78;
-  --amber-soft: #fcf5e9; --purple-soft: #f4effa;
-  --amber-ink: #80591e; --blue-ink: #315b91; --green-ink: #27623c; --purple-ink: #71548e; --red-ink: #a13f48;
-}
-:root[data-color-mode="dark"] {
-  --surface: #101923; --canvas: #080d14; --surface-soft: #15202d;
-  --ink: #f1f5fa; --muted: #a6b3c5; --line: #253140;
-  --accent-soft: #321720; --blue-soft: #192d43; --green-soft: #183728;
-  --blue-fill: #285887; --blue-hover: #356fa6; --blue-done: #24517d; --blue-active: #3975ad;
-  --amber-soft: #352c1b; --purple-soft: #30223f;
-  --amber-ink: #edc07a; --blue-ink: #98c6ff; --green-ink: #8dd4a7; --purple-ink: #ceb2ed; --red-ink: #ffadb6;
-}
 body { background: var(--canvas); color: var(--ink); }
 .site-wrap { position: relative; isolation: isolate; background: var(--canvas); }
-.site-wrap::before { content: ''; position: absolute; inset: 0; z-index: -2; background: url('./assets/autocare-scenic.png') center 60% / cover no-repeat; }
+.auth-hero-image { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; display: block; pointer-events: none; }
 .site-wrap::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, #f2f6fbbb 0%, #f2f6fb33 52%, #f2f6fb88 100%); }
 .site-header { background: transparent; border: 0; padding: 24px 4.5%; }
 .brand { color: var(--ink); }
@@ -29,42 +13,37 @@ body { background: var(--canvas); color: var(--ink); }
 .red-line { margin-bottom: 20px; }
 .benefits { margin-top: 25px; gap: 14px; }
 .benefits p { color: #34465d; font-size: 13px; }
-.benefits span { color: #e50920; background: #fff7f8dc; border: none; border-radius: 12px; }
+.benefits span { color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line); border-radius: 12px; }
 .form-region { padding: 28px 0 0; }
-.form-card { max-width: 450px; padding: 34px; background: #ffffffed; border: 1px solid #ffffffcc; border-radius: 20px; box-shadow: 0 24px 70px #10203824; backdrop-filter: blur(22px); }
+.form-card { max-width: 450px; padding: 34px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 16px 42px #1118271c; }
 .form-card.registration { max-width: 580px; }
 .form-card h2 { color: var(--ink); font-size: 29px; }
 .form-intro, .form-bottom, .password-hint, .resend-row > span, .success-panel p { color: var(--muted); }
 .form-intro strong { color: var(--ink); }
 .field label { color: var(--ink); }
-.form-icon { background: var(--accent-soft); color: #f20d29; }
+.form-icon { background: var(--surface-soft); color: var(--ink); }
 .form-bottom { border-color: var(--line); }
 .site-footer { color: #fff; background: linear-gradient(transparent, #07111bb0); border: 0; min-height: 64px; align-items: end; }
 .steps li { color: var(--muted); }
 .steps li.active { color: var(--ink); }
 .steps li > span { background: var(--surface-soft); }
-.steps li.active > span { background: #e50920; }
+.steps li.active > span { background: var(--action); color: var(--action-ink); }
 .otp-inputs input { color: var(--ink); background: var(--surface-soft); border-color: var(--line); }
 .otp-inputs input:disabled { background: var(--canvas); }
-.workspace-shell { background-image: radial-gradient(ellipse at 100% 0, #e5eefc77, transparent 60%); }
-.workspace-shell main { max-width: 1600px; margin-inline: auto; }
-.workspace-shell .MuiDrawer-paper { background: var(--surface); }
-.workspace-shell .MuiAppBar-root { backdrop-filter: blur(18px); }
-.workspace-shell .MuiPaper-outlined { border-color: var(--line); border-radius: 18px; }
+.workspace-shell .MuiAppBar-root { backdrop-filter: none; }
+.workspace-shell .MuiPaper-outlined { border-color: var(--line); border-radius: 14px; }
 .vehicle-preview { display: flex; align-items: center; gap: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--surface-soft); }
-.vehicle-preview:hover { text-decoration: none; border-color: #e50920; }
+.vehicle-preview:hover { text-decoration: none; border-color: var(--line-strong); }
 .vehicle-symbol { display: grid; place-items: center; width: 72px; height: 54px; background: var(--blue-soft); border-radius: 10px; color: var(--muted); }
 .vehicle-symbol svg { font-size: 34px; }
-.notification-symbol { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; color: #f1273e; background: var(--accent-soft); border-radius: 11px; }
+.notification-symbol { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; color: var(--ink); background: var(--accent-soft); border-radius: 11px; }
 :root[data-color-mode="dark"] .site-wrap::after { background: linear-gradient(90deg, #040a15a6, #080d1470 45%, #080d14bd), linear-gradient(0deg, #080d14aa, transparent); }
 :root[data-color-mode="dark"] .site-header { background: #080d1460; }
 :root[data-color-mode="dark"] .journey-copy > p:last-child,
 :root[data-color-mode="dark"] .benefits p,
 :root[data-color-mode="dark"] .eyebrow { color: #d0dbe9; }
-:root[data-color-mode="dark"] .form-card { background: #0b111bec; border-color: #673039; box-shadow: 0 24px 80px #0009, 0 0 40px #e5092010; }
-:root[data-color-mode="dark"] .benefits span { background: #331822; }
-:root[data-color-mode="dark"] .workspace-shell { background-image: radial-gradient(ellipse at 100% 100%, #5c12202b, transparent 50%); }
-:root[data-color-mode="dark"] .dashboard-hero img { filter: brightness(.75) saturate(.85); }
+:root[data-color-mode="dark"] .form-card { background: var(--surface); border-color: var(--line); box-shadow: 0 18px 48px #0006; }
+:root[data-color-mode="dark"] .benefits span { background: var(--surface-soft); }
 @media (min-width: 1600px) { .auth-layout { padding-inline: 8%; gap: 10%; } .form-region { padding-top: 60px; } }
 @media (max-width: 1000px) { .auth-layout { gap: 4%; grid-template-columns: 1fr 1fr; } .journey-panel { padding-top: 35px; } .journey-copy h1 { font-size: 43px; } .form-card { padding: 27px; } .field-grid { grid-template-columns: 1fr; } }
 @media (max-width: 700px) {
@@ -73,59 +52,20 @@ body { background: var(--canvas); color: var(--ink); }
   .journey-panel { padding: 0; width: 100%; } .journey-copy h1 { font-size: 34px; letter-spacing: -1.4px; }
   .journey-copy h1 br { display: initial; } .journey-copy > p:last-child, .benefits { display: none; }
   .form-region { padding: 0; width: 100%; } .form-card { max-width: 500px; padding: 26px 22px; }
-  .site-wrap::before { background-position: 60% center; } .site-wrap::after { background: #edf3faaa; }
-  .workspace-shell .theme-toggle { min-width: 36px; padding-inline: 10px; } .vehicle-preview { gap: 10px; }
+  .site-wrap::after { background: #edf3faaa; }
+  .vehicle-preview { gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; } }
 
-/* Registration grows with its content; the background ends with the footer. */
-html:has(.site-wrap--registration),
-body:has(.site-wrap--registration),
-#root:has(.site-wrap--registration) {
-  width: 100%;
-  min-height: 100vh;
-  height: auto;
-  overflow-x: hidden;
-}
-.site-wrap--registration {
-  width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: auto;
-  overflow-x: hidden;
-}
-.site-wrap--registration .auth-layout {
-  flex: 1 0 auto;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  column-gap: clamp(24px, 5vw, 96px);
-}
-.site-wrap--registration .journey-panel { min-width: 0; padding-bottom: 0; }
-.site-wrap--registration .form-region,
+/* Registration keeps its form-specific field layout inside the shared auth shell. */
 .site-wrap--registration .form-card { width: 100%; min-width: 0; }
 .site-wrap--registration .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.site-wrap--registration .header-right { min-width: 0; flex-wrap: wrap; }
 @media (max-width: 1000px) {
-  .site-wrap--registration .auth-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .site-wrap--registration .field-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Fit the normal desktop registration view through spacing, not clipping.
-   No fixed/max height: additional feedback and small viewports can still grow. */
+/* Compact registration fields leave room for validation feedback. */
 @media (min-width: 1200px) {
-  .site-wrap--registration .site-header {
-    min-height: 48px;
-    padding-block: clamp(4px, .7vh, 12px);
-  }
-  .site-wrap--registration .auth-layout {
-    flex: 1 0 auto;
-    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
-    column-gap: clamp(24px, 3vw, 64px);
-    align-items: center;
-    padding: clamp(4px, .7vh, 12px) 4%;
-  }
-  .site-wrap--registration .journey-panel { padding-block: 0; }
-  .site-wrap--registration .form-region { padding: 0; }
   .site-wrap--registration .form-card.registration {
     max-width: 640px;
     padding: clamp(10px, 1.4vh, 22px) clamp(22px, 2vw, 32px);
@@ -153,11 +93,6 @@ body:has(.site-wrap--registration),
     margin-top: clamp(6px, .9vh, 12px);
     padding-top: clamp(6px, .9vh, 12px);
     line-height: 1.5;
-  }
-  .site-wrap--registration .site-footer {
-    min-height: 24px;
-    padding-block: 4px;
-    align-items: center;
   }
 }
 

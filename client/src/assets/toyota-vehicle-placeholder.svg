@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 190" role="img" aria-label="Toyota vehicle image unavailable">
+  <rect width="320" height="190" rx="18" fill="#e9eef2"/>
+  <path d="M45 121h230l-12-30a18 18 0 0 0-17-11H84a18 18 0 0 0-17 11z" fill="#b6c1cb"/>
+  <path d="M82 80l22-33h112l22 33" fill="none" stroke="#8fa0ae" stroke-width="11" stroke-linejoin="round"/>
+  <circle cx="91" cy="129" r="17" fill="#52606d"/><circle cx="229" cy="129" r="17" fill="#52606d"/>
+  <text x="160" y="173" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#52606d">TOYOTA</text>
+</svg>

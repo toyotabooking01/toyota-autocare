@@ -43,7 +43,8 @@ test('Mailjet SMTP settings configure transport and preserve all email templates
   for (const mail of fixture.calls) assert.equal(mail.from, settings.EMAIL_FROM);
   assert.match(fixture.calls[0].html, /012345/); assert.match(fixture.calls[2].subject, /Reset your password/);
   const temporaryPasswordMail = fixture.calls[3];
-  assert.equal(temporaryPasswordMail.subject, 'Toyota AutoCare - Your temporary sign-in details');
+  assert.equal(temporaryPasswordMail.subject, 'Toyota AutoCare - Your client account has been created');
+  assert.match(temporaryPasswordMail.text, /Your Toyota AutoCare client account has been created\./);
   assert.match(temporaryPasswordMail.text, /Temporary Password\nTemp<&Password1!/);
   assert.match(temporaryPasswordMail.html, /Temporary Password/);
   assert.match(temporaryPasswordMail.html, /background:#fff1f2/);
@@ -68,6 +69,19 @@ test('mechanic credential email uses its subject and the shared branded password
   assert.match(mail.html, /background:#fff1f2/);
   assert.match(mail.html, /mechanic-temporary/);
   assert.match(mail.html, /change this password after your first sign-in/);
+});
+test('Staff credential email includes Staff ID and first-login instructions', async t => {
+  const fixture = transport(t);
+  await email.sendTemporaryPassword({ email: 'staff@example.invalid', password: 'Temp<&Staff42!',
+    accountType: 'staff', firstName: 'Maria', staffId: 'STAFF-1001' });
+  const [mail] = fixture.calls;
+  assert.equal(mail.subject, 'Your Toyota AutoCare Staff Account');
+  assert.match(mail.text, /Hello Maria/);
+  assert.match(mail.text, /Staff ID:\nSTAFF-1001/);
+  assert.match(mail.text, /Temporary Password:\nTemp<&Staff42!/);
+  assert.match(mail.text, /required to create a new password/);
+  assert.match(mail.html, /Temp&lt;&amp;Staff42!/);
+  assert.match(mail.html, /STAFF-1001/);
 });
 test('missing or malformed generic SMTP settings fail with a friendly configuration error', () => {
   for (const [key, values] of Object.entries({ SMTP_HOST: ['', 'smtp://bad'], SMTP_PORT: ['', 'abc', '0', '65536', '465.5'],

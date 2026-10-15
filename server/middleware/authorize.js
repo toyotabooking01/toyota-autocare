@@ -1,7 +1,7 @@
 const HttpError = require('../utils/HttpError');
 
 function authorize(...roles) {
-  if (!roles.length || roles.some(role => !['client', 'mechanic', 'admin'].includes(role))) {
+  if (!roles.length || roles.some(role => !require('../config/roles').roles.includes(role))) {
     throw new Error('Authorization middleware requires approved roles.');
   }
   return (req, res, next) => {

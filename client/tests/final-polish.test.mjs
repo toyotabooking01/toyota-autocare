@@ -24,9 +24,10 @@ test('useful validation stays visible and corrections clear only the related err
 })
 test('menus contain only implemented role pages with no duplicate paths', () => {
   const implemented = {
-    client: ['dashboard', 'vehicles', 'book-service', 'bookings', 'notifications', 'reminders'],
+    client: ['dashboard', 'vehicles', 'book-service', 'bookings', 'reminders'],
     mechanic: ['dashboard', 'jobs', 'active-job'],
-    admin: ['dashboard', 'bookings', 'walk-in', 'mechanics', 'services', 'schedules', 'service-bays', 'job-orders', 'reminders', 'reports'],
+    admin: ['dashboard', 'bookings', 'staff', 'mechanics', 'customers', 'services', 'schedules', 'service-bays', 'job-orders', 'reminders', 'reports'],
+    staff: ['dashboard', 'bookings', 'walk-in', 'customers', 'job-orders', 'transactions'],
   }
   for (const [role, menu] of Object.entries(roleNavigation)) {
     const paths = menu.map(item => item.path)

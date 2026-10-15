@@ -15,16 +15,17 @@ test('forced accounts route to password change and cleared accounts retain their
   assert.equal(accountHome({ mustChangePassword: false }), '/login')
   assert.equal(accountHome({ role: 'unknown', mustChangePassword: false }), '/login')
 })
-test('mechanic form requires a valid phone and does not ask Admin for employee ID or password', () => {
-  const values = { fullName: 'Mechanic A', email: 'mechanic@example.invalid', phone: '09171234567', status: 'active', availability: 'available' }
-  assert.deepEqual(validateForm('mechanic', values), {})
-  assert.equal(validateForm('mechanic', { ...values, phone: '' }).phone, 'Philippine mobile number is required.')
-  assert.equal(validateForm('mechanic', { ...values, phone: '0917123456' }).phone, 'Enter a valid Philippine mobile number.')
-  assert.equal(validateForm('mechanic', { ...values, phone: '0917abc4567' }).phone, 'Enter a valid Philippine mobile number.')
-  assert.equal(validateForm('mechanic', { ...values, availability: 'off_duty' }).availability, undefined)
+test('mechanic creation requires separate names and contact fields without account controls', () => {
+  const values = { firstName: 'Mechanic', lastName: 'A', email: 'mechanic@example.invalid', phone: '09171234567' }
+  assert.deepEqual(validateForm('mechanicCreate', values), {})
+  assert.equal(validateForm('mechanicCreate', { ...values, phone: '' }).phone, 'Philippine mobile number is required.')
+  assert.equal(validateForm('mechanicCreate', { ...values, phone: '0917123456' }).phone, 'Enter a valid Philippine mobile number.')
+  assert.equal(validateForm('mechanicCreate', { ...values, phone: '0917abc4567' }).phone, 'Enter a valid Philippine mobile number.')
+  assert.ok(validateForm('mechanicCreate', { ...values, firstName: '' }).firstName)
+  assert.ok(validateForm('mechanicCreate', { ...values, lastName: '' }).lastName)
   assert.equal(Object.hasOwn(values, 'password'), false)
   assert.equal(Object.hasOwn(values, 'employeeId'), false)
-  assert.ok(validateForm('mechanic', { ...values, email: 'bad' }).email)
+  assert.ok(validateForm('mechanicCreate', { ...values, email: 'bad' }).email)
 })
 test('walk-in client uses registration names/mobile without password or consent fields', () => {
   const values = { firstName: 'Juan', lastName: 'Santos', email: 'juan@example.invalid', phone: '09171234567', middleName: '', suffix: '' }

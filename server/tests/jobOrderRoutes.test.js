@@ -6,13 +6,13 @@ const app = require('../app');
 const jobs = require('../services/jobOrderService');
 const { signAccessToken } = require('../services/tokenService');
 
-test('assignment is Admin-only and Mechanics can only read their own JobOrders', async () => {
+test('assignment and release are Staff-only; Admin monitors and Mechanics read assigned jobs', async () => {
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
   const oldList = jobs.list; const oldGet = jobs.get; const oldOptions = jobs.options; const oldAssign = jobs.assign;
   const oldActive = jobs.active; const oldWork = jobs.saveWork; const oldTransition = jobs.transition;
-  const users = ['admin', 'client', 'mechanic'].map(role => ({ _id: new mongoose.Types.ObjectId(), role,
+  const users = ['admin', 'client', 'mechanic', 'staff'].map(role => ({ _id: new mongoose.Types.ObjectId(), role,
     status: 'active', isArchived: false, emailVerified: true, authVersion: 0 }));
   const byId = new Map(users.map(user => [String(user._id), user]));
   const jobId = String(new mongoose.Types.ObjectId());
@@ -40,11 +40,13 @@ test('assignment is Admin-only and Mechanics can only read their own JobOrders',
       return fetch(`${origin}${path}`, { method, headers: { Authorization: `Bearer ${signAccessToken(user)}`, 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}) });
     }
-    assert.equal((await request('/api/bookings/assignment-options', users[0])).status, 200);
+    assert.equal((await request('/api/bookings/assignment-options', users[0])).status, 403);
+    assert.equal((await request('/api/bookings/assignment-options', users[3])).status, 200);
     assert.equal((await request('/api/bookings/assignment-options', users[2])).status, 403);
     assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[1], 'POST', {})).status, 403);
     assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[2], 'POST', {})).status, 403);
-    assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[0], 'POST',
+    assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[0], 'POST', {})).status, 403);
+    assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[3], 'POST',
       { mechanic: String(users[2]._id), serviceBay: String(new mongoose.Types.ObjectId()) })).status, 201);
     assert.equal((await request('/api/job-orders', users[1])).status, 403);
     assert.equal((await request('/api/job-orders', users[2])).status, 200);
@@ -52,6 +54,7 @@ test('assignment is Admin-only and Mechanics can only read their own JobOrders',
     assert.equal((await request(`/api/job-orders/${jobId}`, users[2])).status, 200);
     assert.equal(String(viewedFor), String(users[2]._id));
     assert.equal((await request('/api/job-orders', users[0])).status, 200);
+    assert.equal((await request('/api/job-orders', users[3])).status, 200);
     assert.equal(listedFor, undefined);
     assert.equal((await request(`/api/job-orders/${jobId}`, users[0])).status, 200);
     assert.equal(viewedFor, undefined);
@@ -65,7 +68,8 @@ test('assignment is Admin-only and Mechanics can only read their own JobOrders',
       assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST')).status, 403);
     }
     for (const action of ['ready-for-release', 'complete']) {
-      assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST')).status, 200);
+      assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[3], 'POST')).status, 200);
+      assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST')).status, 403);
       assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[2], 'POST')).status, 403);
     }
   } finally {

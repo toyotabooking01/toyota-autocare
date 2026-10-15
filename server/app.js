@@ -9,6 +9,8 @@ const bookingRoutes = require('./routes/bookingRoutes');
 const jobOrderRoutes = require('./routes/jobOrderRoutes');
 const engagementRoutes = require('./routes/engagementRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const peopleRoutes = require('./routes/peopleRoutes');
+const toyotaCatalogRoutes = require('./routes/toyotaCatalogRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -22,12 +24,14 @@ app.use('/api/services', masterDataRoutes('service'));
 app.use('/api/service-bays', masterDataRoutes('bay'));
 app.use('/api/mechanics', peopleVehiclesRoutes('mechanic'));
 app.use('/api/vehicles', peopleVehiclesRoutes('vehicle'));
+app.use('/api/toyota', toyotaCatalogRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/job-orders', jobOrderRoutes);
 app.use('/api/notifications', engagementRoutes.notifications);
 app.use('/api/maintenance-reminders', engagementRoutes.reminders);
 app.use('/api/reports', reportRoutes);
+app.use('/api/people', peopleRoutes);
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
 app.use(errorHandler);
 

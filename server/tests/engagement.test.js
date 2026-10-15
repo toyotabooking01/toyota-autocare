@@ -101,7 +101,7 @@ test('notification write failure aborts booking confirmation', async () => {
   };
   Notification.updateOne = async () => { throw new Error('Deliberate notification write failure'); };
   try {
-    await assert.rejects(bookings.transition(bookingId, { role: 'admin' }, 'confirm'), /Deliberate notification write failure/);
+    await assert.rejects(bookings.transition(bookingId, { role: 'staff' }, 'confirm'), /Deliberate notification write failure/);
     assert.equal(status, 'pending');
   } finally {
     mongoose.connection.transaction = original.transaction; Booking.findOneAndUpdate = original.booking;

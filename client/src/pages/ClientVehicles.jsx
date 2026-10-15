@@ -1,18 +1,28 @@
+import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
+import { StatusBadge } from '../components/StatusChip'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useState } from 'react'
-import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, DialogActions, DialogContent, DialogTitle, MenuItem, Select, Stack, TextField, Typography } from '@mui/material'
 import AddRounded from '@mui/icons-material/AddRounded'
-import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
 import { normalizePlateInput } from '../../../shared/accountValidation.mjs'
+import ToyotaVehiclePicker from '../components/ToyotaVehiclePicker'
+import ToyotaVehicleImage from '../components/ToyotaVehicleImage'
+import useToyotaCatalog from '../hooks/useToyotaCatalog'
+import MileageInput from '../components/MileageInput'
+import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
+import { FormWorkspaceDialog, formWorkspaceGrid } from '../components/FormWorkspace'
+import { catalogHasVariants, catalogVehicleImages, needsToyotaModelCorrection, normalizedToyotaModel } from '../utils/toyotaCatalog'
+import { DetailDialog, DetailGrid, DetailInfo, DetailSection, DetailVehicle } from '../components/RecordDetails'
 
-const empty = { make: 'Toyota', model: '', year: '', plateNumber: '', transmission: 'automatic', currentMileage: '' }
+const empty = { make: 'Toyota', model: '', year: '', variant: '', plateNumber: '', transmission: '', currentMileage: '' }
 
 export default function ClientVehicles() {
+  const [selected, setSelected] = useState(null)
   const confirm = useConfirmation()
   const [archive, setArchive] = useState('active')
   const { items, loading, error, setError, reload } = useCatalog('/vehicles', { archive })
@@ -20,13 +30,18 @@ export default function ClientVehicles() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(empty)
   const [formError, setFormError] = useState('')
-  const validation = useFormValidation('clientVehicle', form)
+  const catalog = useToyotaCatalog()
+  const legacy = Boolean(editing?._id && !editing.variant)
+  const readonlyIdentity = Boolean(editing?._id && (legacy || (!catalog.loading && !catalog.items.some(item =>
+    normalizedToyotaModel(item.model) === normalizedToyotaModel(editing.model) && item.year === editing.year && item.variant === editing.variant))))
+  const validation = useFormValidation('clientVehicle', form,
+    { requireVariant: !legacy && catalogHasVariants(catalog.items, form), existingPlate: editing?._id ? editing.plateNumber : undefined })
   const [saving, setSaving] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState(null)
   function openForm(item = {}) {
     validation.reset()
     setEditing(item)
-    setForm(item._id ? { make: item.make, model: item.model, year: String(item.year), plateNumber: item.plateNumber, transmission: item.transmission, currentMileage: String(item.currentMileage) } : { ...empty })
+    setForm(item._id ? { make: item.make, model: item.model, year: String(item.year), variant: item.variant || '', plateNumber: item.plateNumber, transmission: item.transmission, currentMileage: item.currentMileage ?? 0 } : { ...empty })
     setFormError('')
   }
   function change(key, value) { setForm(current => ({ ...current, [key]: value })); setFormError('') }
@@ -36,7 +51,9 @@ export default function ClientVehicles() {
     return confirm(editing?._id ? 'Are you sure you want to save these changes?' : 'Are you sure you want to add this vehicle?', async () => {
       setSaving(true)
       try {
-        const data = { make: form.make.trim(), model: form.model.trim(), year: Number(form.year), plateNumber: normalizePlateInput(form.plateNumber, { trim: true }), transmission: form.transmission, currentMileage: Number(form.currentMileage) }
+        const data = { make: form.make.trim(), model: form.model.trim(), year: Number(form.year),
+          ...(legacy ? {} : { variant: form.variant }), plateNumber: normalizePlateInput(form.plateNumber, { trim: true }),
+          transmission: form.transmission, currentMileage: form.currentMileage }
         if (editing?._id) await api.patch(`/vehicles/${editing._id}`, data)
         else await api.post('/vehicles', data)
         setEditing(null); setNotice(`Vehicle ${editing?._id ? 'updated' : 'added'} successfully.`); reload()
@@ -58,29 +75,65 @@ export default function ClientVehicles() {
     <PageHeading title="My vehicles" subtitle="Keep your Toyota vehicle details up to date." preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2.5 }}>
+    <RecordPanel>
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2.5 }}>
-        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)} sx={{ minWidth: 155 }}><MenuItem value="active">Current vehicles</MenuItem><MenuItem value="archived">Archived vehicles</MenuItem><MenuItem value="all">All vehicles</MenuItem></TextField>
+        <Select variant="standard" disableUnderline value={archive} onChange={event => setArchive(event.target.value)}
+          inputProps={{ 'aria-label': 'Registered vehicle records filter' }}
+          sx={theme => ({ width: 190, maxWidth: '100%', height: 38, borderRadius: '8px', fontSize: 13,
+            color: theme.palette.mode === 'dark' ? '#f8fafc' : '#111827',
+            backgroundColor: theme.palette.mode === 'dark' ? '#1d2833' : '#ffffff',
+            border: `1px solid ${theme.palette.mode === 'dark' ? '#344452' : '#dde3e8'}`,
+            '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#263442' : '#f6f8fa' },
+            '& .MuiSelect-select': { boxSizing: 'border-box', height: '100%', display: 'flex', alignItems: 'center',
+              padding: '0 30px 0 12px !important' },
+            '& .MuiSelect-icon': { color: 'inherit', right: 7 },
+            '&.Mui-focused': { outline: '2px solid', outlineColor: theme.palette.mode === 'dark' ? '#9eadba' : '#52606d', outlineOffset: 2 },
+          })}
+          MenuProps={{ PaperProps: { sx: theme => ({ mt: 0.5, minWidth: 190, borderRadius: '8px',
+            backgroundColor: theme.palette.mode === 'dark' ? '#18232d' : '#ffffff',
+            border: `1px solid ${theme.palette.mode === 'dark' ? '#344452' : '#dde3e8'}`,
+            '& .MuiMenuItem-root': { fontSize: 13, minHeight: 36,
+              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#263442' : '#e9eef2' },
+              '&.Mui-selected, &.Mui-selected:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#33414e' : '#e9eef2' },
+            },
+          }) } }}>
+          <MenuItem value="active">Current vehicles</MenuItem>
+          <MenuItem value="archived">Archived vehicles</MenuItem>
+          <MenuItem value="all">All registered vehicles</MenuItem>
+        </Select>
         <Button variant="contained" startIcon={<AddRounded />} onClick={() => openForm()}>Add vehicle</Button>
       </Stack>
-      {loading ? <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading vehicles…</Typography></Stack>
-        : items.length === 0 ? <Typography sx={{ py: 5, textAlign: 'center', color: 'text.secondary' }}>No vehicles in this view.</Typography>
-          : <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>{items.map(item => <Paper key={item._id} variant="outlined" sx={{ p: 2, borderColor: 'var(--line)', borderRadius: 2, bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)', minWidth: 0 }}>
-            <Stack direction="row" spacing={1.5} alignItems="center"><Box sx={{ display: 'flex', p: 1.3, borderRadius: 2, bgcolor: 'var(--surface-soft)', color: 'var(--muted)' }}><DirectionsCarOutlined /></Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}><Typography sx={{ fontSize: 15, fontWeight: 650, overflowWrap: 'anywhere' }}>{item.make} {item.model}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.year} · {item.plateNumber}</Typography></Box>
-              <Chip size="small" label={item.isArchived ? 'Archived' : 'Current'} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--green-soft)' }} />
-            </Stack><Typography sx={{ fontSize: 12, color: 'text.secondary', my: 2 }}>{item.transmission.toUpperCase()} · {Number(item.currentMileage).toLocaleString()} km</Typography>
-            <Stack direction="row" spacing={1}>{!item.isArchived && <Button size="small" variant="outlined" onClick={() => openForm(item)}>Edit</Button>}<Button size="small" color={item.isArchived ? 'primary' : 'inherit'} onClick={() => setArchiveTarget(item)}>{item.isArchived ? 'Restore' : 'Archive'}</Button></Stack>
-          </Paper>)}</Box>}
-    </Paper>
-    <Dialog open={editing !== null} onClose={() => { if (!saving) setEditing(null) }} fullWidth maxWidth="sm" aria-labelledby="vehicle-form-title"><Box component="form" noValidate onSubmit={save}>
+      <RecordList items={items} selectionKey={archive}
+        loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading vehicles…</Typography></Stack>}
+        empty="No vehicles in this view.">
+        {item => <RecordCard key={item._id} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}
+          avatar={<ToyotaVehicleImage sources={catalogVehicleImages(catalog.items, item, catalog.models)} vehicle={item} allowExternal={catalog.loading || catalog.error || !needsToyotaModelCorrection(catalog.items, item, catalog.models)} alt={`${item.make} ${item.model}`} />}>
+          <Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{item.make} {item.model}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.year} · {item.variant || 'Variant not recorded'} · {item.plateNumber}</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.transmission.toUpperCase()} · {Number(item.currentMileage).toLocaleString()} km</Typography>
+          </Box><RecordActions statuses={<>{!catalog.loading && !catalog.error && needsToyotaModelCorrection(catalog.items, item, catalog.models) && <StatusBadge color="warning" label="Model needs correction" />}<StatusBadge label={item.isArchived ? 'Archived' : 'Current'} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--green-soft)' }} /></>}>
+            <DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>
+            <MoreActionsMenu label={`${item.make} ${item.model} ${item.plateNumber}`} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, { label: item.isArchived ? 'Restore' : 'Archive', destructive: !item.isArchived, onClick: () => setArchiveTarget(item) }]} />
+          </RecordActions>
+        </RecordCard>}
+      </RecordList>
+    </RecordPanel>
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Vehicle details" reference={selected?.plateNumber}
+      status={selected && <StatusBadge size="small" label={selected.isArchived ? 'Archived' : 'Current'} sx={{ bgcolor: selected.isArchived ? 'var(--surface-soft)' : 'var(--green-soft)' }} />}
+      actions={selected && !selected.isArchived && <Button variant="contained" onClick={() => { openForm(selected); setSelected(null) }}>Edit</Button>}>
+      {selected && <DetailGrid>
+        <DetailSection title="Vehicle"><DetailVehicle vehicle={selected} /></DetailSection>
+        <DetailSection title="Vehicle information"><DetailInfo items={[["Variant", selected.variant || 'Variant not recorded'], ["Current mileage", `${Number(selected.currentMileage).toLocaleString()} km`], ["Transmission", selected.transmission?.toUpperCase()], ["Model year", selected.year]]} /></DetailSection>
+      </DetailGrid>}
+    </DetailDialog>
+    <FormWorkspaceDialog open={editing !== null} onClose={() => { if (!saving) setEditing(null) }} aria-labelledby="vehicle-form-title"><Box component="form" noValidate onSubmit={save}>
       <DialogTitle id="vehicle-form-title">{editing?._id ? 'Edit vehicle' : 'Add vehicle'}</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         {formError && <Alert severity="error">{formError}</Alert>}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Make" required fullWidth value={form.make} {...validation.field('make')} onChange={event => change('make', event.target.value)} /><TextField label="Model" required fullWidth value={form.model} {...validation.field('model')} onChange={event => change('model', event.target.value)} /></Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField label="Year" type="text" required fullWidth value={form.year} {...validation.field('year')} onChange={event => { const value = event.target.value; if (/^\d{0,4}$/.test(value)) change('year', value) }} slotProps={{ htmlInput: { maxLength: 4, inputMode: 'numeric' } }} /><TextField label="Plate number" required fullWidth value={form.plateNumber} {...validation.field('plateNumber')} slotProps={{ htmlInput: { maxLength: 30, style: { textTransform: 'uppercase' } } }} onBlur={() => change('plateNumber', normalizePlateInput(form.plateNumber, { trim: true }))} onChange={event => change('plateNumber', normalizePlateInput(event.target.value))} /></Stack>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}><TextField select label="Transmission" required fullWidth value={form.transmission} {...validation.field('transmission')} onChange={event => change('transmission', event.target.value)}><MenuItem value="automatic">Automatic</MenuItem><MenuItem value="manual">Manual</MenuItem><MenuItem value="cvt">CVT</MenuItem></TextField><TextField label="Current mileage" type="text" required fullWidth value={form.currentMileage} {...validation.field('currentMileage')} onChange={event => { const value = event.target.value; if (/^\d{0,7}$/.test(value)) change('currentMileage', value) }} slotProps={{ htmlInput: { maxLength: 7, inputMode: 'numeric' }, input: { endAdornment: <InputAdornment position="end">km</InputAdornment> } }} /></Stack>
+        <ToyotaVehiclePicker value={form} onChange={changes => setForm(current => ({ ...current, ...changes }))}
+          validation={validation} catalog={catalog} busy={saving} legacy={readonlyIdentity}>
+          <Box sx={formWorkspaceGrid}><TextField label="Plate number" required fullWidth value={form.plateNumber} {...validation.field('plateNumber')} slotProps={{ htmlInput: { maxLength: 8, style: { textTransform: 'uppercase' } } }} onBlur={() => change('plateNumber', normalizePlateInput(form.plateNumber, { trim: true }))} onChange={event => change('plateNumber', normalizePlateInput(event.target.value))} /><MileageInput value={form.currentMileage} onValueChange={value => change('currentMileage', value)} {...validation.field('currentMileage')} /></Box>
+        </ToyotaVehiclePicker>
       </Stack></DialogContent><DialogActions sx={{ p: 2.5 }}><Button disabled={saving} onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" disabled={saving} variant="contained">{saving ? 'Saving…' : 'Save'}</Button></DialogActions>
-    </Box></Dialog>
+    </Box></FormWorkspaceDialog>
     <ConfirmationDialog open={Boolean(archiveTarget)} busy={saving} onCancel={() => setArchiveTarget(null)} onConfirm={toggleArchive}
       message={archiveTarget?.isArchived ? 'Are you sure you want to restore this vehicle?' : 'Are you sure you want to remove this vehicle?'}
       details={archiveTarget?.isArchived ? 'The vehicle will return to your current vehicles.' : 'The vehicle will be archived and kept for historical records.'} />

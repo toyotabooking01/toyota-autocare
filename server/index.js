@@ -5,6 +5,7 @@ const app = require('./app');
 require('./models');
 const connectDatabase = require('./config/db');
 const { ensureOtherService } = require('./services/bootstrapServices');
+const toyotaCatalog = require('./services/toyotaCatalogService');
 
 async function startServer() {
   const port = Number(process.env.PORT || 5000);
@@ -13,6 +14,7 @@ async function startServer() {
   }
 
   await connectDatabase();
+  await toyotaCatalog.seed();
   await ensureOtherService();
   const server = app.listen(port, () => {
     console.log(`Toyota AutoCare API running on http://localhost:${port}`);

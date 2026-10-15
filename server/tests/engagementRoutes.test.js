@@ -6,13 +6,13 @@ const app = require('../app');
 const engagement = require('../services/engagementService');
 const { signAccessToken } = require('../services/tokenService');
 
-test('Client notification actions are owner-scoped; Admin reminders are read-only', async () => {
+test('Notification actions for all roles are owner-scoped; Admin reminders are read-only', async () => {
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
   const oldFunctions = Object.fromEntries(['notifications', 'unreadCount', 'markRead', 'markAllRead', 'reminders']
     .map(key => [key, engagement[key]]));
-  const users = ['client', 'admin', 'mechanic'].map(role => ({ _id: new mongoose.Types.ObjectId(), role,
+  const users = ['client', 'admin', 'mechanic', 'staff'].map(role => ({ _id: new mongoose.Types.ObjectId(), role,
     status: 'active', isArchived: false, emailVerified: true, authVersion: 0 }));
   const byId = new Map(users.map(user => [String(user._id), user]));
   const recordId = String(new mongoose.Types.ObjectId());
@@ -38,8 +38,17 @@ test('Client notification actions are owner-scoped; Admin reminders are read-onl
     assert.equal((await request(`/api/notifications/${recordId}/read`, users[0], 'PATCH')).status, 200);
     assert.equal(String(readFor), String(users[0]._id));
     assert.equal((await request('/api/notifications/read-all', users[0], 'PATCH')).status, 200);
-    assert.equal((await request('/api/notifications', users[1])).status, 403);
-    assert.equal((await request('/api/notifications', users[2])).status, 403);
+    for (const user of users) {
+      assert.equal((await request('/api/notifications', user)).status, 200);
+      assert.equal(String(requestedFor), String(user._id));
+      assert.equal((await request('/api/notifications/unread-count', user)).status, 200);
+      assert.equal(String(requestedFor), String(user._id));
+      assert.equal((await request(`/api/notifications/${recordId}/read?user=someone-else`, user, 'PATCH')).status, 200);
+      assert.equal(String(readFor), String(user._id));
+      assert.equal((await request('/api/notifications/read-all', user, 'PATCH')).status, 200);
+      assert.equal(String(readFor), String(user._id));
+    }
+    assert.equal((await fetch(`${origin}/api/notifications`)).status, 401);
     assert.equal((await request('/api/maintenance-reminders', users[0])).status, 200);
     assert.equal(String(remindersFor), String(users[0]._id));
     assert.equal((await request('/api/maintenance-reminders', users[1])).status, 200);

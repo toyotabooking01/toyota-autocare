@@ -1,21 +1,29 @@
-import { Box, MenuItem, Pagination, Stack, TextField, Typography } from '@mui/material'
-import { recordRange } from '../utils/listPagination'
+import { Box, PaginationItem } from '@mui/material'
+import { visiblePageItems } from '../utils/listPagination'
+
+const PreviousLabel = () => '‹'
+const NextLabel = () => '›'
 
 export default function ListPagination({ pagination }) {
   if (!pagination) return null
-  const { page, limit, totalItems, totalPages, busy, onPageChange, onLimitChange } = pagination
-  return <Stack component="nav" aria-label="List pagination" direction={{ xs: 'column', md: 'row' }}
-    spacing={2} alignItems={{ xs: 'stretch', md: 'center' }} justifyContent="space-between" sx={{ pt: 2.5, minWidth: 0 }}>
-    <Stack direction="row" spacing={2} alignItems="center" justifyContent={{ xs: 'space-between', md: 'flex-start' }}>
-      <Typography sx={{ fontSize: 13 }} aria-live="polite">{recordRange(page, limit, totalItems)}</Typography>
-      <TextField select label="Per page" size="small" value={limit} disabled={busy} sx={{ width: 100 }}
-        onChange={event => onLimitChange(Number(event.target.value))}>
-        {[10, 25, 50].map(value => <MenuItem key={value} value={value}>{value}</MenuItem>)}
-      </TextField>
-    </Stack>
-    <Box sx={{ display: 'flex', justifyContent: 'center', minWidth: 0 }}>
-      <Pagination count={Math.max(1, totalPages)} page={page} size="small" siblingCount={0} boundaryCount={1}
-        disabled={busy || !totalItems} onChange={(_, value) => onPageChange(value)} sx={{ '& .MuiPagination-ul': { justifyContent: 'center', flexWrap: 'wrap' } }} />
+  const { page, totalItems, totalPages, busy, onPageChange } = pagination
+  if (totalPages <= 1) return null
+  const disabled = busy || !totalItems
+
+  return <Box component="nav" aria-label="List pagination"
+    className="list-pagination">
+    <Box className="list-pagination-pages" role="group" aria-label="Pages">
+      <PaginationItem type="previous" shape="rounded" aria-label="Go to previous page"
+        slots={{ previous: PreviousLabel }} disabled={disabled || page <= 1}
+        onClick={() => onPageChange(page - 1)} />
+      {visiblePageItems(page, totalPages).map(item => typeof item === 'number'
+        ? <PaginationItem key={item} type="page" page={item} shape="rounded"
+          aria-label={`Go to page ${item}`} aria-current={item === page ? 'page' : undefined}
+          selected={item === page} disabled={disabled} onClick={() => onPageChange(item)} />
+        : <span key={item} className="list-pagination-ellipsis" aria-hidden="true">...</span>)}
+      <PaginationItem type="next" shape="rounded" aria-label="Go to next page"
+        slots={{ next: NextLabel }} disabled={disabled || page >= Math.max(1, totalPages)}
+        onClick={() => onPageChange(page + 1)} />
     </Box>
-  </Stack>
+  </Box>
 }

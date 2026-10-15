@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { validDate } from '../utils/validationRules.js'
-import { listSelection } from '../utils/listPagination.js'
+import { DEFAULT_LIST_LIMIT, listSelection } from '../utils/listPagination.js'
 import { friendlyError } from '../utils/friendlyErrors.js'
 
 export const message = friendlyError
@@ -13,7 +13,7 @@ export default function useCatalog(endpoint, filters, paginated = false) {
   const [revision, setRevision] = useState(0)
   const { archive, search, status, availability, date, enabled } = filters
   const key = JSON.stringify([endpoint, archive, search, status, availability, date, enabled, paginated])
-  const [selection, setSelection] = useState({ key, page: 1, limit: 10 })
+  const [selection, setSelection] = useState({ key, page: 1, limit: DEFAULT_LIST_LIMIT })
   const current = listSelection(selection, key)
   if (current !== selection) setSelection(current)
   const { page, limit } = current

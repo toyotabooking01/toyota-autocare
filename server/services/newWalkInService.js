@@ -1,60 +1,103 @@
-const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Vehicle = require('../models/Vehicle');
 const HttpError = require('../utils/HttpError');
+const { duplicatePlateFilter, duplicatePlateError, duplicateMessage } = require('../utils/plateNumbers');
 const validate = require('../utils/validateForm');
 const authValidation = require('../utils/authValidation');
 const { registrationNames, normalizeMobile } = require('../../shared/accountValidation.mjs');
 const { vehicleInput } = require('./peopleVehiclesService');
+const toyotaCatalog = require('./toyotaCatalogService');
 const bookings = require('./bookingService');
-const emailService = require('./emailService');
+const bcrypt = require('bcrypt');
 const temporaryPassword = require('../utils/temporaryPassword');
+const credentialDelivery = require('./clientCredentialDeliveryService');
 
-const existingEmailMessage = 'This email already has an account. Choose Existing Client instead.';
-async function create(raw) {
+async function matchEmail(email, session) {
+  const query = filter => {
+    const lookup = User.findOne(filter).select('fullName email contactEmail role status isArchived isWalkInCustomer');
+    return session ? lookup.session(session) : lookup;
+  };
+  // Prefer an existing login identity when an old contact record shares its email.
+  const user = await query({ email }) || await query({ contactEmail: email });
+  if (user && (user.role !== 'client' || user.status !== 'active' || user.isArchived)) {
+    const message = user.role !== 'client' ? 'This email belongs to a non-client account.' : 'This customer account is inactive or archived. Choose another eligible customer.';
+    throw new HttpError(409, message, { email: message });
+  }
+  return user;
+}
+async function checkEmail(rawEmail) {
+  const email = authValidation.email(rawEmail);
+  const user = await matchEmail(email);
+  return { existingClient: Boolean(user && !user.isWalkInCustomer), existingCustomer: Boolean(user),
+    message: user ? user.isWalkInCustomer ? 'Existing walk-in customer found. A Client login will be created.' : 'Existing client account found.' : '' };
+}
+async function create(raw, staffId) {
   authValidation.body(raw);
   if (Object.keys(raw).some(key => !['customer', 'vehicle', 'services', 'schedule', 'concern'].includes(key))) {
     throw new HttpError(400, 'Please check the walk-in information.');
   }
   validate('walkInClient', raw.customer);
-  const customer = { ...registrationNames(raw.customer), email: authValidation.email(raw.customer.email),
-    phone: normalizeMobile(raw.customer.phone) };
+  const customerId = new mongoose.Types.ObjectId();
+  const email = raw.customer.email?.trim() ? authValidation.email(raw.customer.email) : undefined;
+  const customer = { ...registrationNames(raw.customer), _id: customerId,
+    // Keep the existing required, unique login-email index intact. This address is internal only.
+    email: `walkin-${customerId}@no-login.toyota-autocare.invalid`,
+    isWalkInCustomer: true, phone: normalizeMobile(raw.customer.phone),
+    ...(raw.customer.address?.trim() ? { address: raw.customer.address.trim() } : {}) };
   const vehicle = vehicleInput(raw.vehicle, true);
+  const catalogEntry = await toyotaCatalog.validateSelection(vehicle);
   const vehicleId = new mongoose.Types.ObjectId();
   const data = bookings.input({ vehicle: String(vehicleId), services: raw.services, schedule: raw.schedule, concern: raw.concern });
-  if (await User.exists({ email: customer.email })) throw new HttpError(409, existingEmailMessage, { email: existingEmailMessage });
-  if (await Vehicle.exists({ plateNumber: vehicle.plateNumber })) throw new HttpError(409, 'Plate number already exists.', { plateNumber: 'Plate number already exists.' });
-  // Fail before writing anything if delivery has not been configured.
-  try { emailService.ensureConfigured(); }
-  catch { throw new HttpError(503, 'Account email is unavailable. No booking was created. Please try again later.'); }
-  const secret = temporaryPassword();
-  const password = await bcrypt.hash(secret, 12);
-  let bookingId;
-  try {
-    bookingId = await mongoose.connection.transaction(async session => {
-      // Desk-created accounts use email-delivered credentials, not public-registration OTP.
-      // Do not fabricate a Terms acceptance timestamp on behalf of the customer.
-      const [user] = await User.create([{ ...customer, password, role: 'client', emailVerified: true,
-        mustChangePassword: true }], { session });
-      await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: user._id }], { session });
-      return bookings.reserveBooking(session, user._id, data, 'walk-in');
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      const emailDuplicate = error.keyPattern?.email || error.keyValue?.email;
-      const field = emailDuplicate ? 'email' : 'plateNumber';
-      const message = emailDuplicate ? existingEmailMessage : 'Plate number already exists.';
-      throw new HttpError(409, message, { [field]: message });
+  if (await Vehicle.exists(duplicatePlateFilter(vehicle.plateNumber))) throw duplicatePlateError();
+  let result;
+  for (let attempt = 0; !result; attempt++) {
+    try {
+      result = await mongoose.connection.transaction(async session => {
+        let user = email ? await matchEmail(email, session) : null;
+        const existingClient = Boolean(user && !user.isWalkInCustomer);
+        let credentials;
+        if (!user || user.isWalkInCustomer) {
+          // Generate only for a new login; no secret is generated for matched online clients or offline visits.
+          const secret = email ? temporaryPassword() : undefined;
+          const password = secret ? await bcrypt.hash(secret, 12) : undefined;
+          const grant = secret ? credentialDelivery.issueGrant(staffId) : undefined;
+          if (user) {
+            user = await User.findOneAndUpdate({ _id: user._id, isWalkInCustomer: true, status: 'active', isArchived: false },
+              { $set: { email, password, isWalkInCustomer: false, emailVerified: true, mustChangePassword: true, credentialDelivery: grant.metadata },
+                $unset: { contactEmail: 1 }, $inc: { authVersion: 1 } }, { session, returnDocument: 'after', runValidators: true })
+              .select('fullName email');
+            if (!user) throw new HttpError(409, 'This customer changed. Check Existing Customer before trying again.');
+          } else {
+            [user] = await User.create([{ ...customer, role: 'client', status: 'active',
+              ...(email ? { email, password, isWalkInCustomer: false, emailVerified: true, mustChangePassword: true, credentialDelivery: grant.metadata }
+                : { emailVerified: false, mustChangePassword: false }) }], { session });
+          }
+          if (secret) credentials = { id: String(user._id), fullName: user.fullName, email: user.email, secret, deliveryToken: grant.token };
+        }
+        await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: user._id, catalogEntry: catalogEntry._id }], { session });
+        const bookingId = await bookings.reserveBooking(session, user._id, data, 'walk-in', staffId);
+        return { bookingId, credentials, existingClient };
+      });
+    } catch (error) {
+      if (error.code === 11000) {
+        const emailDuplicate = error.keyPattern?.email || error.keyValue?.email || error.keyPattern?.contactEmail || error.keyValue?.contactEmail;
+        // Another request may have created the client after our lookup. Retry and link to its committed account.
+        if (emailDuplicate && email && attempt < 2) continue;
+        const message = emailDuplicate ? 'This email could not be linked. Check Existing Customer before trying again.' : duplicateMessage;
+        throw new HttpError(409, message, { [emailDuplicate ? 'email' : 'plateNumber']: message });
+      }
+      throw error;
     }
-    throw error;
   }
-  // Delivery is outside the retryable transaction; never send twice on a DB retry.
-  let emailSent = true;
-  try { await emailService.sendTemporaryPassword({ email: customer.email, password: secret }); }
-  catch { emailSent = false; }
-  return { item: await bookings.get(bookingId), emailSent,
-    message: emailSent ? 'Walk-In booking created. Temporary sign-in details were emailed to the client.'
-      : 'The account, vehicle, and booking were created, but the account email could not be sent. Do not create another booking. Ask the client to use Forgot password with their email when delivery is available, then complete the required password change.' };
+  // Never email a credential from a retried or rolled-back transaction.
+  let delivery;
+  if (result.credentials) {
+    delivery = await credentialDelivery.send(result.credentials.email, result.credentials.secret);
+  }
+  return { item: await bookings.get(result.bookingId), accountCreated: Boolean(result.credentials), existingClient: result.existingClient,
+    ...(result.credentials ? { account: { id: result.credentials.id, fullName: result.credentials.fullName, email: result.credentials.email },
+      deliveryToken: result.credentials.deliveryToken, emailSent: delivery.emailSent } : {}),
+    message: delivery?.message || (result.existingClient ? 'Existing client account found. Walk-in booking created.' : 'Walk-in customer, vehicle, and checked-in booking created.') };
 }
-module.exports = { create, temporaryPassword };
+module.exports = { create, checkEmail };

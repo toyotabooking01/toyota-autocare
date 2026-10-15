@@ -18,7 +18,7 @@ function displayTime(date, time) {
 }
 function monthName(month) { return new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month) }
 
-export default function BookingDateTimePicker({ serviceIds, selectedDate, selectedScheduleId, onChange, disabled = false, refreshKey = 0 }) {
+export default function BookingDateTimePicker({ serviceIds, selectedDate, selectedScheduleId, onChange, disabled = false, refreshKey = 0, defaultToday = false }) {
   const sortedIds = useMemo(() => [...serviceIds].sort(), [serviceIds])
   const serviceKey = sortedIds.join(',')
   const [month, setMonth] = useState(() => {
@@ -50,6 +50,9 @@ export default function BookingDateTimePicker({ serviceIds, selectedDate, select
   }, [serviceKey, monthStart, monthEnd, requestKey, refreshKey])
 
   const dateMap = new Map((currentResults ? days : []).map(day => [day.date, day]))
+  useEffect(() => {
+    if (defaultToday && !selectedDate && currentResults && days.some(day => day.date === today && day.available)) onChange(today, null)
+  }, [defaultToday, selectedDate, currentResults, days, today, onChange])
   const selectedDay = dateMap.get(selectedDate)
   const firstOffset = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()
   const dayCount = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
@@ -85,7 +88,7 @@ export default function BookingDateTimePicker({ serviceIds, selectedDate, select
               aria-pressed={chosen} onClick={() => chooseDate(date, day)}
               sx={{ minWidth: 0, minHeight: { xs: 38, sm: 42 }, p: 0, border: '1px solid', borderColor: chosen || current ? 'var(--blue-ink)' : 'transparent',
                 borderWidth: chosen || current ? 1.5 : 1, borderRadius: 2, bgcolor: chosen ? 'var(--blue-fill)' : 'transparent',
-                color: chosen ? '#fff' : day?.available ? 'text.primary' : 'text.disabled', fontWeight: chosen || current ? 700 : 500,
+                color: chosen ? 'var(--action-ink)' : day?.available ? 'text.primary' : 'text.disabled', fontWeight: chosen || current ? 700 : 500,
                 '&:hover': { bgcolor: chosen ? 'var(--blue-hover)' : 'action.hover' }, '&.Mui-disabled': { color: 'text.disabled', opacity: .55 } }}>
               {date ? Number(date.slice(-2)) : ''}
             </Button>

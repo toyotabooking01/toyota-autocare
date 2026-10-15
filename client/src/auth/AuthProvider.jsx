@@ -73,5 +73,23 @@ export default function AuthProvider({ children }) {
     return updatedUser
   }
 
-  return <AuthContext.Provider value={{ user, loading, restoreError, login, logout, retryRestore, changeTemporaryPassword }}>{children}</AuthContext.Provider>
+  async function updateProfile(values) {
+    const { data } = await api.patch('/auth/me', values)
+    if (data.verificationRequired) { logout(); return data }
+    if (data.accessToken) {
+      store(TOKEN_KEY, data.accessToken)
+      api.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`
+    }
+    setUser(data.user)
+    return data
+  }
+  async function changePassword(values) {
+    const { data } = await api.post('/auth/change-password', values)
+    store(TOKEN_KEY, data.accessToken)
+    api.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`
+    setUser(data.user)
+    return data
+  }
+
+  return <AuthContext.Provider value={{ user, loading, restoreError, login, logout, retryRestore, changeTemporaryPassword, updateProfile, changePassword }}>{children}</AuthContext.Provider>
 }

@@ -16,7 +16,6 @@ export const roleNavigation = {
     item('vehicles', 'My Vehicles', DirectionsCarOutlined),
     item('book-service', 'Book Service', CalendarMonthOutlined),
     item('bookings', 'My Bookings', AssignmentOutlined),
-    item('notifications', 'Notifications', NotificationsNoneOutlined),
     item('reminders', 'Maintenance', AccessTimeOutlined),
   ],
   mechanic: [
@@ -26,15 +25,24 @@ export const roleNavigation = {
   ],
   admin: [
     item('dashboard', 'Dashboard', DashboardOutlined),
-    item('bookings', 'Bookings', CalendarMonthOutlined),
-    item('walk-in', 'Walk-In', PlaylistAddOutlined),
+    item('bookings', 'Booking Monitoring', CalendarMonthOutlined),
+    item('staff', 'Staff Monitoring', AssignmentOutlined),
     item('mechanics', 'Mechanics', BuildOutlined),
+    item('customers', 'Customers & Vehicles', DirectionsCarOutlined),
     item('services', 'Services', AssignmentOutlined),
     item('schedules', 'Schedules', AccessTimeOutlined),
     item('service-bays', 'Service Bays', GarageOutlined),
-    item('job-orders', 'Job Orders', AssignmentOutlined),
+    item('job-orders', 'Service Monitoring', AssignmentOutlined),
     item('reminders', 'Reminders', NotificationsNoneOutlined),
     item('reports', 'Reports', BarChartOutlined),
   ],
+  staff: [
+    item('dashboard', 'Dashboard', DashboardOutlined),
+    item('bookings', 'Bookings', CalendarMonthOutlined),
+    item('walk-in', 'Walk-In', PlaylistAddOutlined),
+    item('customers', 'Customers', DirectionsCarOutlined),
+    item('job-orders', 'Job Coordination', AssignmentOutlined),
+    item('transactions', 'Transactions', BarChartOutlined),
+  ],
 }
-export const roleLabels = { client: 'Client', mechanic: 'Mechanic', admin: 'Administrator' }
+export const roleLabels = { client: 'Client', mechanic: 'Mechanic', staff: 'Staff', admin: 'Administrator' }

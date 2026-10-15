@@ -225,7 +225,7 @@ test('completing a JobOrder releases both reservations at actual completion time
   User.updateOne = async () => ({}); ServiceBay.updateOne = async () => ({});
   engagement.updateReminders = async () => {};
   try {
-    await jobs.transition(String(jobId), { role: 'admin', _id: id() }, 'complete');
+    await jobs.transition(String(jobId), { role: 'staff', _id: id() }, 'complete');
     assert.equal(bookingChange.$set.reservedEndAt.getTime(), jobChange.$set.reservedEndAt.getTime());
     assert.equal(bookingChange.$set.actualDurationMinutes, jobChange.$set.actualDurationMinutes);
     assert.ok(bookingChange.$set.reservedEndAt >= startedAt);

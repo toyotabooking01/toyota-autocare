@@ -17,9 +17,10 @@ test('report summarizes statuses, channels, completed service estimates, workloa
   const serviceA = { _id: id(), name: 'PMS', estimatedPrice: 500 };
   const serviceB = { _id: id(), name: 'Brakes', estimatedPrice: 700 };
   const mechanicA = { _id: id(), fullName: 'Mechanic A' }; const mechanicB = { _id: id(), fullName: 'Mechanic B' };
+  const staffA = { _id: id(), fullName: 'Staff A' };
   const bayA = { _id: id(), name: 'BAY 1' }; const bayB = { _id: id(), name: 'BAY 2' };
   const rows = [
-    { bookingDate: '2026-10-01', status: 'completed', bookingType: 'online', services: [serviceA, serviceB], assignedMechanic: mechanicA, assignedServiceBay: bayA },
+    { bookingDate: '2026-10-01', status: 'completed', bookingType: 'online', services: [serviceA, serviceB], assignedMechanic: mechanicA, assignedServiceBay: bayA, lastProcessedBy: staffA },
     { bookingDate: '2026-10-02', status: 'pending', bookingType: 'walk-in', services: [serviceA] },
     { bookingDate: '2026-10-02', status: 'in_service', bookingType: 'online', services: [serviceB], assignedMechanic: mechanicA, assignedServiceBay: bayA },
     { bookingDate: '2026-10-02', status: 'completed', bookingType: 'walk-in', services: [serviceA], assignedMechanic: mechanicB, assignedServiceBay: bayB },
@@ -36,6 +37,7 @@ test('report summarizes statuses, channels, completed service estimates, workloa
     { id: mechanicA._id, name: 'Mechanic A', assigned: 2, active: 1, completed: 1 });
   assert.deepEqual(report.serviceBayUsage.find(item => item.name === 'BAY 1'),
     { id: bayA._id, name: 'BAY 1', visits: 2, active: 1, completed: 1 });
+  assert.deepEqual(report.staffActivity, [{ id: staffA._id, name: 'Staff A', processed: 1 }]);
   assert.equal(JSON.stringify(report).includes('client'), false);
 });
 

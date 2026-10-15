@@ -1,20 +1,22 @@
+import { DetailFooter, DetailGrid, DetailInfo, DetailSection, DetailVehicle, ServiceEstimate } from '../components/RecordDetails'
+import { RecordCard, RecordActions } from '../components/RecordList'
+import { vehicleName } from './jobOrderDisplay'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useState } from 'react'
-import { Alert, Box, Button, Checkbox, CircularProgress, Divider, FormControlLabel, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, Checkbox, CircularProgress, FormControlLabel, Stack, TextField, Typography } from '@mui/material'
 import StatusChip from '../components/StatusChip'
 import api from '../services/api'
 import { message } from './useCatalog'
 import { dateLabel } from './bookingDisplay'
-import { vehicleName } from './jobOrderDisplay'
 
 const nextAction = {
   mechanic_assigned: { role: 'mechanic', path: 'start', label: 'Start Service' },
   in_service: { role: 'mechanic', path: 'final-inspection', label: 'Mark for Final Inspection' },
-  final_inspection: { role: 'admin', path: 'ready-for-release', label: 'Ready for Release' },
-  ready_for_release: { role: 'admin', path: 'complete', label: 'Complete Service' },
+  final_inspection: { role: 'staff', path: 'ready-for-release', label: 'Ready for Release' },
+  ready_for_release: { role: 'staff', path: 'complete', label: 'Complete Service' },
 }
-export default function JobOrderPanel({ job, role, onChanged }) {
+export default function JobOrderPanel({ job, role, onChanged, showHeader = true }) {
   const confirm = useConfirmation()
   const [notes, setNotes] = useState(job.mechanicNotes || '')
   const [checklist, setChecklist] = useState(job.serviceChecklist || [])
@@ -30,7 +32,7 @@ export default function JobOrderPanel({ job, role, onChanged }) {
   const unsaved = editable && (notes !== (job.mechanicNotes || '') || JSON.stringify(checklist) !== JSON.stringify(job.serviceChecklist || []))
   const estimatedDuration = job.estimatedDurationMinutes || job.booking?.estimatedDurationMinutes
     || job.booking?.services?.reduce((total, service) => total + Number(service?.estimatedDuration || 0), 0) || 0
-  const canAdjustDuration = ['admin', 'mechanic'].includes(role) && ['pending', 'in_progress'].includes(job.status)
+  const canAdjustDuration = ['staff', 'mechanic'].includes(role) && ['pending', 'in_progress'].includes(job.status)
     && ['mechanic_assigned', 'in_service'].includes(status)
   const completedChecklistCount = checklist.filter(item => item.isCompleted).length
   const checklistIncomplete = job.checklistRequired === true && checklist.length > 0 && completedChecklistCount < checklist.length
@@ -88,18 +90,30 @@ export default function JobOrderPanel({ job, role, onChanged }) {
       } finally { setSaving(false) }
     })
   }
-  return <Stack spacing={2} sx={{ minWidth: 0 }}>
+  return <Stack className="record-details" spacing={2} sx={{ minWidth: 0, width: '100%' }}>
+    {showHeader && <Box sx={{ containerType: 'inline-size' }}><RecordCard>
+      <Box className="record-card-copy"><Typography>{vehicleName(job.booking?.vehicle)}</Typography>
+        <Typography>{job.booking && `${dateLabel(job.booking.bookingDate)} · ${job.booking.bookingTime}`} · {job.serviceBay?.name || 'Bay unavailable'}</Typography>
+        <Typography>Job Order {job._id}</Typography></Box>
+      <RecordActions statuses={<StatusChip status={status} />} />
+    </RecordCard></Box>}
     {error && <Alert severity="error">{error}</Alert>}
     {notice && <Alert severity="success">{notice}</Alert>}
-    <Typography sx={{ fontSize: 12, color: 'text.secondary', overflowWrap: 'anywhere' }}>Job Order {job._id}</Typography>
-    <Box><StatusChip status={status} /> <Typography component="span" sx={{ fontSize: 12, color: 'text.secondary', ml: 1 }}>Job Order: {job.status?.replace('_', ' ')}</Typography></Box>
-    <Divider />
-    <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Vehicle</Typography><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{vehicleName(job.booking?.vehicle)}</Typography></Box>
-    <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Customer</Typography><Typography sx={{ fontSize: 13 }}>{job.booking?.client?.fullName || 'Unavailable'}</Typography></Box>
-    <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Booked services</Typography><Typography sx={{ fontSize: 13 }}>{job.booking?.services?.map(item => item?.name || 'Unavailable service').join(', ') || 'Unavailable'}</Typography></Box>
-    <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Schedule</Typography><Typography sx={{ fontSize: 13 }}>{job.booking ? `${dateLabel(job.booking.bookingDate)} · ${job.booking.bookingTime}` : 'Unavailable'}</Typography></Box>
-    <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Assignment</Typography><Typography sx={{ fontSize: 13 }}>{job.mechanic?.fullName || 'Mechanic unavailable'} · {job.serviceBay?.name || 'Bay unavailable'}</Typography></Box>
-    {job.customerConcern && <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Customer concern</Typography><Typography sx={{ fontSize: 13 }}>{job.customerConcern}</Typography></Box>}
+    <DetailSection title="Job overview">
+      <DetailInfo items={[
+        ['Job Order status', job.status?.replaceAll('_', ' ')],
+        ['Schedule', job.booking ? `${dateLabel(job.booking.bookingDate)} · ${job.booking.bookingTime}` : null],
+        ['Assigned mechanic', job.mechanic?.fullName], ['Bay', job.serviceBay?.name],
+      ]} />
+    </DetailSection>
+    <DetailGrid>
+      <DetailSection title="Vehicle"><DetailVehicle vehicle={job.booking?.vehicle} /></DetailSection>
+      <DetailSection title="Customer"><DetailInfo items={[["Customer", job.booking?.client?.fullName]]} /></DetailSection>
+    </DetailGrid>
+    {job.customerConcern && <DetailSection title="Customer concern"><DetailInfo items={[["Concern", job.customerConcern]]} /></DetailSection>}
+    <DetailGrid>
+      <ServiceEstimate services={job.booking?.services} />
+      <DetailSection title="Service progress">
     <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Estimated service duration</Typography>
       <Typography sx={{ fontSize: 13 }}>{estimatedDuration ? `Current estimate: ${estimatedDuration} minutes` : 'Current estimate: Not recorded'}</Typography>
       {job.booking?.initialEstimatedDurationMinutes && job.booking.initialEstimatedDurationMinutes !== estimatedDuration
@@ -107,12 +121,12 @@ export default function JobOrderPanel({ job, role, onChanged }) {
       {canAdjustDuration && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'flex-start' }} sx={{ mt: 0.5 }}>
         <TextField size="small" type="number" label="Minutes" value={duration} error={Boolean(durationError)} helperText={durationError || 'Whole minutes'} disabled={saving}
           onChange={event => { setDuration(event.target.value); setDurationError('') }} slotProps={{ htmlInput: { min: 1, max: 10080, step: 1, inputMode: 'numeric' } }} />
-        <Button variant="outlined" disabled={saving || !duration} onClick={saveDuration}>{saving ? <CircularProgress size={18} /> : 'Update estimate'}</Button>
       </Stack>}
     </Box>
     {job.actualDurationMinutes != null && <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Actual service duration</Typography><Typography sx={{ fontSize: 13 }}>{job.actualDurationMinutes} minutes</Typography></Box>}
-    <Divider />
-    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>Service notes & checklist</Typography>
+      </DetailSection>
+    </DetailGrid>
+    <DetailSection title="Service notes & checklist">
     {editable ? <>
       <TextField label="Service notes" multiline minRows={3} value={notes} {...validation.field('mechanicNotes')} onChange={event => setNotes(event.target.value)} slotProps={{ htmlInput: { maxLength: 5000 } }} fullWidth />
       {checklist.length ? <Stack spacing={1.5}>
@@ -124,7 +138,6 @@ export default function JobOrderPanel({ job, role, onChanged }) {
             label={<Typography sx={{ fontSize: 13 }}>{item.description}</Typography>} />)}
         </Box>)}
       </Stack> : <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>No checklist items are configured for these services.</Typography>}
-      <Button variant="outlined" disabled={saving} onClick={saveWork} sx={{ alignSelf: 'flex-start' }}>{saving ? <CircularProgress size={20} /> : 'Save notes & checklist'}</Button>
     </> : <>
       <Typography sx={{ fontSize: 13, whiteSpace: 'pre-wrap' }}>{job.mechanicNotes || 'No service notes yet.'}</Typography>
       {checklist.length ? <Stack spacing={1}>
@@ -134,7 +147,13 @@ export default function JobOrderPanel({ job, role, onChanged }) {
         </Box>)}
       </Stack> : <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>No checklist items are configured for these services.</Typography>}
     </>}
-    {action && <><Divider />{unsaved && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Save notes and checklist changes before marking for final inspection.</Typography>}{action.path === 'final-inspection' && checklistIncomplete && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Complete all checklist items and save your progress before final inspection.</Typography>}<Button variant="contained" disabled={saving || unsaved || (action.path === 'final-inspection' && checklistIncomplete)} onClick={advance} sx={{ alignSelf: 'flex-start' }}>{action.label}</Button>
-    </>}
+    </DetailSection>
+    {action && unsaved && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Save notes and checklist changes before marking for final inspection.</Typography>}
+    {action?.path === 'final-inspection' && checklistIncomplete && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Complete all checklist items and save your progress before final inspection.</Typography>}
+    {(canAdjustDuration || editable || action) && <DetailFooter>
+      {canAdjustDuration && <Button variant="outlined" disabled={saving || !duration} onClick={saveDuration}>{saving ? <CircularProgress size={18} /> : 'Update estimate'}</Button>}
+      {editable && <Button variant={action ? 'outlined' : 'contained'} disabled={saving} onClick={saveWork}>{saving ? <CircularProgress size={20} /> : 'Save notes & checklist'}</Button>}
+      {action && <Button variant="contained" disabled={saving || unsaved || (action.path === 'final-inspection' && checklistIncomplete)} onClick={advance}>{action.label}</Button>}
+    </DetailFooter>}
   </Stack>
 }

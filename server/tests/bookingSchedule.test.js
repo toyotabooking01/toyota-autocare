@@ -186,7 +186,7 @@ test('cancellation releases capacity once and blocks repeated requests', async (
   } finally { mongoose.connection.transaction = oldTransaction; Booking.findOneAndUpdate = oldUpdate; Booking.findOne = oldFind; Schedule.updateOne = oldRelease; }
 });
 
-test('admin confirms or rejects only pending bookings', async () => {
+test('staff confirms or rejects only pending bookings', async () => {
   const oldTransaction = mongoose.connection.transaction;
   const oldUpdate = Booking.findOneAndUpdate;
   const oldFind = Booking.findOne;
@@ -201,14 +201,14 @@ test('admin confirms or rejects only pending bookings', async () => {
     session: () => ({ select: () => ({ lean: async () => ({ _id: id() }) }) }) });
   Schedule.updateOne = async () => { count--; return { modifiedCount: 1 }; };
   try {
-    await bookings.transition(String(id()), { role: 'admin' }, 'confirm');
+    await bookings.transition(String(id()), { role: 'staff' }, 'confirm');
     assert.equal(status, 'confirmed');
-    await assert.rejects(bookings.transition(String(id()), { role: 'admin' }, 'confirm'), { status: 409 });
+    await assert.rejects(bookings.transition(String(id()), { role: 'staff' }, 'confirm'), { status: 409 });
     status = 'pending';
     Booking.findOneAndUpdate = async filter => { if (status !== 'pending' || filter.status !== 'pending') return null; status = 'rejected'; return { schedule: id() }; };
-    await bookings.transition(String(id()), { role: 'admin' }, 'reject');
+    await bookings.transition(String(id()), { role: 'staff' }, 'reject');
     assert.equal(status, 'rejected'); assert.equal(count, 0);
-    await assert.rejects(bookings.transition(String(id()), { role: 'admin' }, 'reject'), { status: 409 });
+    await assert.rejects(bookings.transition(String(id()), { role: 'staff' }, 'reject'), { status: 409 });
   } finally { mongoose.connection.transaction = oldTransaction; Booking.findOneAndUpdate = oldUpdate; Booking.findOne = oldFind; Schedule.updateOne = oldRelease; }
 });
 

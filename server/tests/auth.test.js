@@ -116,8 +116,8 @@ test('Authentication loads current roles and rejects revoked, inactive, archived
 });
 
 test('Authorization permits only the current allowed roles', () => {
-  for (const allowed of [['client'], ['mechanic'], ['admin'], ['admin', 'mechanic']]) {
-    for (const role of ['client', 'mechanic', 'admin']) {
+  for (const allowed of [['client'], ['mechanic'], ['admin'], ['staff'], ['admin', 'mechanic']]) {
+    for (const role of ['client', 'mechanic', 'staff', 'admin']) {
       let error;
       authorize(...allowed)({ user: { role } }, {}, value => { error = value; });
       assert.equal(error?.status, allowed.includes(role) ? undefined : 403);

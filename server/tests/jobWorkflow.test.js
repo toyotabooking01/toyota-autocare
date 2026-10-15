@@ -61,7 +61,7 @@ test('final inspection is blocked until every snapshotted checklist item is comp
   }
 });
 
-test('Mechanic and Admin transitions keep Booking and JobOrder synchronized and release resources on completion', async () => {
+test('Mechanic and Staff transitions keep Booking and JobOrder synchronized and release resources on completion', async () => {
   const original = { transaction: mongoose.connection.transaction, jobFind: JobOrder.findOne,
     jobUpdate: JobOrder.findOneAndUpdate, bookingUpdate: Booking.findOneAndUpdate,
     userUpdate: User.updateOne, bayUpdate: ServiceBay.updateOne };
@@ -92,7 +92,7 @@ test('Mechanic and Admin transitions keep Booking and JobOrder synchronized and 
   User.updateOne = async (filter, update) => { state.releases++; assert.equal(filter.availability, 'busy'); state.mechanic = update.$set.availability; return { modifiedCount: 1 }; };
   ServiceBay.updateOne = async (filter, update) => { state.releases++; assert.equal(filter.availability, 'occupied'); state.bay = update.$set.availability; return { modifiedCount: 1 }; };
   try {
-    const own = { role: 'mechanic', _id: mechanic }; const admin = { role: 'admin', _id: id() };
+    const own = { role: 'mechanic', _id: mechanic }; const admin = { role: 'staff', _id: id() };
     await assert.rejects(jobs.transition(jobId, { role: 'mechanic', _id: id() }, 'start'), { status: 404 });
     await assert.rejects(jobs.transition(jobId, admin, 'start'), { status: 403 });
     await jobs.transition(jobId, own, 'start');

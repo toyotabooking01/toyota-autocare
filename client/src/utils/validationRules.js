@@ -1,4 +1,4 @@
-import { passwordError, MOBILE_PATTERN, MOBILE_HINT, CONSENT_HINT, registrationNameFields, REGISTRATION_MOBILE_HINT } from '../../../shared/accountValidation.mjs'
+import { passwordError, MOBILE_PATTERN, MOBILE_HINT, CONSENT_HINT, registrationNameFields, REGISTRATION_MOBILE_HINT, canonicalPlateNumber } from '../../../shared/accountValidation.mjs'
 // Client form schemas; account policy comes from the shared browser-safe module.
 const text = (label, max, required = true) => ({ label, max, required })
 const number = (label, min, max, required = true, integer = true) => ({ label, min, max, required, number: true, integer })
@@ -9,7 +9,9 @@ const phone = { ...text('Mobile number', 20), pattern: MOBILE_PATTERN, hint: MOB
 const password = { ...text('Password', 72), password: true }
 const id = label => ({ ...text(label, 24), pattern: /^[a-f\d]{24}$/i, hint: `Select a valid ${label.toLowerCase()}.` })
 export const schemas = {
-  walkInClient: { ...registrationNameFields, email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT } },
+  accountProfile: { fullName, email, phone, address: text('Address', 300, false) },
+  walkInClient: { ...registrationNameFields, email: { ...email, required: false },
+    phone: { ...phone, hint: REGISTRATION_MOBILE_HINT }, address: text('Address', 300, false) },
   clientRegistration: { ...registrationNameFields, email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT }, password, confirmPassword: text('Confirm password', 72), termsAccepted: { consent: true } },
   login: { email, password: { ...password, login: true } },
   email: { email },
@@ -18,10 +20,17 @@ export const schemas = {
   otp: { email, otp: { ...text('Verification code', 6), pattern: /^\d{6}$/, hint: 'Enter all six digits.' } },
   mechanic: { fullName, email, phone: { ...phone, label: 'Philippine mobile number', required: true, hint: REGISTRATION_MOBILE_HINT },
     status: select('Account status', ['active', 'inactive']), availability: select('Availability', ['available', 'busy', 'off_duty']) },
-  vehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', 1886, new Date().getUTCFullYear() + 1),
+  mechanicCreate: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName,
+    email, phone: { ...phone, label: 'Philippine mobile number', hint: REGISTRATION_MOBILE_HINT } },
+  mechanicNamedEdit: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName,
+    email, phone: { ...phone, label: 'Philippine mobile number', hint: REGISTRATION_MOBILE_HINT },
+    status: select('Account status', ['active', 'inactive']), availability: select('Availability', ['available', 'busy', 'off_duty']) },
+  staff: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName,
+    email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT } },
+  vehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', 1886, new Date().getUTCFullYear() + 1), variant: text('Variant', 120, false),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: number('Mileage', 0, 9999999, false) },
-  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', 1886, new Date().getUTCFullYear()), digits: true },
+  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', 1886, new Date().getUTCFullYear()), digits: true }, variant: text('Variant', 120, false),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: { ...number('Current mileage', 0, 9999999), digits: true } },
   service: { name: text('Name', 120), description: text('Description', 3000, false), estimatedDuration: number('Duration', 1, 525600),
@@ -44,7 +53,7 @@ function validEmail(value) {
   return local.length <= 64 && !local.startsWith('.') && !local.endsWith('.') && !local.includes('..')
     && domain.split('.').every(label => /^[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?$/i.test(label))
 }
-export function validateForm(kind, values, { partial = false, browser = false, skip = [] } = {}) {
+export function validateForm(kind, values, { partial = false, browser = false, skip = [], existingPlate } = {}) {
   const errors = {}
   for (const [field, rule] of Object.entries(schemas[kind])) {
     if (skip.includes(field) || (partial && !(field in values))) continue
@@ -71,7 +80,7 @@ export function validateForm(kind, values, { partial = false, browser = false, s
     else if (rule.email && !validEmail(value)) errors[field] = 'Enter a valid email address.'
     else if (rule.choices && !rule.choices.includes(value)) errors[field] = `Select a valid ${rule.label.toLowerCase()}.`
     else if (rule.pattern && !rule.pattern.test(rule.compact ? value.replace(/[ ()-]/g, '') : value)) errors[field] = rule.hint
-    else if (rule.plate && !/^[A-Z0-9]{4,10}$/.test(value.toUpperCase().replace(/[\s-]/g, ''))) errors[field] = 'Plate number must contain 4 to 10 letters or digits.'
+    else if (rule.plate && !canonicalPlateNumber(value, { existingPlate })) errors[field] = 'Enter a valid Philippine plate number.'
     else if (rule.date && !validDate(value)) errors[field] = `${rule.label} must be a valid calendar date.`
   }
   if (['register', 'clientRegistration', 'reset'].includes(kind) && values.confirmPassword !== (values.password ?? values.newPassword)) errors.confirmPassword = 'Password confirmation does not match.'

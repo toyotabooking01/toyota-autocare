@@ -16,9 +16,9 @@ async function authenticate(req, res, next, allowPasswordChange = false) {
     if (payload.tokenUse !== 'access' || !mongoose.isObjectIdOrHexString(payload.sub)
       || !Number.isInteger(payload.version)) throw new HttpError(401, 'Invalid or expired access token.');
     const user = await User.findById(payload.sub).select('+authVersion');
-    if (!user || !['client', 'mechanic', 'admin'].includes(user.role) || payload.role !== user.role
+    if (!user || !require('../config/roles').roles.includes(user.role) || payload.role !== user.role
       || user.isArchived || user.status !== 'active'
-      || (user.role === 'client' && !user.emailVerified) || (user.authVersion || 0) !== payload.version) {
+      || user.isWalkInCustomer || (user.role === 'client' && !user.emailVerified) || (user.authVersion || 0) !== payload.version) {
       throw new HttpError(401, 'Invalid or expired access token.');
     }
     if (user.mustChangePassword && !allowPasswordChange) {

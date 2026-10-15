@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { PageHeading, Panel } from '../components/DashboardParts'
 export default function ModuleFoundation({ role, label, icon: Icon }) {
   return <><PageHeading title={label} subtitle="Your AutoCare workspace." preview={false} />
-    <Panel title="Coming in a future phase" sx={{ maxWidth: 720 }}>
+    <Panel title="Coming in a future phase">
       <Box sx={{ py: 4, textAlign: 'center' }}>
         <Box sx={{ display: 'inline-flex', color: 'primary.main', bgcolor: 'var(--accent-soft)', p: 2, borderRadius: 3, mb: 2 }}><Icon sx={{ fontSize: 30 }} /></Box>
         <Typography component="h2" sx={{ fontSize: 20, fontWeight: 650 }}>{label} is being prepared</Typography>

@@ -77,7 +77,7 @@ async function sendEmail({ to, subject, text, html }) {
 }
 
 async function sendOtp({ email, code, purpose, minutes }) {
-  const title = purpose === 'email_verification' ? 'Verify your email' : 'Reset your password';
+  const title = purpose === 'email_verification' ? 'Verify your email' : purpose === 'password_change' ? 'Verify your password change' : 'Reset your password';
   await module.exports.sendEmail({
     to: email,
     subject: `Toyota AutoCare — ${title}`,
@@ -88,14 +88,27 @@ async function sendOtp({ email, code, purpose, minutes }) {
       <p>Expires in ${minutes} minutes.</p><p>If you did not request this, ignore this email.</p></div>`,
   });
 }
-async function sendTemporaryPassword({ email, password, accountType = 'client' }) {
+async function sendTemporaryPassword({ email, password, accountType = 'client', firstName = '', staffId = '', employeeId = '' }) {
   const isMechanic = accountType === 'mechanic';
-  const subject = isMechanic ? 'Toyota AutoCare - Your mechanic account sign-in details'
-    : 'Toyota AutoCare - Your temporary sign-in details';
-  const title = isMechanic ? 'Your mechanic account sign-in details' : 'Your temporary sign-in details';
-  const accountDescription = isMechanic
+  const isStaff = accountType === 'staff';
+  const subject = isStaff ? 'Your Toyota AutoCare Staff Account' : isMechanic ? 'Toyota AutoCare - Your mechanic account sign-in details'
+    : 'Toyota AutoCare - Your client account has been created';
+  const title = isStaff ? 'Your staff account sign-in details' : isMechanic ? 'Your mechanic account sign-in details' : 'Your client account has been created';
+  const accountDescription = isStaff ? 'Your Toyota AutoCare staff account has been created.' : isMechanic
     ? 'A mechanic account was created for you at Toyota AutoCare.'
-    : 'An account was created for your walk-in service visit.';
+    : 'Your Toyota AutoCare client account has been created.';
+  if (isStaff || isMechanic) {
+    const identifierLabel = isStaff ? 'Staff ID' : 'Mechanic ID';
+    const identifier = isStaff ? staffId : employeeId;
+    const escape = value => String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[character]);
+    return module.exports.sendEmail({
+      to: email, subject,
+      text: `Hello ${firstName},\n\n${accountDescription}\n\n${identifierLabel}:\n${identifier}\n\nLogin Email:\n${email}\n\nTemporary Password:\n${password}\n\nPlease sign in using these credentials. For security, you will be required to create a new password the first time you log in.\n\nDo not share your temporary password with anyone.\n\nToyota AutoCare`,
+      html: `<div style="font-family:Arial,sans-serif;color:#202833;max-width:520px;margin:auto;padding:24px"><h2 style="color:#eb0a1e">Toyota AutoCare</h2><p>Hello ${escape(firstName)},</p><p>${accountDescription}</p><p><strong>${identifierLabel}:</strong> ${escape(identifier)}</p><p><strong>Login Email:</strong> ${escape(email)}</p><p><strong>Temporary Password:</strong> <code style="font-size:18px">${escape(password)}</code></p><p>Please sign in using these credentials. You will be required to create a new password the first time you log in.</p><p>Do not share your temporary password with anyone.</p></div>`,
+    });
+  }
   const safeEmail = String(email).replace(/[&<>"']/g, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[character]);

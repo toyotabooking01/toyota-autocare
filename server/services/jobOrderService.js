@@ -43,7 +43,7 @@ async function options() {
     return { mechanics: mechanics.map(item => ({ _id: item._id, fullName: item.fullName, employeeId: item.employeeId, availability: item.availability })),
     serviceBays: bays.map(item => ({ _id: item._id, name: item.name })) };
 }
-async function assign(rawBookingId, raw) {
+async function assign(rawBookingId, raw, staffId) {
   const bookingId = id(rawBookingId, 'booking');
   const { mechanic, serviceBay } = assignmentInput(raw);
   let jobId;
@@ -51,7 +51,8 @@ async function assign(rawBookingId, raw) {
     await mongoose.connection.transaction(async session => {
       const booking = await Booking.findOneAndUpdate({ _id: bookingId, status: 'checked_in',
         assignedMechanic: null, assignedServiceBay: null },
-      { $set: { status: 'mechanic_assigned', assignedMechanic: mechanic, assignedServiceBay: serviceBay } },
+      { $set: { status: 'mechanic_assigned', assignedMechanic: mechanic, assignedServiceBay: serviceBay,
+        ...(staffId ? { lastProcessedBy: staffId, lastProcessedAt: new Date() } : {}) } },
       { returnDocument: 'after', session });
       if (!booking) throw new HttpError(409, 'Only unassigned checked-in bookings can be assigned.');
 
@@ -219,8 +220,8 @@ async function saveWork(rawId, mechanicId, raw) {
 const actions = {
   start: { role: 'mechanic', from: 'mechanic_assigned', to: 'in_service', jobFrom: 'pending' },
   'final-inspection': { role: 'mechanic', from: 'in_service', to: 'final_inspection', jobFrom: 'in_progress' },
-  'ready-for-release': { role: 'admin', from: 'final_inspection', to: 'ready_for_release', jobFrom: 'in_progress' },
-  complete: { role: 'admin', from: 'ready_for_release', to: 'completed', jobFrom: 'in_progress' },
+  'ready-for-release': { role: 'staff', from: 'final_inspection', to: 'ready_for_release', jobFrom: 'in_progress' },
+  complete: { role: 'staff', from: 'ready_for_release', to: 'completed', jobFrom: 'in_progress' },
 };
 async function transition(rawId, actor, action) {
   const jobId = id(rawId, 'Job Order');
@@ -241,9 +242,10 @@ async function transition(rawId, actor, action) {
     const actualDurationMinutes = completedAt ? Math.max(1, Math.ceil((completedAt - job.startedAt) / 60_000)) : null;
     const bookingFilter = { _id: job.booking, status: step.from,
       assignedMechanic: job.mechanic, assignedServiceBay: job.serviceBay };
+    const processing = step.role === 'staff' ? { lastProcessedBy: actor._id, lastProcessedAt: new Date() } : {};
     const bookingUpdate = action === 'complete'
-      ? { $set: { status: step.to, reservedEndAt: completedAt, actualDurationMinutes }, $inc: { __v: 1 } }
-      : { $set: { status: step.to } };
+      ? { $set: { status: step.to, reservedEndAt: completedAt, actualDurationMinutes, ...processing }, $inc: { __v: 1 } }
+      : { $set: { status: step.to, ...processing } };
     const changedBooking = await Booking.findOneAndUpdate(bookingFilter,
       bookingUpdate, { returnDocument: 'after', session });
     if (!changedBooking) throw new HttpError(409, 'Booking is unavailable at this stage.');

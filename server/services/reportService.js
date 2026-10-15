@@ -16,11 +16,16 @@ function range(query = {}) {
 function summarize(bookings, selectedRange) {
   const byStatus = Object.fromEntries(statuses.map(status => [status, 0]));
   const bySource = { online: 0, 'walk-in': 0 };
-  const days = new Map(); const services = new Map(); const mechanics = new Map(); const bays = new Map();
+  const days = new Map(); const services = new Map(); const mechanics = new Map(); const bays = new Map(); const staff = new Map();
   let completedBookings = 0; let completedServices = 0; let completedEstimate = 0;
   for (const booking of bookings) {
     if (booking.status in byStatus) byStatus[booking.status]++;
     if (booking.bookingType in bySource) bySource[booking.bookingType]++;
+    if (booking.lastProcessedBy?._id) {
+      const user = booking.lastProcessedBy; const key = String(user._id);
+      const item = staff.get(key) || { id: key, name: user.fullName, processed: 0 };
+      item.processed++; staff.set(key, item);
+    }
     const day = days.get(booking.bookingDate) || { date: booking.bookingDate, bookings: 0, completed: 0 };
     day.bookings++;
     if (booking.status === 'completed') { day.completed++; completedBookings++; }
@@ -58,15 +63,17 @@ function summarize(bookings, selectedRange) {
     bookingsByDate: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
     servicePopularity: [...services.values()].sort((a, b) => b.bookings - a.bookings || a.name.localeCompare(b.name)),
     mechanicWorkload: [...mechanics.values()].sort((a, b) => b.assigned - a.assigned || a.name.localeCompare(b.name)),
+    staffActivity: [...staff.values()].sort((a, b) => b.processed - a.processed || a.name.localeCompare(b.name)),
     serviceBayUsage: [...bays.values()].sort((a, b) => b.visits - a.visits || a.name.localeCompare(b.name)),
   };
 }
 async function summary(query) {
   const selectedRange = range(query);
   const bookings = await Booking.find({ bookingDate: { $gte: selectedRange.from, $lte: selectedRange.to } })
-    .select('bookingDate status bookingType services assignedMechanic assignedServiceBay')
+    .select('bookingDate status bookingType services assignedMechanic assignedServiceBay lastProcessedBy')
     .populate([{ path: 'services', select: 'name estimatedPrice' },
       { path: 'assignedMechanic', select: 'fullName' },
+      { path: 'lastProcessedBy', select: 'fullName' },
       { path: 'assignedServiceBay', select: 'name' }]).lean();
   return summarize(bookings, selectedRange);
 }
