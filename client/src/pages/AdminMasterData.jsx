@@ -13,6 +13,7 @@ import AddRounded from '@mui/icons-material/AddRounded'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import { DetailDialog, DetailInfo, DetailSection } from '../components/RecordDetails'
+import { Link } from 'react-router-dom'
 
 const definitions = {
   service: {
@@ -149,6 +150,7 @@ export default function AdminMasterData({ kind }) {
             </Box>
             <RecordActions statuses={<>
               <StatusBadge size="small" label={item.isArchived ? 'Archived' : kind === 'service' ? item.isActive ? 'Active' : 'Inactive' : item.operationalStatus.replaceAll('_', ' ')} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : kind === 'service' && item.isActive || kind === 'bay' && item.operationalStatus === 'operational' ? 'var(--green-soft)' : 'var(--amber-soft)', color: item.isArchived ? 'var(--muted)' : 'var(--green-ink)' }} />
+              {kind === 'bay' && !item.isArchived && <StatusBadge size="small" label={item.availability === 'occupied' ? 'Occupied' : 'Available'} />}
               {kind === 'service' && item.isOtherService && <StatusBadge label="Diagnostic" />}
             </>}>
               <DetailsButton onClick={() => setSelected(item)} />
@@ -166,6 +168,7 @@ export default function AdminMasterData({ kind }) {
           ['Reminder interval', selected.maintenanceReminderInterval ? `${selected.maintenanceReminderInterval} days` : 'Not configured'],
           ['Description', selected.description],
         ] : [['Service Bay', selected.name], ['Operational status', selected.operationalStatus.replaceAll('_', ' ')], ['Availability', selected.availability?.replaceAll('_', ' ')]]} /></DetailSection>
+        {kind === 'bay' && selected.activeAssignments?.length > 0 && <DetailSection title="Active assignment"><Stack spacing={1}>{selected.activeAssignments.map((assignment, index) => <Box key={assignment.jobOrderId || assignment.bookingId || index}><Typography sx={{ fontSize: 13 }}>{assignment.vehiclePlate || 'Vehicle unavailable'} · {assignment.bookingStatus?.replaceAll('_', ' ') || 'Active job'}</Typography><Button size="small" component={Link} to={assignment.jobOrderId ? `/admin/job-orders?open=${assignment.jobOrderId}` : `/admin/bookings?open=${assignment.bookingId}`}>{assignment.jobOrderId ? 'View job order' : 'View booking'}</Button></Box>)}</Stack></DetailSection>}
         {kind === 'service' && selected.checklistTemplate?.length > 0 && <DetailSection title="Service checklist"><Stack spacing={1}>{selected.checklistTemplate.map((item, index) => <Typography key={index} sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>{item}</Typography>)}</Stack></DetailSection>}
       </>}
     </DetailDialog>

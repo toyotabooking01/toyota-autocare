@@ -53,6 +53,7 @@ export default function App() {
       <Route path="account-settings" element={<AccountSettings role={role} />} />
       {role === 'client' && <Route path="help-support" element={<HelpSupport />} />}
       <Route path="notifications" element={<NotificationsPage />} />
+      {role === 'admin' && <Route path="walk-in" element={<StaffWalkIn role="admin" />} />}
       {roleNavigation[role].filter(item => item.path !== 'dashboard').map(item => <Route key={item.path} path={item.path} element={role === 'admin' && ['services', 'service-bays'].includes(item.path)
         ? <AdminMasterData key={item.path} kind={item.path === 'services' ? 'service' : 'bay'} />
         : role === 'admin' && item.path === 'mechanics' ? <AdminMechanics />
@@ -60,7 +61,7 @@ export default function App() {
             : ['admin', 'staff'].includes(role) && item.path === 'customers' ? <CustomersDirectory role={role} />
           : role === 'admin' && item.path === 'schedules' ? <AdminSchedules />
             : ['admin', 'staff'].includes(role) && item.path === 'bookings' ? <BookingList role={role} />
-              : role === 'staff' && item.path === 'walk-in' ? <StaffWalkIn />
+              : role === 'staff' && item.path === 'walk-in' ? <StaffWalkIn role="staff" />
                 : ['admin', 'staff'].includes(role) && item.path === 'job-orders' ? <JobOrders role={role} />
                   : role === 'staff' && item.path === 'transactions' ? <JobOrders role="staff" view="transactions" />
                   : role === 'mechanic' && item.path === 'jobs' ? <JobOrders role="mechanic" />

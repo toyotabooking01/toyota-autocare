@@ -6,7 +6,7 @@ const Schedule = require('../models/Schedule');
 const app = require('../app');
 const { signAccessToken } = require('../services/tokenService');
 
-test('schedule mutations require Admin and booking routes exclude Mechanic', async () => {
+test('Admin can reach Staff booking operations while Client and Mechanic remain restricted', async () => {
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
@@ -36,10 +36,13 @@ test('schedule mutations require Admin and booking routes exclude Mechanic', asy
     assert.equal(await request('/api/bookings/availability', users[0]), 400);
     assert.equal(await request('/api/bookings/availability', users[2]), 403);
     for (const action of ['confirm', 'reject', 'check-in', 'assign', 'reschedule']) {
-      assert.equal(await request(`/api/bookings/not-an-id/${action}`, users[0], 'POST', {}), 403);
+      assert.equal(await request(`/api/bookings/not-an-id/${action}`, users[0], 'POST', {}), 400);
+      assert.equal(await request(`/api/bookings/not-an-id/${action}`, users[1], 'POST', {}), 403);
+      assert.equal(await request(`/api/bookings/not-an-id/${action}`, users[2], 'POST', {}), 403);
     }
     assert.equal(await request('/api/bookings/not-an-id/reschedule', users[3], 'POST', { schedule: 'invalid' }), 400);
-    assert.equal(await request('/api/bookings/walk-in/options', users[0]), 403);
+    assert.equal(await request('/api/bookings/walk-in/email-check', users[0]), 400);
+    assert.equal(await request('/api/bookings/walk-in/email-check', users[1]), 403);
   } finally {
     await new Promise(resolve => server.close(resolve));
     User.findById = oldUser; Schedule.find = oldSlots;

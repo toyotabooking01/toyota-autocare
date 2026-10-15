@@ -11,6 +11,7 @@ const Counter = require('../models/Counter');
 const emailService = require('../services/emailService');
 const service = require('../services/peopleVehiclesService');
 const toyotaCatalog = require('../services/toyotaCatalogService');
+const engagement = require('../services/engagementService');
 
 const id = () => String(new mongoose.Types.ObjectId());
 const mechanicData = { firstName: 'Mechanic', lastName: 'A', email: 'Mech@Example.com', phone: '09171234567' };
@@ -46,6 +47,7 @@ test('mechanic and vehicle payloads reject role and owner overrides', () => {
 });
 
 test('mechanic creation hashes a generated password, marks forced change, and emails credentials', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   const oldExists = User.exists;
   const oldCreate = User.create;
   const oldFind = User.findOne;
@@ -80,6 +82,7 @@ test('mechanic creation hashes a generated password, marks forced change, and em
 });
 
 test('temporary credential email failure keeps one recoverable account and returns no password', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   const oldExists = User.exists; const oldCreate = User.create; const oldFind = User.findOne;
   const oldCounter = Counter.findOneAndUpdate;
   let attemptedPassword;
@@ -138,6 +141,7 @@ test('concurrent mechanic ID allocation stays unique and does not reuse a delete
 });
 
 test('employee ID generation skips IDs already held by legacy accounts', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   const oldExists = User.exists; const oldCreate = User.create; const oldFind = User.findOne; const oldCounter = Counter.findOneAndUpdate;
   t.mock.method(emailService, 'ensureConfigured', () => {});
   t.mock.method(emailService, 'sendTemporaryPassword', async () => {});
@@ -153,7 +157,8 @@ test('employee ID generation skips IDs already held by legacy accounts', async t
   } finally { User.exists = oldExists; User.create = oldCreate; User.findOne = oldFind; Counter.findOneAndUpdate = oldCounter; }
 });
 
-test('mechanic archive blocks unfinished jobs, then archives and restores', async () => {
+test('mechanic archive blocks unfinished jobs, then archives and restores', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   const oldFind = User.findOne;
   const oldJob = JobOrder.exists;
   const oldBooking = Booking.exists;

@@ -34,11 +34,17 @@ router.post('/staff', authorize('admin'), async (req, res) => {
 router.patch('/staff/:id/status', authorize('admin'), async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(req.params.id) || !['active', 'inactive'].includes(req.body?.status)
     || Object.keys(req.body).length !== 1) throw new HttpError(400, 'Invalid staff status update.');
-  const item = await User.findOneAndUpdate({ _id: req.params.id, role: 'staff', isArchived: false },
+  const item = await User.findOneAndUpdate({ _id: req.params.id, role: 'staff', isArchived: false,
+    status: { $ne: req.body.status } },
     { $set: { status: req.body.status }, $inc: { authVersion: 1 } }, { returnDocument: 'after' })
     .select(staffAccounts.projection);
-  if (!item) throw new HttpError(404, 'Staff account not found.');
-  res.json({ item });
+  if (item) {
+    await require('../services/engagementService').recordAccountEvent(item, req.body.status === 'active' ? 'enabled' : 'disabled');
+    return res.json({ item });
+  }
+  const existing = await User.findOne({ _id: req.params.id, role: 'staff', isArchived: false }).select(staffAccounts.projection);
+  if (!existing) throw new HttpError(404, 'Staff account not found.');
+  res.json({ item: existing });
 });
 router.get('/customers', async (req, res) => {
   const search = String(req.query.search || '').trim();

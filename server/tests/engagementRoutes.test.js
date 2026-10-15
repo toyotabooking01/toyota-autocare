@@ -10,7 +10,7 @@ test('Notification actions for all roles are owner-scoped; Admin reminders are r
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
-  const oldFunctions = Object.fromEntries(['notifications', 'unreadCount', 'markRead', 'markAllRead', 'reminders']
+  const oldFunctions = Object.fromEntries(['notifications', 'unreadCount', 'markRead', 'markAllRead', 'reminders', 'syncDueReminders']
     .map(key => [key, engagement[key]]));
   const users = ['client', 'admin', 'mechanic', 'staff'].map(role => ({ _id: new mongoose.Types.ObjectId(), role,
     status: 'active', isArchived: false, emailVerified: true, authVersion: 0 }));
@@ -25,6 +25,7 @@ test('Notification actions for all roles are owner-scoped; Admin reminders are r
   engagement.markRead = async (userId, rawId) => { readFor = userId; return { _id: rawId, isRead: true }; };
   engagement.markAllRead = async userId => { readFor = userId; return { updated: 0 }; };
   engagement.reminders = async userId => { remindersFor = userId; return []; };
+  engagement.syncDueReminders = async () => {};
   const server = app.listen(0, '127.0.0.1');
   try {
     await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });

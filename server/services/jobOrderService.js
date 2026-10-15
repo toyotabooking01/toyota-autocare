@@ -9,11 +9,15 @@ const HttpError = require('../utils/HttpError');
 const engagement = require('./engagementService');
 const resourceAvailability = require('./resourceAvailabilityService');
 const scheduleService = require('./scheduleService');
+const { identity, audit } = require('../utils/operationalActor');
+const bayOccupancy = require('./bayOccupancyService');
+const paymentService = require('./paymentService');
 
 const activeJobs = ['pending', 'in_progress'];
 const details = [
   { path: 'mechanic', select: 'fullName employeeId' },
   { path: 'serviceBay', select: 'name' },
+  { path: 'activity.performedBy', select: 'fullName role' },
   { path: 'booking', select: 'client vehicle services bookingDate bookingTime bookingType status concern estimatedDurationMinutes initialEstimatedDurationMinutes actualDurationMinutes reservedStartAt reservedEndAt', populate: [
     { path: 'client', select: 'fullName' },
     { path: 'vehicle', select: 'make model year plateNumber' },
@@ -37,13 +41,16 @@ async function options() {
     const [mechanics, bays] = await Promise.all([
       User.find({ role: 'mechanic', status: 'active', isArchived: false, availability: 'available' })
         .select('_id fullName employeeId availability').sort({ fullName: 1 }).lean(),
-    ServiceBay.find({ operationalStatus: 'operational', isArchived: false, availability: 'available' })
-      .select('_id name').sort({ name: 1 }).lean(),
+    ServiceBay.find({ operationalStatus: 'operational', isArchived: false })
+      .select('_id name operationalStatus availability').sort({ name: 1 }).lean(),
   ]);
+    // Job and booking state is authoritative; a stored occupied flag may be stale after finished work.
+    const availableBays = (await bayOccupancy.describe(bays)).filter(bay => bay.availability === 'available');
     return { mechanics: mechanics.map(item => ({ _id: item._id, fullName: item.fullName, employeeId: item.employeeId, availability: item.availability })),
-    serviceBays: bays.map(item => ({ _id: item._id, name: item.name })) };
+    serviceBays: availableBays.map(item => ({ _id: item._id, name: item.name, availability: item.availability })) };
 }
 async function assign(rawBookingId, raw, staffId) {
+  const operator = identity(staffId);
   const bookingId = id(rawBookingId, 'booking');
   const { mechanic, serviceBay } = assignmentInput(raw);
   let jobId;
@@ -52,7 +59,8 @@ async function assign(rawBookingId, raw, staffId) {
       const booking = await Booking.findOneAndUpdate({ _id: bookingId, status: 'checked_in',
         assignedMechanic: null, assignedServiceBay: null },
       { $set: { status: 'mechanic_assigned', assignedMechanic: mechanic, assignedServiceBay: serviceBay,
-        ...(staffId ? { lastProcessedBy: staffId, lastProcessedAt: new Date() } : {}) } },
+        lastProcessedBy: operator.id, lastProcessedByRole: operator.role, lastProcessedAt: new Date() },
+        $push: { activity: audit(staffId, 'assign') } },
       { returnDocument: 'after', session });
       if (!booking) throw new HttpError(409, 'Only unassigned checked-in bookings can be assigned.');
 
@@ -60,12 +68,16 @@ async function assign(rawBookingId, raw, staffId) {
       const mechanicJob = await JobOrder.exists({ mechanic, status: { $in: activeJobs } }).session(session);
       const bayJob = await JobOrder.exists({ serviceBay, status: { $in: activeJobs } }).session(session);
       if (mechanicJob || bayJob) throw new HttpError(409, 'Mechanic or Service Bay has unfinished work.', { ...(mechanicJob ? { mechanic: 'Mechanic has unfinished work.' } : {}), ...(bayJob ? { serviceBay: 'Service bay has unfinished work.' } : {}) });
+      // Exclude the booking just claimed above; it has already entered mechanic_assigned in this transaction.
+      const activeBayBookings = await Booking.exists({ _id: { $ne: bookingId }, assignedServiceBay: serviceBay,
+        status: { $in: ['mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'] } }).session(session);
+      if (activeBayBookings) throw new HttpError(409, 'Service Bay has an active booking.', { serviceBay: 'Service Bay is occupied.' });
 
       const reservedMechanic = await User.findOneAndUpdate({ _id: mechanic, role: 'mechanic', status: 'active',
         isArchived: false, availability: 'available' }, { $set: { availability: 'busy' } }, { session });
       if (!reservedMechanic) throw new HttpError(409, 'Mechanic is no longer available.', { mechanic: 'Mechanic is no longer available.' });
       const reservedBay = await ServiceBay.findOneAndUpdate({ _id: serviceBay, operationalStatus: 'operational',
-        isArchived: false, availability: 'available' }, { $set: { availability: 'occupied' } }, { session });
+        isArchived: false, availability: { $in: ['available', 'occupied'] } }, { $set: { availability: 'occupied' } }, { session });
       if (!reservedBay) throw new HttpError(409, 'Service Bay is no longer available.', { serviceBay: 'Service Bay is no longer available.' });
 
       const selectedServices = await Service.find({ _id: { $in: booking.services || [] } })
@@ -82,9 +94,10 @@ async function assign(rawBookingId, raw, staffId) {
         reservedStartAt: booking.reservedStartAt, reservedEndAt: booking.reservedEndAt,
         estimatedDurationMinutes: booking.estimatedDurationMinutes,
         serviceChecklist, checklistRequired: serviceChecklist.length > 0,
+        activity: [audit(staffId, 'assigned')],
       }], { session });
       jobId = job._id;
-      await engagement.recordBookingEvent(session, booking, 'mechanic_assigned');
+      await engagement.recordBookingEvent(session, booking, 'mechanic_assigned', { jobOrderId: job._id });
     });
   } catch (error) {
     if (error instanceof HttpError) throw error;
@@ -108,7 +121,7 @@ async function get(rawId, mechanicId) {
   return job;
 }
 async function active(mechanicId) {
-  const job = await JobOrder.findOne({ mechanic: mechanicId, status: { $in: activeJobs } })
+  const job = await JobOrder.findOne({ ...(mechanicId ? { mechanic: mechanicId } : {}), status: { $in: activeJobs } })
     .sort({ createdAt: -1 }).populate(details).lean();
   return job || null;
 }
@@ -180,26 +193,29 @@ async function updateEstimatedDuration(rawId, actor, raw) {
         { estimatedDurationMinutes: 'The assigned resources are unavailable for that extension. Choose a shorter estimate.' });
     }
     const history = { previousDurationMinutes: currentDuration, newDurationMinutes: nextDuration,
-      changedAt: new Date(), changedBy: actor._id };
+      changedAt: new Date(), changedBy: actor._id, changedByRole: actor.role };
     const bookingUpdate = await Booking.updateOne({ _id: booking._id, status: booking.status }, {
       $set: { estimatedDurationMinutes: nextDuration, reservedEndAt: nextReservedEndAt,
         reservedStartAt: startAt, initialEstimatedDurationMinutes: booking.initialEstimatedDurationMinutes || currentDuration },
-      $push: { durationHistory: history }, $inc: { __v: 1 },
+      $push: { durationHistory: history, activity: audit(actor, 'update_estimate') }, $inc: { __v: 1 },
     }, { session });
     if (bookingUpdate.matchedCount !== 1) throw new HttpError(409, 'Booking changed during the estimate update. Refresh and try again.');
     const jobUpdate = await JobOrder.updateOne({ _id: job._id, status: job.status, mechanic: job.mechanic }, {
-      $set: { estimatedDurationMinutes: nextDuration, reservedStartAt: startAt, reservedEndAt: nextReservedEndAt }, $inc: { __v: 1 },
+      $set: { estimatedDurationMinutes: nextDuration, reservedStartAt: startAt, reservedEndAt: nextReservedEndAt },
+      $push: { activity: audit(actor, 'update_estimate') }, $inc: { __v: 1 },
     }, { session });
     if (jobUpdate.matchedCount !== 1) throw new HttpError(409, 'Job Order changed during the estimate update. Refresh and try again.');
     changed = true;
   });
   return { item: await get(jobId, actor.role === 'mechanic' ? actor._id : undefined), changed };
 }
-async function saveWork(rawId, mechanicId, raw) {
+async function saveWork(rawId, actor, raw) {
   const jobId = id(rawId, 'Job Order');
   const data = workInput(raw);
   await mongoose.connection.transaction(async session => {
-    const job = await JobOrder.findOne({ _id: jobId, mechanic: mechanicId, status: 'in_progress' }).session(session).lean();
+    const filter = { _id: jobId, status: 'in_progress' };
+    if (actor.role === 'mechanic') filter.mechanic = actor._id;
+    const job = await JobOrder.findOne(filter).session(session).lean();
     if (!job) throw new HttpError(404, 'Active Job Order not found.');
     if (data.serviceChecklist) {
       const snapshot = job.serviceChecklist || [];
@@ -208,14 +224,14 @@ async function saveWork(rawId, mechanicId, raw) {
       }
       data.serviceChecklist = snapshot.map((item, index) => ({ ...item, isCompleted: data.serviceChecklist[index].isCompleted }));
     }
-    const booking = await Booking.findOneAndUpdate({ _id: job.booking, assignedMechanic: mechanicId, status: 'in_service' },
+    const booking = await Booking.findOneAndUpdate({ _id: job.booking, assignedMechanic: job.mechanic, status: 'in_service' },
       { $inc: { __v: 1 } }, { session });
     if (!booking) throw new HttpError(409, 'Service notes can only be changed while work is in service.');
-    const changed = await JobOrder.findOneAndUpdate({ _id: jobId, mechanic: mechanicId, status: 'in_progress' },
-      { $set: data }, { session, runValidators: true });
+    const changed = await JobOrder.findOneAndUpdate(filter,
+      { $set: data, $push: { activity: audit(actor, 'update_work') } }, { session, runValidators: true });
     if (!changed) throw new HttpError(409, 'Job Order changed during submission.');
   });
-  return get(jobId, mechanicId);
+  return get(jobId, actor.role === 'mechanic' ? actor._id : undefined);
 }
 const actions = {
   start: { role: 'mechanic', from: 'mechanic_assigned', to: 'in_service', jobFrom: 'pending' },
@@ -227,33 +243,55 @@ async function transition(rawId, actor, action) {
   const jobId = id(rawId, 'Job Order');
   const step = actions[action];
   if (!step) throw new HttpError(400, 'Invalid Job Order action.');
-  if (actor.role !== step.role) throw new HttpError(403, 'Access denied.');
+  if (actor.role !== step.role && actor.role !== 'admin') throw new HttpError(403, 'Access denied.');
   await mongoose.connection.transaction(async session => {
     const filter = { _id: jobId, status: step.jobFrom };
-    if (step.role === 'mechanic') filter.mechanic = actor._id;
+    if (actor.role === 'mechanic') filter.mechanic = actor._id;
     const job = await JobOrder.findOne(filter).session(session).lean();
-    if (!job) throw new HttpError(step.role === 'mechanic' ? 404 : 409, 'Job Order is unavailable at this stage.');
+    if (!job) throw new HttpError(actor.role === 'mechanic' ? 404 : 409, 'Job Order is unavailable at this stage.');
     if (action === 'final-inspection' && job.checklistRequired === true && (job.serviceChecklist || []).some(item => !item.isCompleted)) {
       throw new HttpError(409, 'Complete all service checklist items before final inspection.');
     }
     if (action === 'complete' && !job.startedAt) throw new HttpError(409, 'Service has not started.');
+    let paymentSnapshot;
+    if (action === 'ready-for-release' || action === 'complete') {
+      const bookingQuery = Booking.findById(job.booking).select('client services status finalTotalCents');
+      const currentBooking = await bookingQuery.session(session).lean();
+      if (!currentBooking || currentBooking.status !== step.from) throw new HttpError(409, 'Booking is unavailable at this stage.');
+      if (action === 'ready-for-release') {
+        const payment = await paymentService.calculate(currentBooking, session);
+        if (payment.payments.some(item => item.stage === 'downpayment' && item.status === 'submitted'))
+          throw new HttpError(409, 'Verify or reject the submitted downpayment before marking ready for release.');
+        paymentSnapshot = payment.finalTotalCents;
+      }
+      else {
+        const payment = await paymentService.calculate(currentBooking, session);
+        const reason = paymentService.releaseReason(payment);
+        if (reason) throw new HttpError(409, reason);
+        paymentSnapshot = payment.finalTotalCents;
+      }
+    }
     const completedAt = action === 'complete' ? new Date() : null;
     if (completedAt && completedAt < job.startedAt) throw new HttpError(409, 'Completion cannot precede service start.');
     const actualDurationMinutes = completedAt ? Math.max(1, Math.ceil((completedAt - job.startedAt) / 60_000)) : null;
     const bookingFilter = { _id: job.booking, status: step.from,
       assignedMechanic: job.mechanic, assignedServiceBay: job.serviceBay };
-    const processing = step.role === 'staff' ? { lastProcessedBy: actor._id, lastProcessedAt: new Date() } : {};
+    const processing = { lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date() };
     const bookingUpdate = action === 'complete'
-      ? { $set: { status: step.to, reservedEndAt: completedAt, actualDurationMinutes, ...processing }, $inc: { __v: 1 } }
-      : { $set: { status: step.to, ...processing } };
+      ? { $set: { status: step.to, reservedEndAt: completedAt, actualDurationMinutes,
+        finalTotalCents: paymentSnapshot, releasedAt: completedAt, releasedBy: actor._id, releasedByRole: actor.role, ...processing },
+        $push: { activity: audit(actor, action) }, $inc: { __v: 1 } }
+      : { $set: { status: step.to, ...(action === 'ready-for-release' ? { finalTotalCents: paymentSnapshot } : {}),
+        ...processing }, $push: { activity: audit(actor, action) } };
     const changedBooking = await Booking.findOneAndUpdate(bookingFilter,
       bookingUpdate, { returnDocument: 'after', session });
     if (!changedBooking) throw new HttpError(409, 'Booking is unavailable at this stage.');
     const update = action === 'start'
-      ? { $set: { status: 'in_progress', startedAt: new Date() } }
+      ? { $set: { status: 'in_progress', startedAt: new Date() }, $push: { activity: audit(actor, action) } }
       : action === 'complete'
-        ? { $set: { status: 'completed', completedAt, reservedEndAt: completedAt, actualDurationMinutes } }
-        : { $inc: { __v: 1 } };
+        ? { $set: { status: 'completed', completedAt, reservedEndAt: completedAt, actualDurationMinutes },
+          $push: { activity: audit(actor, action) } }
+        : { $inc: { __v: 1 }, $push: { activity: audit(actor, action) } };
     const changedJob = await JobOrder.findOneAndUpdate(filter, update, { session });
     if (!changedJob) throw new HttpError(409, 'Job Order changed during submission.');
     if (action === 'complete') {
@@ -263,8 +301,8 @@ async function transition(rawId, actor, action) {
         { $set: { availability: 'available' } }, { session });
       await engagement.updateReminders(session, changedBooking, completedAt);
     }
-    await engagement.recordBookingEvent(session, changedBooking, step.to);
+    await engagement.recordBookingEvent(session, changedBooking, step.to, { jobOrderId: jobId });
   });
-  return get(jobId, step.role === 'mechanic' ? actor._id : undefined);
+  return get(jobId, actor.role === 'mechanic' ? actor._id : undefined);
 }
 module.exports = { assignmentInput, options, assign, list, get, active, workInput, saveWork, durationInput, updateEstimatedDuration, transition };

@@ -40,6 +40,30 @@ test('list filters archived records and escapes search text', async () => {
   } finally { Service.find = original; }
 });
 
+test('bay list reports operational and job-derived occupancy separately', async () => {
+  const oldBays = ServiceBay.find; const oldJobs = JobOrder.find; const oldBookings = Booking.find;
+  const freeId = String(new mongoose.Types.ObjectId()); const busyId = String(new mongoose.Types.ObjectId());
+  const bookingId = String(new mongoose.Types.ObjectId()); const jobId = String(new mongoose.Types.ObjectId());
+  ServiceBay.find = () => ({ sort: () => ({ lean: async () => [
+    { _id: freeId, name: 'BAY 1', operationalStatus: 'operational', availability: 'occupied' },
+    { _id: busyId, name: 'BAY 2', operationalStatus: 'operational', availability: 'available' },
+  ] }) });
+  JobOrder.find = () => ({ select: () => ({ lean: async () => [
+    { _id: jobId, serviceBay: busyId, booking: bookingId, status: 'in_progress' },
+  ] }) });
+  Booking.find = () => ({ select: () => ({ populate: () => ({ lean: async () => [
+    { _id: bookingId, assignedServiceBay: busyId, status: 'in_service', vehicle: { plateNumber: 'ABC 1234' } },
+  ] }) }) });
+  try {
+    const bays = await master.list('bay', {});
+    assert.equal(bays[0].availability, 'available');
+    assert.equal(bays[0].operationalStatus, 'operational');
+    assert.equal(bays[1].availability, 'occupied');
+    assert.equal(String(bays[1].activeAssignments[0].jobOrderId), jobId);
+    assert.equal(bays[1].activeAssignments[0].vehiclePlate, 'ABC 1234');
+  } finally { ServiceBay.find = oldBays; JobOrder.find = oldJobs; Booking.find = oldBookings; }
+});
+
 test('duplicate service names are rejected without loading the catalog', async () => {
   const original = Service.exists;
   let filter;

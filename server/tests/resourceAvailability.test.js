@@ -1,6 +1,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const resources = require('../services/resourceAvailabilityService');
+const Booking = require('../models/Booking');
+const JobOrder = require('../models/JobOrder');
+const ServiceBay = require('../models/ServiceBay');
+const User = require('../models/User');
 
 const period = resources.intervalFor('2035-05-12', '09:00', 180);
 const mechanics = count => Array.from({ length: count }, (_, index) => ({ _id: `mechanic-${index + 1}`,
@@ -30,6 +34,22 @@ test('a busy Mechanic without a timed reservation is conservatively excluded fro
   const state = resources.assessAvailability({ mechanics: pool, serviceBays: bays(2), bookings: [], jobs: [] }, period);
   assert.equal(state.available, true);
   assert.equal(state.mechanics.minimumFree, 4);
+});
+
+test('database availability ignores a stale occupied bay flag after finished work', async t => {
+  let activeJobs = [];
+  const query = values => ({ select() { return this; }, populate() { return this; }, session() { return this; },
+    lean: async () => values() });
+  t.mock.method(Booking, 'find', () => query(() => []));
+  t.mock.method(JobOrder, 'find', () => query(() => activeJobs));
+  t.mock.method(User, 'find', () => query(() => mechanics(1)));
+  t.mock.method(ServiceBay, 'find', () => query(() => [{ ...bays(1)[0], availability: 'occupied' }]));
+  let result = await resources.availabilityForPeriod(period);
+  assert.equal(result.serviceBays.available, true);
+  activeJobs = [{ booking: 'booking-1', mechanic: 'mechanic-1', serviceBay: 'bay-1',
+    reservedStartAt: period.startAt, reservedEndAt: period.endAt }];
+  result = await resources.availabilityForPeriod(period);
+  assert.equal(result.serviceBays.available, false);
 });
 
 test('generic reservations reduce available Mechanic and Bay capacity without blocking the whole period', () => {

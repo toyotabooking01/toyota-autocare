@@ -75,11 +75,6 @@ export default function AuthProvider({ children }) {
 
   async function updateProfile(values) {
     const { data } = await api.patch('/auth/me', values)
-    if (data.verificationRequired) { logout(); return data }
-    if (data.accessToken) {
-      store(TOKEN_KEY, data.accessToken)
-      api.defaults.headers.common.Authorization = `Bearer ${data.accessToken}`
-    }
     setUser(data.user)
     return data
   }

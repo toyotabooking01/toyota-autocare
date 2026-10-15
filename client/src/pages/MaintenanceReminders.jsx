@@ -7,6 +7,7 @@ import { PageHeading } from '../components/DashboardParts'
 import useCatalog from './useCatalog'
 import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
 import { dateText, vehicleText } from './maintenanceDisplay'
+import { useSearchParams } from 'react-router-dom'
 
 const reminderColors = {
   pending: { bgcolor: 'var(--amber-soft)', color: 'var(--amber-ink)' },
@@ -16,9 +17,12 @@ const reminderColors = {
 }
 
 export default function MaintenanceReminders({ role }) {
+  const [searchParams] = useSearchParams()
+  const openId = searchParams.get('open')
   const admin = role === 'admin'
   const { items, loading, error, setError, pagination } = useCatalog('/maintenance-reminders', {}, admin)
-  const [selected, setSelected] = useState(null)
+  const [selectedId, setSelectedId] = useState(openId)
+  const selected = items.find(item => String(item._id) === selectedId) || null
   return <>
     <PageHeading title={admin ? 'Reminders' : 'Maintenance'} subtitle={admin ? 'Upcoming maintenance recommendations for customers.' : 'Recommended next service dates for your vehicles.'} preview={false} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
@@ -30,11 +34,11 @@ export default function MaintenanceReminders({ role }) {
           <Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 700 }}>{vehicleText(item.vehicle)}</Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{admin ? `${item.client?.fullName || 'Client unavailable'} · ` : ''}{item.service?.name || 'Service unavailable'}</Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Last service: {dateText(item.lastServiceDate)} · Next recommended: {dateText(item.nextRecommendedServiceDate)}</Typography>
-          </Box><RecordActions statuses={<StatusBadge label={item.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[item.status] }} />}><DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton></RecordActions>
+          </Box><RecordActions statuses={<StatusBadge label={item.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[item.status] }} />}><DetailsButton onClick={() => setSelectedId(String(item._id))}>Details</DetailsButton></RecordActions>
         </RecordCard>}
       </RecordList>
     </RecordPanel>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Maintenance details" reference={selected?._id}
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelectedId(null)} title="Maintenance details" reference={selected?._id}
       status={selected && <StatusBadge size="small" label={selected.status.replace('_', ' ')} sx={{ textTransform: 'capitalize', ...reminderColors[selected.status] }} />}>
       {selected && <>
         <DetailGrid><DetailSection title="Vehicle"><DetailVehicle vehicle={selected.vehicle} /></DetailSection>

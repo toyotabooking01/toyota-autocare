@@ -14,14 +14,14 @@ import { dateLabel } from './bookingDisplay'
 import AssignmentDialog from './AssignmentDialog'
 import { Link, useSearchParams } from 'react-router-dom'
 
-const actionLabels = { confirm: 'Confirm', reject: 'Reject', cancel: 'Cancel', 'check-in': 'Check In' }
+const actionLabels = { confirm: 'Confirm', reject: 'Reject', cancel: 'Cancel', 'check-in': 'Check In', 'no-show': 'Mark No Show' }
 function sourceLabel(booking) { return booking.bookingType === 'walk-in' ? 'Walk-In' : 'Online' }
 function vehicleName(vehicle) { return vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}` : 'Vehicle record unavailable' }
 export default function BookingList({ role }) {
   const [searchParams] = useSearchParams()
   const openId = searchParams.get('open')
   const admin = role === 'admin'
-  const operator = role === 'staff'
+  const operator = role === 'staff' || role === 'admin'
   const business = admin || operator
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
@@ -49,7 +49,7 @@ export default function BookingList({ role }) {
     setSaving(true)
     try {
       const response = await api.post(`/bookings/${action.booking._id}/${action.kind}`)
-      setNotice(`Booking ${action.kind === 'confirm' ? 'confirmed' : action.kind === 'reject' ? 'rejected' : action.kind === 'check-in' ? 'checked in' : 'cancelled'}.`)
+      setNotice(`Booking ${action.kind === 'confirm' ? 'confirmed' : action.kind === 'reject' ? 'rejected' : action.kind === 'check-in' ? 'checked in' : action.kind === 'no-show' ? 'marked No Show' : 'cancelled'}.`)
       setDetails(response.data.item); setAction(null); reload()
     } catch (requestError) { setError(message(requestError)); setAction(null); reload() }
     finally { setSaving(false) }
@@ -68,12 +68,15 @@ export default function BookingList({ role }) {
   }
   function actionButtons(booking) {
     if (booking.status === 'pending') return operator ? ['confirm', 'reject', 'cancel'] : !business ? ['cancel'] : []
-    if (booking.status === 'confirmed') return operator ? ['check-in', 'cancel'] : !business ? ['cancel'] : []
+    if (booking.status === 'confirmed') return operator
+      ? ['check-in', ...(new Date(`${booking.bookingDate}T${booking.bookingTime}:00+08:00`) <= new Date() ? ['no-show'] : []), 'cancel']
+      : !business ? ['cancel'] : []
     if (booking.status === 'checked_in') return operator ? ['assign'] : []
     return []
   }
   return <>
     <PageHeading title={admin ? 'Booking monitoring' : operator ? 'Bookings' : 'My bookings'} subtitle={admin ? 'Monitor appointments and service status.' : operator ? 'Process appointments and coordinate arrivals.' : 'Follow your service appointments and view their details.'} preview={false} />
+    {admin && <Button component={Link} to="/admin/walk-in" variant="contained" sx={{ mb: 2 }}>Create walk-in booking</Button>}
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
     <RecordPanel>

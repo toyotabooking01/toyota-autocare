@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Alert, Avatar, Box, Button, Checkbox, FormControlLabel, Paper, Radio, RadioGroup, Stack, Tab, Tabs, TextField, Typography } from '@mui/material'
 import SecuritySettings from '../components/SecuritySettings'
 import { useAuth } from '../auth/AuthContext'
 import { useColorMode } from '../components/ColorModeContext'
 import { roleLabels } from '../app/navigation'
 import { userInitials } from '../utils/userInitials'
-import { errorMessage, FLOW_KEY, store } from '../auth/session'
+import { errorMessage } from '../auth/session'
 import { validateForm } from '../utils/validationRules'
 import { normalizeMobile, restrictMobileInput } from '../../../shared/accountValidation.mjs'
 import { workspaceCardWidth } from '../layouts/workspaceDimensions'
@@ -19,7 +18,7 @@ const notifications = {
   staff: ['New booking notifications', 'Booking and service status updates', 'Customer arrival reminders'],
   mechanic: ['New assigned service and job notifications', 'Schedule reminders', 'Service and task status reminders'],
 }
-const fieldLabels = { fullName: 'Full Name', email: 'Email Address', phone: 'Phone Number', address: 'Address' }
+const fieldLabels = { firstName: 'First Name', lastName: 'Last Name', phone: 'Phone Number', address: 'Address' }
 
 function Heading({ title, description }) {
   return <Box sx={{ mb: 2.5 }}><Typography component="h1" variant="h4" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>{title}</Typography>
@@ -48,25 +47,21 @@ export function MyProfile({ role }) {
 
 function ProfileSettings({ role }) {
   const { user, updateProfile } = useAuth()
-  const navigate = useNavigate()
-  const [form, setForm] = useState(() => ({ fullName: user.fullName || '', email: user.email || '', phone: user.phone || '', ...(role === 'client' ? { address: user.address || '' } : {}) }))
+  const [form, setForm] = useState(() => ({ firstName: user.firstName || '', lastName: user.lastName || '', phone: user.phone || '', ...(role === 'client' ? { address: user.address || '' } : {}) }))
   const [errors, setErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [noticeError, setNoticeError] = useState(false)
   async function submit(event) {
     event.preventDefault()
-    const normalized = { ...form, email: form.email.trim().toLowerCase(), phone: normalizeMobile(form.phone) }
+    const normalized = { ...form, phone: normalizeMobile(form.phone) }
     const nextErrors = validateForm('accountProfile', normalized, { browser: true, skip: role === 'client' ? [] : ['address'] })
     setErrors(nextErrors); setNotice(''); setNoticeError(false)
     if (Object.keys(nextErrors).length) return
     setBusy(true)
     try {
-      const result = await updateProfile(normalized)
-      if (result.verificationRequired) {
-        store(FLOW_KEY, JSON.stringify({ email: normalized.email, kind: 'verify', resendAt: Date.now() + 60000 }))
-        navigate('/verify-email', { replace: true })
-      } else { setForm(normalized); setNotice('Profile changes saved.') }
+      await updateProfile(normalized)
+      setForm(normalized); setNotice('Profile changes saved.')
     } catch (error) {
       setErrors(error.response?.data?.errors || {})
       setNotice(errorMessage(error)); setNoticeError(true)
@@ -74,14 +69,15 @@ function ProfileSettings({ role }) {
   }
   return <Box component="form" noValidate onSubmit={submit}>
     <Typography variant="h6" sx={{ fontSize: 18, mb: 1 }}>Profile</Typography>
-    <Typography color="text.secondary" fontSize={13} sx={{ mb: 2 }}>Changes to a client email require verification at the new address.</Typography>
+    <Typography color="text.secondary" fontSize={13} sx={{ mb: 2 }}>Your email address is your account login and cannot be changed here.</Typography>
     {notice && <Alert severity={noticeError ? 'error' : 'success'} sx={{ mb: 2 }}>{notice}</Alert>}
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-      {Object.keys(form).map(key => <TextField key={key} required={key !== 'address'} label={fieldLabels[key]} type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
-        autoComplete={{ fullName: 'name', email: 'email', phone: 'tel', address: 'street-address' }[key]} value={form[key]}
+      {Object.keys(form).map(key => <TextField key={key} required={key !== 'address'} label={fieldLabels[key]} type={key === 'phone' ? 'tel' : 'text'}
+        autoComplete={{ firstName: 'given-name', lastName: 'family-name', phone: 'tel', address: 'street-address' }[key]} value={form[key]}
         error={Boolean(errors[key])} helperText={errors[key] || (key === 'phone' ? 'Use 09XXXXXXXXX or +639XXXXXXXXX.' : '')}
         onChange={event => { const value = key === 'phone' ? restrictMobileInput(event.target.value) : event.target.value; setForm(current => ({ ...current, [key]: value })); setErrors(current => ({ ...current, [key]: '' })) }}
-        disabled={busy} slotProps={{ htmlInput: { maxLength: key === 'email' ? 254 : key === 'address' ? 300 : key === 'phone' ? 20 : 120 } }} />)}
+        disabled={busy} slotProps={{ htmlInput: { maxLength: key === 'address' ? 300 : key === 'phone' ? 20 : 40 } }} />)}
+      <TextField label="Email Address" type="email" autoComplete="email" value={user.email || ''} disabled />
     </Box>
     <Button type="submit" variant="contained" disabled={busy} sx={{ mt: 2.5 }}>Save Changes</Button>
   </Box>

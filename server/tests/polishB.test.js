@@ -120,17 +120,71 @@ for (const failure of ['full', 'failBooking', 'failVehicle']) test(`${failure}: 
   assert.deepEqual(f.state(), { users: [], vehicles: [], bookings: [], capacity: 0 });
 });
 
-test('walk-in booking succeeds without email or email transport', async t => {
+test('walk-in booking rejects missing email before creating any records', async t => {
   const f = fixture(t); const body = input(); body.customer.email = '';
-  t.mock.method(email, 'ensureConfigured', () => { throw new Error('SMTP unavailable'); });
-  const result = await walkIn.create(body, walkInStaffId);
-  assert.equal(f.state().bookings.length, 1);
-  assert.equal(f.state().users[0].contactEmail, undefined);
-  assert.equal(f.state().users[0].password, undefined);
-  assert.equal(f.state().users[0].isWalkInCustomer, true);
-  assert.equal(result.credentials, undefined); assert.equal(result.accountCreated, false);
+  await assert.rejects(walkIn.create(body, walkInStaffId), { status: 400, errors: { email: 'Email is required.' } });
+  assert.deepEqual(f.state(), { users: [], vehicles: [], bookings: [], capacity: 0 });
   assert.equal(email.sendEmail.mock.calls.length, 0);
-  assert.equal(result.item.status, 'checked_in');
+});
+
+test('Client account is provisioned before Vehicle and Walk-In booking', async t => {
+  const f = fixture(t); const body = input();
+  const account = await walkIn.provision(body.customer, walkInStaffId);
+  assert.equal(account.accountCreated, true);
+  assert.equal(account.emailSent, true);
+  assert.equal(f.state().users.length, 1);
+  assert.equal(f.state().vehicles.length, 0);
+  assert.equal(f.state().bookings.length, 0);
+  assert.equal(f.state().users[0].mustChangePassword, true);
+  assert.ok(await bcrypt.compare(sentPassword(), f.state().users[0].password));
+  const visit = await walkIn.createVisit({ client: account.account.id, vehicle: body.vehicle,
+    services: body.services, schedule: body.schedule }, walkInStaffId);
+  assert.equal(f.state().vehicles[0].owner, account.account.id);
+  assert.equal(f.state().bookings[0].client, account.account.id);
+  assert.equal(visit.item.status, 'checked_in');
+  assert.equal(email.sendEmail.mock.calls.length, 1);
+});
+
+test('Vehicle and booking cannot be created before a Client account is linked', async t => {
+  const f = fixture(t); const body = input();
+  await assert.rejects(walkIn.createVisit({ client: id(), vehicle: body.vehicle,
+    services: body.services, schedule: body.schedule }, walkInStaffId), { status: 409 });
+  assert.equal(f.state().vehicles.length, 0);
+  assert.equal(f.state().bookings.length, 0);
+});
+
+test('account provision reports failed credential email without exposing the password', async t => {
+  const f = fixture(t); t.mock.method(email, 'sendEmail', async () => { throw new Error('SMTP unavailable'); });
+  const result = await walkIn.provision(input().customer, walkInStaffId);
+  assert.equal(result.accountCreated, true);
+  assert.equal(result.emailSent, false);
+  assert.ok(result.deliveryToken);
+  assert.equal(result.secret, undefined);
+  assert.equal(f.state().users.length, 1);
+  assert.equal(f.state().bookings.length, 0);
+});
+
+test('existing normalized Client email links at Step 1 without password or account changes', async t => {
+  const f = fixture(t); const existing = { _id: id(), role: 'client', fullName: 'Daniel Lacap', email: 'customer@example.invalid',
+    status: 'active', isArchived: false, isWalkInCustomer: false, password: 'existing-hash' };
+  f.state().users.push(existing);
+  const check = await walkIn.checkEmail(' CUSTOMER@EXAMPLE.INVALID ');
+  assert.equal(check.account.id, existing._id);
+  const result = await walkIn.provision({ ...input().customer, email: ' CUSTOMER@EXAMPLE.INVALID ' }, walkInStaffId);
+  assert.equal(result.accountCreated, false);
+  assert.equal(result.account.id, existing._id);
+  assert.equal(f.state().users[0].password, 'existing-hash');
+  assert.equal(email.sendEmail.mock.calls.length, 0);
+});
+
+test('Step 1 reuses an account for email casing and whitespace variants', async t => {
+  const f = fixture(t);
+  const first = await walkIn.provision(input().customer, walkInStaffId);
+  const second = await walkIn.provision({ ...input().customer, email: '  juan@EXAMPLE.invalid ' }, walkInStaffId);
+  assert.equal(first.account.id, second.account.id);
+  assert.equal(second.accountCreated, false);
+  assert.equal(f.state().users.length, 1);
+  assert.equal(email.sendEmail.mock.calls.length, 1);
 });
 
 test('invalid walk-in customer or vehicle data creates no records', async t => {
@@ -265,7 +319,7 @@ test('password change rejects a missing role instead of assigning a default role
   assert.throws(() => signAccessToken(user));
 });
 
-test('HTTP: forced mechanics cannot use protected APIs; new Walk-In is Staff-only', async t => {
+test('HTTP: forced mechanics cannot use protected APIs; new Walk-In allows Staff and Admin', async t => {
   const user = { _id: id(), role: 'mechanic', email: 'mechanic@example.invalid', status: 'active', isArchived: false,
     emailVerified: true, mustChangePassword: true, authVersion: 0, password: await bcrypt.hash('TemporaryJourney42!', 4) };
   t.mock.method(User, 'findById', () => ({ select: async () => user }));
@@ -289,9 +343,15 @@ test('HTTP: forced mechanics cannot use protected APIs; new Walk-In is Staff-onl
   assert.equal((await request('/bookings/walk-in/new-client', input())).status, 403);
   user.role = 'client';
   assert.equal((await request('/bookings/walk-in/new-client', input())).status, 403);
+  assert.equal((await request('/bookings/walk-in/client-account', {})).status, 403);
+  assert.equal((await request('/bookings/walk-in/visit', {})).status, 403);
   assert.equal((await request('/bookings/walk-in/email-check?email=client@example.invalid')).status, 403);
-  user.role = 'admin'; assert.equal((await request('/bookings/walk-in/new-client', {})).status, 403);
+  user.role = 'admin'; assert.equal((await request('/bookings/walk-in/new-client', {})).status, 400);
+  assert.equal((await request('/bookings/walk-in/client-account', {})).status, 400);
+  assert.equal((await request('/bookings/walk-in/visit', {})).status, 400);
   user.role = 'staff'; assert.equal((await request('/bookings/walk-in/new-client', {})).status, 400);
+  assert.equal((await request('/bookings/walk-in/client-account', {})).status, 400);
+  assert.equal((await request('/bookings/walk-in/visit', {})).status, 400);
   const oldToken = signAccessToken(user); user.authVersion = 1;
   assert.equal((await request('/auth/me', undefined, oldToken)).status, 401);
 });

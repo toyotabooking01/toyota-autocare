@@ -2,6 +2,7 @@ const validate = require('../utils/validateForm');
 const mongoose = require('mongoose');
 const Service = require('../models/Service');
 const ServiceBay = require('../models/ServiceBay');
+const bayOccupancy = require('./bayOccupancyService');
 const JobOrder = require('../models/JobOrder');
 const Booking = require('../models/Booking');
 const HttpError = require('../utils/HttpError');
@@ -115,12 +116,15 @@ async function list(kind, query) {
     if (!bayStatuses.includes(query.status)) throw new HttpError(400, 'Invalid status filter.');
     filter.operationalStatus = query.status;
   }
-  return require('../utils/pagination').listPage(Model, filter, query, () => Model.find(filter).sort({ name: 1, _id: 1 }));
+  const result = await require('../utils/pagination').listPage(Model, filter, query, () => Model.find(filter).sort({ name: 1, _id: 1 }));
+  if (kind !== 'bay') return result;
+  if (Array.isArray(result)) return bayOccupancy.describe(result);
+  return { ...result, items: await bayOccupancy.describe(result.items) };
 }
 async function get(kind, rawId) {
   const item = await config(kind).Model.findById(id(rawId)).lean();
   if (!item) throw new HttpError(404, 'Record not found.');
-  return item;
+  return kind === 'bay' ? (await bayOccupancy.describe([item]))[0] : item;
 }
 async function create(kind, body) {
   const data = input(kind, body, true);
@@ -147,8 +151,13 @@ async function update(kind, rawId, body) {
     data.name = normalizeServiceBayName(data.name);
     await uniqueBayName(data.name, recordId);
   }
+  const previousStatus = kind === 'bay' ? item.operationalStatus : null;
   Object.assign(item, data);
-  if (kind === 'bay') return saveBay(() => item.save());
+  if (kind === 'bay') {
+    const saved = await saveBay(() => item.save());
+    if (previousStatus !== saved.operationalStatus) await require('./engagementService').recordBayProblem(saved);
+    return saved;
+  }
   return item.save();
 }
 async function setArchive(kind, rawId, archived) {

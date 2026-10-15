@@ -195,6 +195,7 @@ async function mechanicCreate(raw) {
   let emailSent = true;
   try { await emailService.sendTemporaryPassword({ email: data.email, password: secret, accountType: 'mechanic', firstName: data.firstName, employeeId: item.employeeId }); }
   catch { emailSent = false; }
+  await require('./engagementService').recordAccountEvent(item, 'created');
   return {
     item: await mechanicGet(String(item._id)),
     emailSent,
@@ -231,6 +232,7 @@ async function mechanicArchive(rawId, archived) {
     item.archivedAt = archived ? new Date() : null;
     if (archived) item.availability = 'off_duty';
     await item.save();
+    await require('./engagementService').recordAccountEvent(item, archived ? 'disabled' : 'enabled');
   }
   return mechanicGet(id);
 }

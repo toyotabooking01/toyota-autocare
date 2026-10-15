@@ -43,14 +43,14 @@ test('Mailjet SMTP settings configure transport and preserve all email templates
   for (const mail of fixture.calls) assert.equal(mail.from, settings.EMAIL_FROM);
   assert.match(fixture.calls[0].html, /012345/); assert.match(fixture.calls[2].subject, /Reset your password/);
   const temporaryPasswordMail = fixture.calls[3];
-  assert.equal(temporaryPasswordMail.subject, 'Toyota AutoCare - Your client account has been created');
-  assert.match(temporaryPasswordMail.text, /Your Toyota AutoCare client account has been created\./);
+  assert.equal(temporaryPasswordMail.subject, 'Toyota AutoCare Client Account');
+  assert.match(temporaryPasswordMail.text, /Your account has been created for your Walk-In service visit\./);
   assert.match(temporaryPasswordMail.text, /Temporary Password\nTemp<&Password1!/);
   assert.match(temporaryPasswordMail.html, /Temporary Password/);
   assert.match(temporaryPasswordMail.html, /background:#fff1f2/);
   assert.match(temporaryPasswordMail.html, /font-family:'Courier New',Courier,monospace/);
   assert.match(temporaryPasswordMail.html, /Temp&lt;&amp;Password1!/);
-  assert.match(temporaryPasswordMail.html, /change this password after your first sign-in/);
+  assert.match(temporaryPasswordMail.html, /create a new password when you sign in for the first time/);
 });
 test('false is a boolean false and requires STARTTLS on port 587', async t => {
   process.env.SMTP_SECURE = 'false'; process.env.SMTP_PORT = '587';

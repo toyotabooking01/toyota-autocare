@@ -8,6 +8,7 @@ const Booking = require('../models/Booking');
 const app = require('../app');
 const emailService = require('../services/emailService');
 const staffAccounts = require('../services/staffAccountService');
+const engagement = require('../services/engagementService');
 const { signAccessToken } = require('../services/tokenService');
 
 const input = { firstName: 'Maria', lastName: 'Santos', email: 'maria@example.invalid',
@@ -26,6 +27,7 @@ test('Staff input requires contact fields and rejects password, role, or Staff I
 });
 
 test('Admin creates Staff, emailed temporary credential forces setup, then only new password logs in', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   const oldSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = 'test-only-staff-flow-secret-longer-than-thirty-two-bytes';
   t.after(() => { if (oldSecret === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = oldSecret; });
@@ -127,6 +129,7 @@ test('Admin creates Staff, emailed temporary credential forces setup, then only 
 });
 
 test('Staff creation reports email failure without leaking the generated credential', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   t.mock.method(User, 'exists', async () => false);
   t.mock.method(Counter, 'findOneAndUpdate', async () => ({ sequence: 1 }));
   t.mock.method(User, 'create', async values => new User(values));
@@ -140,6 +143,7 @@ test('Staff creation reports email failure without leaking the generated credent
 });
 
 test('Concurrent Staff creation allocates unique IDs and never reuses one after deletion', async t => {
+  t.mock.method(engagement, 'recordAccountEvent', async () => {});
   let sequence = 0;
   const records = new Map();
   t.mock.method(Counter, 'findOneAndUpdate', async (filter, update, options) => {

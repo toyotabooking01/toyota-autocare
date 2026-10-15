@@ -6,7 +6,7 @@ const app = require('../app');
 const jobs = require('../services/jobOrderService');
 const { signAccessToken } = require('../services/tokenService');
 
-test('assignment and release are Staff-only; Admin monitors and Mechanics read assigned jobs', async () => {
+test('Admin can perform Staff and Mechanic job actions while Client remains restricted', async () => {
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldUser = User.findById;
@@ -40,12 +40,12 @@ test('assignment and release are Staff-only; Admin monitors and Mechanics read a
       return fetch(`${origin}${path}`, { method, headers: { Authorization: `Bearer ${signAccessToken(user)}`, 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}) });
     }
-    assert.equal((await request('/api/bookings/assignment-options', users[0])).status, 403);
+    assert.equal((await request('/api/bookings/assignment-options', users[0])).status, 200);
     assert.equal((await request('/api/bookings/assignment-options', users[3])).status, 200);
     assert.equal((await request('/api/bookings/assignment-options', users[2])).status, 403);
     assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[1], 'POST', {})).status, 403);
     assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[2], 'POST', {})).status, 403);
-    assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[0], 'POST', {})).status, 403);
+    assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[0], 'POST', {})).status, 201);
     assert.equal((await request(`/api/bookings/${bookingId}/assign`, users[3], 'POST',
       { mechanic: String(users[2]._id), serviceBay: String(new mongoose.Types.ObjectId()) })).status, 201);
     assert.equal((await request('/api/job-orders', users[1])).status, 403);
@@ -59,17 +59,21 @@ test('assignment and release are Staff-only; Admin monitors and Mechanics read a
     assert.equal((await request(`/api/job-orders/${jobId}`, users[0])).status, 200);
     assert.equal(viewedFor, undefined);
     assert.equal((await request('/api/job-orders/active', users[2])).status, 200);
-    assert.equal((await request('/api/job-orders/active', users[0])).status, 403);
+    assert.equal((await request('/api/job-orders/active', users[0])).status, 200);
     assert.equal((await request(`/api/job-orders/${jobId}/work`, users[1], 'PUT', {})).status, 403);
-    assert.equal((await request(`/api/job-orders/${jobId}/work`, users[0], 'PUT', {})).status, 403);
+    assert.equal((await request(`/api/job-orders/${jobId}/work`, users[0], 'PUT', {})).status, 200);
     assert.equal((await request(`/api/job-orders/${jobId}/work`, users[2], 'PUT', { mechanicNotes: 'Done' })).status, 200);
     for (const action of ['start', 'final-inspection']) {
       assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[2], 'POST')).status, 200);
-      assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST')).status, 403);
+      const adminResponse = await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST');
+      assert.equal(adminResponse.status, 200);
+      assert.equal((await adminResponse.json()).item.role, 'admin');
     }
     for (const action of ['ready-for-release', 'complete']) {
       assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[3], 'POST')).status, 200);
-      assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST')).status, 403);
+      const adminResponse = await request(`/api/job-orders/${jobId}/${action}`, users[0], 'POST');
+      assert.equal(adminResponse.status, 200);
+      assert.equal((await adminResponse.json()).item.role, 'admin');
       assert.equal((await request(`/api/job-orders/${jobId}/${action}`, users[2], 'POST')).status, 403);
     }
   } finally {

@@ -9,8 +9,8 @@ const phone = { ...text('Mobile number', 20), pattern: MOBILE_PATTERN, hint: MOB
 const password = { ...text('Password', 72), password: true }
 const id = label => ({ ...text(label, 24), pattern: /^[a-f\d]{24}$/i, hint: `Select a valid ${label.toLowerCase()}.` })
 export const schemas = {
-  accountProfile: { fullName, email, phone, address: text('Address', 300, false) },
-  walkInClient: { ...registrationNameFields, email: { ...email, required: false },
+  accountProfile: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName, phone, address: text('Address', 300, false) },
+  walkInClient: { ...registrationNameFields, email,
     phone: { ...phone, hint: REGISTRATION_MOBILE_HINT }, address: text('Address', 300, false) },
   clientRegistration: { ...registrationNameFields, email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT }, password, confirmPassword: text('Confirm password', 72), termsAccepted: { consent: true } },
   login: { email, password: { ...password, login: true } },

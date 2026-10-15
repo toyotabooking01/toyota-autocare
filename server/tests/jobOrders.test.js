@@ -25,27 +25,36 @@ test('assignment accepts only the selected resource IDs', () => {
 
 test('assignment options exclude ineligible resources and sensitive User fields', async () => {
   const oldUsers = User.find; const oldBays = ServiceBay.find;
+  const oldJobs = JobOrder.find; const oldBookings = Booking.find;
+  const freeBay = id(); const busyBay = id(); const staleBay = id(); const activeBooking = id();
   let mechanicFilter; let bayFilter;
   User.find = filter => { mechanicFilter = filter; return { select: () => ({ sort: () => ({ lean: async () => [
     { _id: id(), fullName: 'Mechanic', employeeId: 'M-1', password: 'hidden', authVersion: 2 },
   ] }) }) }; };
   ServiceBay.find = filter => { bayFilter = filter; return { select: () => ({ sort: () => ({ lean: async () => [
-    { _id: id(), name: 'BAY 1', isArchived: false },
+    { _id: freeBay, name: 'BAY 1', isArchived: false, availability: 'available' },
+    { _id: busyBay, name: 'BAY 2', isArchived: false, availability: 'available' },
+    { _id: staleBay, name: 'BAY 3', isArchived: false, availability: 'occupied' },
   ] }) }) }; };
+  JobOrder.find = () => ({ select: () => ({ lean: async () => [{ _id: id(), serviceBay: busyBay, booking: activeBooking, status: 'in_progress' }] }) });
+  Booking.find = () => ({ select: () => ({ populate: () => ({ lean: async () => [{ _id: activeBooking,
+    assignedServiceBay: busyBay, status: 'in_service', vehicle: { plateNumber: 'ABC 1234' } }] }) }) });
   try {
     const result = await jobs.options();
     assert.deepEqual(mechanicFilter, { role: 'mechanic', status: 'active', isArchived: false, availability: 'available' });
-    assert.deepEqual(bayFilter, { operationalStatus: 'operational', isArchived: false, availability: 'available' });
+    assert.deepEqual(bayFilter, { operationalStatus: 'operational', isArchived: false });
     assert.deepEqual(Object.keys(result.mechanics[0]).sort(), ['_id', 'availability', 'employeeId', 'fullName']);
-    assert.deepEqual(Object.keys(result.serviceBays[0]).sort(), ['_id', 'name']);
-  } finally { User.find = oldUsers; ServiceBay.find = oldBays; }
+    assert.deepEqual(result.serviceBays.map(bay => bay.name), ['BAY 1', 'BAY 3']);
+    assert.deepEqual(Object.keys(result.serviceBays[0]).sort(), ['_id', 'availability', 'name']);
+  } finally { User.find = oldUsers; ServiceBay.find = oldBays; JobOrder.find = oldJobs; Booking.find = oldBookings; }
 });
 
 test('assignment claims checked-in booking, reserves eligible resources and creates one JobOrder', async () => {
-  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate,
+  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate, bookingExists: Booking.exists,
     exists: JobOrder.exists, create: JobOrder.create, find: JobOrder.findOne,
     mechanic: User.findOneAndUpdate, bay: ServiceBay.findOneAndUpdate, services: Service.find };
   const bookingId = id(); const selected = input(); const jobId = id();
+  const admin = { _id: id(), role: 'admin' };
   const oilService = new mongoose.Types.ObjectId(); const brakeService = new mongoose.Types.ObjectId();
   let status = 'checked_in'; let mechanicAvailable = true; let bayAvailable = true; let created = 0;
   const reservedStartAt = new Date('2035-05-12T01:00:00.000Z'); const reservedEndAt = new Date('2035-05-12T04:00:00.000Z');
@@ -56,6 +65,9 @@ test('assignment claims checked-in booking, reserves eligible resources and crea
     status = update.$set.status;
     assert.equal(String(update.$set.assignedMechanic), selected.mechanic);
     assert.equal(String(update.$set.assignedServiceBay), selected.serviceBay);
+    assert.equal(String(update.$set.lastProcessedBy), admin._id);
+    assert.equal(update.$set.lastProcessedByRole, 'admin');
+    assert.equal(update.$push.activity.performedByRole, 'admin');
     return { concern: 'Inspect brakes', reservedStartAt, reservedEndAt, services: [oilService, brakeService] };
   };
   Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => [
@@ -63,6 +75,8 @@ test('assignment claims checked-in booking, reserves eligible resources and crea
     { _id: brakeService, name: 'Brake Service', checklistTemplate: ['Inspect brake pads'] },
   ] }) }) });
   JobOrder.exists = () => ({ session: async () => null });
+  Booking.exists = filter => { assert.equal(String(filter._id.$ne), bookingId);
+    return { session: async () => null }; };
   User.findOneAndUpdate = async (filter, update) => {
     assert.deepEqual({ role: filter.role, status: filter.status, isArchived: filter.isArchived, availability: filter.availability },
       { role: 'mechanic', status: 'active', isArchived: false, availability: 'available' });
@@ -82,6 +96,9 @@ test('assignment claims checked-in booking, reserves eligible resources and crea
     assert.equal(records[0].customerConcern, 'Inspect brakes');
     assert.equal(records[0].reservedStartAt, reservedStartAt);
     assert.equal(records[0].reservedEndAt, reservedEndAt);
+    assert.equal(String(records[0].mechanic), selected.mechanic);
+    assert.equal(String(records[0].activity[0].performedBy), admin._id);
+    assert.equal(records[0].activity[0].performedByRole, 'admin');
     assert.deepEqual(records[0].serviceChecklist.map(item => [String(item.serviceId), item.serviceName, item.description, item.isCompleted]), [
       [String(oilService), 'Oil Service', 'Check oil level', false],
       [String(oilService), 'Oil Service', 'Inspect filter', false],
@@ -91,21 +108,21 @@ test('assignment claims checked-in booking, reserves eligible resources and crea
   };
   JobOrder.findOne = filter => ({ populate: () => ({ lean: async () => ({ _id: filter._id }) }) });
   try {
-    const result = await jobs.assign(bookingId, selected);
+    const result = await jobs.assign(bookingId, selected, admin);
     assert.equal(String(result._id), jobId);
     assert.equal(status, 'mechanic_assigned'); assert.equal(mechanicAvailable, false); assert.equal(bayAvailable, false);
-    await assert.rejects(jobs.assign(bookingId, selected), { status: 409 });
+    await assert.rejects(jobs.assign(bookingId, selected, admin), { status: 409 });
     assert.equal(created, 1);
   } finally {
     mongoose.connection.transaction = originals.transaction; Booking.findOneAndUpdate = originals.booking;
-    JobOrder.exists = originals.exists; JobOrder.create = originals.create; JobOrder.findOne = originals.find;
+    JobOrder.exists = originals.exists; Booking.exists = originals.bookingExists; JobOrder.create = originals.create; JobOrder.findOne = originals.find;
     User.findOneAndUpdate = originals.mechanic; ServiceBay.findOneAndUpdate = originals.bay;
     Service.find = originals.services;
   }
 });
 
 test('failed JobOrder creation aborts booking and resource changes', async () => {
-  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate,
+  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate, bookingExists: Booking.exists,
     exists: JobOrder.exists, create: JobOrder.create, mechanic: User.findOneAndUpdate, bay: ServiceBay.findOneAndUpdate, services: Service.find };
   let bookingStatus = 'checked_in'; let mechanicAvailability = 'available'; let bayAvailability = 'available';
   mongoose.connection.transaction = async callback => {
@@ -116,6 +133,7 @@ test('failed JobOrder creation aborts booking and resource changes', async () =>
   Booking.findOneAndUpdate = async () => { bookingStatus = 'mechanic_assigned'; return { concern: '' }; };
   Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
   JobOrder.exists = () => ({ session: async () => null });
+  Booking.exists = () => ({ session: async () => null });
   User.findOneAndUpdate = async () => { mechanicAvailability = 'busy'; return {}; };
   ServiceBay.findOneAndUpdate = async () => { bayAvailability = 'occupied'; return {}; };
   JobOrder.create = async () => { throw new Error('Deliberate JobOrder insert failure'); };
@@ -124,19 +142,20 @@ test('failed JobOrder creation aborts booking and resource changes', async () =>
     assert.equal(bookingStatus, 'checked_in'); assert.equal(mechanicAvailability, 'available'); assert.equal(bayAvailability, 'available');
   } finally {
     mongoose.connection.transaction = originals.transaction; Booking.findOneAndUpdate = originals.booking;
-    JobOrder.exists = originals.exists; JobOrder.create = originals.create;
+    JobOrder.exists = originals.exists; Booking.exists = originals.bookingExists; JobOrder.create = originals.create;
     User.findOneAndUpdate = originals.mechanic; ServiceBay.findOneAndUpdate = originals.bay;
     Service.find = originals.services;
   }
 });
 
 test('unfinished work or unavailable resources rejects assignment before JobOrder creation', async () => {
-  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate,
+  const originals = { transaction: mongoose.connection.transaction, booking: Booking.findOneAndUpdate, bookingExists: Booking.exists,
     exists: JobOrder.exists, create: JobOrder.create, mechanic: User.findOneAndUpdate, bay: ServiceBay.findOneAndUpdate };
   let existing = false; let mechanicAvailable = true; let bayAvailable = true; let created = 0;
   mongoose.connection.transaction = async callback => callback({});
   Booking.findOneAndUpdate = async () => ({ concern: '' });
   JobOrder.exists = () => ({ session: async () => existing ? { _id: id() } : null });
+  Booking.exists = () => ({ session: async () => null });
   User.findOneAndUpdate = async () => mechanicAvailable ? {} : null;
   ServiceBay.findOneAndUpdate = async () => bayAvailable ? {} : null;
   JobOrder.create = async () => { created++; return [{ _id: id() }]; };
@@ -150,7 +169,7 @@ test('unfinished work or unavailable resources rejects assignment before JobOrde
     assert.equal(created, 0);
   } finally {
     mongoose.connection.transaction = originals.transaction; Booking.findOneAndUpdate = originals.booking;
-    JobOrder.exists = originals.exists; JobOrder.create = originals.create;
+    JobOrder.exists = originals.exists; Booking.exists = originals.bookingExists; JobOrder.create = originals.create;
     User.findOneAndUpdate = originals.mechanic; ServiceBay.findOneAndUpdate = originals.bay;
   }
 });
@@ -209,14 +228,18 @@ test('duration extension is rejected when the assigned Mechanic or Bay has a con
 });
 
 test('completing a JobOrder releases both reservations at actual completion time', async () => {
+  const paymentService = require('../services/paymentService');
   const originals = { transaction: mongoose.connection.transaction, jobFind: JobOrder.findOne,
     jobUpdate: JobOrder.findOneAndUpdate, bookingUpdate: Booking.findOneAndUpdate,
     userUpdate: User.updateOne, bayUpdate: ServiceBay.updateOne,
-    reminders: engagement.updateReminders };
+    reminders: engagement.updateReminders, bookingFind: Booking.findById, calculate: paymentService.calculate };
   const mechanic = id(); const serviceBay = id(); const booking = id(); const jobId = id();
   const startedAt = new Date(Date.now() - 45 * 60_000);
   let bookingChange; let jobChange;
   mongoose.connection.transaction = async callback => callback({});
+  Booking.findById = () => ({ select: () => ({ session: () => ({ lean: async () => ({ _id: booking, status: 'ready_for_release', finalTotalCents: 10000 }) }) }) });
+  paymentService.calculate = async () => ({ finalTotalCents: 10000, remainingBalanceCents: 0,
+    paymentStatus: 'paid', payments: [{ stage: 'final', status: 'verified' }] });
   JobOrder.findOne = filter => filter.status ? {
     session: () => ({ lean: async () => ({ _id: jobId, booking, mechanic, serviceBay, status: 'in_progress', startedAt }) }),
   } : { populate: () => ({ lean: async () => ({ _id: jobId }) }) };
@@ -234,6 +257,7 @@ test('completing a JobOrder releases both reservations at actual completion time
     mongoose.connection.transaction = originals.transaction; JobOrder.findOne = originals.jobFind;
     JobOrder.findOneAndUpdate = originals.jobUpdate; Booking.findOneAndUpdate = originals.bookingUpdate;
     User.updateOne = originals.userUpdate; ServiceBay.updateOne = originals.bayUpdate;
-    engagement.updateReminders = originals.reminders;
+    engagement.updateReminders = originals.reminders; Booking.findById = originals.bookingFind;
+    paymentService.calculate = originals.calculate;
   }
 });

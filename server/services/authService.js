@@ -116,30 +116,21 @@ async function changeTemporaryPassword(actor, body) {
 }
 async function updateProfile(actor, body) {
   const input = validation.body(body);
-  const allowed = actor.role === 'client' ? ['fullName', 'email', 'phone', 'address'] : ['fullName', 'email', 'phone'];
+  const allowed = actor.role === 'client' ? ['firstName', 'lastName', 'phone', 'address'] : ['firstName', 'lastName', 'phone'];
   if (Object.keys(input).some(key => !allowed.includes(key))) throw new HttpError(400, 'Invalid or unsupported profile fields.');
   require('../utils/validateForm')('accountProfile', input, { skip: actor.role === 'client' ? [] : ['address'] });
   const values = {
-    fullName: input.fullName.trim().replace(/\s+/g, ' '),
-    email: validation.email(input.email),
+    firstName: input.firstName.trim().replace(/\s+/g, ' '),
+    lastName: input.lastName.trim().replace(/\s+/g, ' '),
     phone: require('../../shared/accountValidation.mjs').normalizeMobile(input.phone),
     ...(actor.role === 'client' ? { address: (input.address || '').trim() } : {}),
   };
-  const emailChanged = values.email !== actor.email;
-  if (emailChanged && await User.exists({ email: values.email, _id: { $ne: actor._id } }))
-    throw new HttpError(409, 'Email is already reserved.', { email: 'Email is already reserved.' });
-  if (emailChanged && actor.role === 'client') { otpConfig(); emailService.ensureConfigured(); }
+  values.fullName = [values.firstName, actor.middleName, values.lastName, actor.suffix].filter(Boolean).join(' ');
   const user = await User.findOneAndUpdate({ _id: actor._id, email: actor.email, authVersion: actor.authVersion || 0 },
-    { $set: { ...values, ...(emailChanged && actor.role === 'client' ? { emailVerified: false } : {}) },
-      ...(emailChanged ? { $inc: { authVersion: 1 } } : {}) },
+    { $set: values },
     { returnDocument: 'after', runValidators: true }).select('+authVersion');
   if (!user) throw new HttpError(409, 'Your account changed. Refresh and try again.');
-  if (emailChanged && actor.role === 'client') {
-    // The existing verification flow sends a code to the new address.
-    await otpService.requestOtp(user.email, 'email_verification');
-    return { user: safeUser(user), verificationRequired: true };
-  }
-  return { user: safeUser(user), ...(emailChanged ? { accessToken: signAccessToken(user) } : {}) };
+  return { user: safeUser(user) };
 }
 const { changePassword } = require('./passwordChangeService');
 module.exports = { register, login, verifyEmail, resendVerification, forgotPassword, verifyResetOtp, resetPassword, changeTemporaryPassword, updateProfile, changePassword };

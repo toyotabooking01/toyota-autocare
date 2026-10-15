@@ -51,7 +51,7 @@ export default function AssignmentDialog({ booking, onClose, onAssigned }) {
             {options.mechanics.map(item => <MenuItem key={item._id} value={item._id}>{item.fullName} ({item.employeeId}) · {mechanicAvailabilityLabel(item.availability)}</MenuItem>)}
           </TextField>
           <TextField select required label="Service Bay" value={serviceBay} {...validation.field('serviceBay')} onChange={event => setServiceBay(event.target.value)} disabled={!options.serviceBays.length || saving} fullWidth>
-            {options.serviceBays.map(item => <MenuItem key={item._id} value={item._id}>{item.name}</MenuItem>)}
+            {options.serviceBays.map(item => <MenuItem key={item._id} value={item._id}>{item.name} - Available</MenuItem>)}
           </TextField>
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Assignment creates one Job Order. Service has not started.</Typography>
         </>}

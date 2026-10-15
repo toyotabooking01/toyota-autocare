@@ -32,9 +32,16 @@ export default function NotificationBell({ role }) {
     }
     function updated() { refresh(); setRevision(value => value + 1) }
     refresh()
+    const timer = window.setInterval(refresh, 15000)
     window.addEventListener(NOTIFICATIONS_UPDATED, updated)
-    return () => { live = false; window.removeEventListener(NOTIFICATIONS_UPDATED, updated) }
+    return () => { live = false; window.clearInterval(timer); window.removeEventListener(NOTIFICATIONS_UPDATED, updated) }
   }, [pathname, role])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const timer = window.setInterval(() => setRevision(value => value + 1), 15000)
+    return () => window.clearInterval(timer)
+  }, [open])
 
   useEffect(() => {
     if (!open) return

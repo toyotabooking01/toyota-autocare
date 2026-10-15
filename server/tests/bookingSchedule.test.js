@@ -13,6 +13,28 @@ const originalRecordEvent = engagement.recordBookingEvent;
 before(() => { engagement.recordBookingEvent = async () => {}; });
 after(() => { engagement.recordBookingEvent = originalRecordEvent; });
 
+test('Staff can mark a past confirmed booking No Show once and notify the client', async t => {
+  const bookingId = id(); const client = id(); const schedule = id();
+  let status = 'confirmed'; let event;
+  t.mock.method(mongoose.connection, 'transaction', callback => callback({}));
+  t.mock.method(Booking, 'findOneAndUpdate', async (filter, update) => {
+    if (filter.status !== status) return null;
+    status = update.$set.status;
+    return { _id: bookingId, client, schedule, bookingDate: '2020-01-01', bookingTime: '09:00' };
+  });
+  t.mock.method(Schedule, 'updateOne', async () => ({ modifiedCount: 1 }));
+  t.mock.method(Booking, 'findOne', () => ({
+    populate: () => ({ lean: async () => ({ _id: bookingId, status }) }),
+    session: () => ({ select: () => ({ lean: async () => ({ _id: bookingId }) }) }),
+  }));
+  engagement.recordBookingEvent = async (_session, _booking, kind) => { event = kind; };
+  await bookings.transition(String(bookingId), { role: 'staff', _id: id() }, 'no-show');
+  assert.equal(status, 'no_show');
+  assert.equal(event, 'no_show');
+  await assert.rejects(bookings.transition(String(bookingId), { role: 'staff', _id: id() }, 'no-show'), { status: 409 });
+  await assert.rejects(bookings.transition(String(bookingId), { role: 'client', _id: client }, 'no-show'), { status: 403 });
+});
+
 const id = () => new mongoose.Types.ObjectId();
 const future = { date: '2035-05-12', timeSlot: '09:00', maximumCapacity: 2, currentBookingCount: 0, isEnabled: true };
 const sample = () => ({ vehicle: String(id()), services: [String(id()), String(id())], schedule: String(id()) });

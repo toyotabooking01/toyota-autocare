@@ -18,7 +18,7 @@ import WalkInVehicleDialog from './WalkInVehicleDialog'
 
 const steps = ['Customer', 'Vehicle', 'Services', 'Date & Time', 'Review']
 const choiceStyle = { p: 2, border: '1px solid var(--line)', borderRadius: 2, cursor: 'pointer', minWidth: 0, textAlign: 'left' }
-export default function StaffWalkIn() {
+export default function StaffWalkIn({ role = 'staff' }) {
   const confirm = useConfirmation()
   const [step, setStep] = useState(0)
   const [customerType, setCustomerType] = useState('existing')
@@ -130,12 +130,12 @@ export default function StaffWalkIn() {
       {customerType === 'existing' ? 'Customer already exists in the system.' : 'Create a walk-in customer record and service request.'}
     </Typography>
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    {customerType === 'new' ? <NewWalkInForm services={services} loading={loading} refreshKey={refresh} onRefresh={() => setRefresh(value => value + 1)} onBusy={setSaving} onComplete={setCompleted} /> : <FormWorkspace>
+    {customerType === 'new' ? <NewWalkInForm role={role} services={services} loading={loading} refreshKey={refresh} onRefresh={() => setRefresh(value => value + 1)} onBusy={setSaving} onComplete={setCompleted} /> : <FormWorkspace>
       {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading walk-in options…</Typography></Stack>
         : completed ? <Stack spacing={2} alignItems="flex-start" sx={{ py: 4 }}>
           <Alert severity="success">Walk-in booking created successfully. The customer is checked in.</Alert>
           <Typography sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>Reference: {completed._id}</Typography>
-          <Stack direction="row" spacing={1}><Button component={Link} to={`/staff/bookings?open=${completed._id}`} variant="contained">View Booking</Button><Button component={Link} to="/staff/job-orders">Continue to Job Coordination</Button></Stack>
+          <Stack direction="row" spacing={1}><Button component={Link} to={`/${role}/bookings?open=${completed._id}`} variant="contained">View Booking</Button><Button component={Link} to={`/${role}/job-orders`}>Continue to Job Coordination</Button></Stack>
         </Stack> : <>
           <Stepper activeStep={step} alternativeLabel sx={{ mb: 4, display: { xs: 'none', sm: 'flex' } }}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
           <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 5 · {steps[step]}</Typography>

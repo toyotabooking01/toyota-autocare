@@ -9,6 +9,7 @@ const { duplicatePlateFilter, duplicatePlateError } = require('../utils/plateNum
 const scheduleService = require('./scheduleService');
 const engagement = require('./engagementService');
 const resourceAvailability = require('./resourceAvailabilityService');
+const { identity, audit } = require('../utils/operationalActor');
 
 const releaseable = ['pending', 'confirmed'];
 const activeServiceStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'];
@@ -21,7 +22,9 @@ const populate = [
   { path: 'schedule', select: 'date timeSlot isEnabled maximumCapacity currentBookingCount' },
   { path: 'assignedMechanic', select: 'fullName' },
   { path: 'assignedServiceBay', select: 'name' },
-  { path: 'createdByStaff', select: 'fullName staffId' },
+  { path: 'createdByStaff', select: 'fullName staffId role' },
+  { path: 'lastProcessedBy', select: 'fullName role' },
+  { path: 'activity.performedBy', select: 'fullName role' },
 ];
 function publicBooking(booking) {
   if (!booking?.client?.isWalkInCustomer) return booking;
@@ -55,7 +58,7 @@ async function walkInClients(rawSearch) {
     throw new HttpError(400, 'Enter at least two characters to search clients.');
   }
   const search = { $regex: rawSearch.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-  const clients = await User.find({ role: 'client', status: 'active', isArchived: false,
+  const clients = await User.find({ role: 'client', status: 'active', isArchived: false, isWalkInCustomer: false,
     $or: [{ firstName: search }, { lastName: search }, { fullName: search }, { email: search }, { contactEmail: search }, { phone: search }] })
     .select('_id fullName email contactEmail phone isWalkInCustomer').sort({ fullName: 1 }).limit(20).lean();
   const ids = clients.map(client => client._id);
@@ -69,7 +72,7 @@ async function walkInClients(rawSearch) {
 }
 async function walkInVehicles(rawClientId) {
   const clientId = id(rawClientId, 'client');
-  if (!await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false })) {
+  if (!await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false, isWalkInCustomer: false })) {
     throw new HttpError(404, 'Eligible client not found.');
   }
   const vehicles = await Vehicle.find({ owner: clientId, isArchived: false })
@@ -79,7 +82,7 @@ async function walkInVehicles(rawClientId) {
 }
 async function addWalkInVehicle(rawClientId, raw) {
   const clientId = id(rawClientId, 'client');
-  if (!await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false })) {
+  if (!await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false, isWalkInCustomer: false })) {
     throw new HttpError(404, 'Eligible customer not found.');
   }
   const vehicle = require('./peopleVehiclesService').vehicleInput(raw, true);
@@ -104,8 +107,9 @@ async function createFor(clientId, raw, bookingType, staffId) {
   return get(createdId, bookingType === 'online' ? clientId : undefined);
 }
 async function reserveBooking(session, clientId, data, bookingType, staffId) {
+    const creator = bookingType === 'walk-in' ? identity(staffId) : { id: clientId, role: 'client' };
     if (bookingType === 'walk-in') {
-      const client = await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false }).session(session);
+      const client = await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false, isWalkInCustomer: false }).session(session);
       if (!client) throw new HttpError(400, 'Select an active client account.', { client: 'Select an active client account.' });
     }
     const vehicle = await Vehicle.exists({ _id: data.vehicle, owner: clientId, isArchived: false }).session(session);
@@ -150,8 +154,11 @@ async function reserveBooking(session, clientId, data, bookingType, staffId) {
       initialEstimatedDurationMinutes: estimatedDurationMinutes,
       estimatedDurationMinutes, reservedStartAt: period.startAt, reservedEndAt: period.endAt,
       concern: data.concern, status: bookingType === 'walk-in' ? 'checked_in' : 'pending',
-      ...(staffId ? { createdByStaff: staffId, lastProcessedBy: staffId, lastProcessedAt: new Date() } : {}),
+      activity: [audit({ _id: creator.id, role: creator.role }, bookingType === 'walk-in' ? 'walk_in_created' : 'created')],
+      ...(bookingType === 'walk-in' ? { createdByStaff: creator.id, createdByRole: creator.role,
+        lastProcessedBy: creator.id, lastProcessedByRole: creator.role, lastProcessedAt: new Date() } : {}),
     }], { session });
+    await engagement.recordBookingEvent(session, booking, bookingType === 'walk-in' ? 'walk_in_created' : 'created');
     if (bookingType === 'walk-in') await engagement.recordBookingEvent(session, booking, 'checked_in');
     return booking._id;
 }
@@ -202,8 +209,9 @@ async function get(rawId, clientId) {
 }
 async function transition(rawId, actor, action) {
   const bookingId = id(rawId, 'booking');
-  if (!['confirm', 'reject', 'cancel', 'check-in'].includes(action)) throw new HttpError(400, 'Invalid booking action.');
-  if (actor.role === 'admin' || (actor.role === 'client' && action !== 'cancel')) throw new HttpError(403, 'Access denied.');
+  if (!['confirm', 'reject', 'cancel', 'check-in', 'no-show'].includes(action)) throw new HttpError(400, 'Invalid booking action.');
+  if (action === 'no-show' && !['staff', 'admin'].includes(actor.role)) throw new HttpError(403, 'Access denied.');
+  if (!['staff', 'admin', 'client'].includes(actor.role) || (actor.role === 'client' && action !== 'cancel')) throw new HttpError(403, 'Access denied.');
   const filter = { _id: bookingId };
   if (actor.role === 'client') filter.client = actor._id;
   if (action === 'confirm' || action === 'check-in') {
@@ -211,7 +219,8 @@ async function transition(rawId, actor, action) {
     const next = action === 'confirm' ? 'confirmed' : 'checked_in';
     await mongoose.connection.transaction(async session => {
       const changed = await Booking.findOneAndUpdate({ ...filter, status: expected },
-        { $set: { status: next, lastProcessedBy: actor._id, lastProcessedAt: new Date() } }, { returnDocument: 'after', session });
+        { $set: { status: next, lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date() },
+          $push: { activity: audit(actor, action) } }, { returnDocument: 'after', session });
       if (!changed) {
         await get(bookingId, filter.client);
         throw new HttpError(409, action === 'confirm' ? 'Only pending bookings can be confirmed.' : 'Only confirmed bookings can be checked in.');
@@ -221,24 +230,30 @@ async function transition(rawId, actor, action) {
   } else {
     await mongoose.connection.transaction(async session => {
       const previous = await Booking.findOneAndUpdate({ ...filter,
-        status: action === 'reject' ? 'pending' : { $in: releaseable },
-      }, { $set: { status: action === 'reject' ? 'rejected' : 'cancelled',
-        ...(actor.role === 'staff' ? { lastProcessedBy: actor._id, lastProcessedAt: new Date() } : {}) } },
+        status: action === 'reject' ? 'pending' : action === 'no-show' ? 'confirmed' : { $in: releaseable },
+      }, { $set: { status: action === 'reject' ? 'rejected' : action === 'no-show' ? 'no_show' : 'cancelled',
+        ...(['staff', 'admin'].includes(actor.role) ? { lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date() } : {}) },
+        $push: { activity: audit(actor, action) } },
       { returnDocument: 'before', session });
       if (!previous) {
         const exists = await Booking.findOne(filter).session(session).select('_id').lean();
         if (!exists) throw new HttpError(404, 'Booking not found.');
         throw new HttpError(409, 'Booking can no longer be changed at this stage.');
       }
+      if (action === 'no-show' && new Date(`${previous.bookingDate}T${previous.bookingTime}:00+08:00`) > new Date()) {
+        throw new HttpError(409, 'A booking can be marked No Show only after its scheduled time.');
+      }
       const released = await Schedule.updateOne({ _id: previous.schedule, currentBookingCount: { $gt: 0 } },
         { $inc: { currentBookingCount: -1 } }, { session });
       if (released.modifiedCount !== 1) throw new HttpError(409, 'Capacity could not be released; booking was not changed.');
-      await engagement.recordBookingEvent(session, previous, action === 'reject' ? 'rejected' : 'cancelled');
+      await engagement.recordBookingEvent(session, previous,
+        action === 'reject' ? 'rejected' : action === 'no-show' ? 'no_show' : 'cancelled', { actorRole: actor.role, actorId: actor._id });
     });
   }
   return get(bookingId, filter.client);
 }
 async function reschedule(rawId, raw, staffId) {
+  const operator = identity(staffId);
   const bookingId = id(rawId, 'booking');
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 1 || !raw.schedule) {
     throw new HttpError(400, 'Select a new schedule.');
@@ -264,12 +279,15 @@ async function reschedule(rawId, raw, staffId) {
     if (!reserved) throw new HttpError(409, 'The selected schedule is full.');
     const changed = await Booking.updateOne({ _id: bookingId, status: booking.status, schedule: booking.schedule },
       { $set: { schedule: scheduleId, bookingDate: slot.date, bookingTime: slot.timeSlot,
-        reservedStartAt: period.startAt, reservedEndAt: period.endAt, lastProcessedBy: staffId,
-        lastProcessedAt: new Date() } }, { session });
+        reservedStartAt: period.startAt, reservedEndAt: period.endAt, lastProcessedBy: operator.id,
+        lastProcessedByRole: operator.role, lastProcessedAt: new Date() },
+      $push: { activity: audit(staffId, 'reschedule') } }, { session });
     if (changed.matchedCount !== 1) throw new HttpError(409, 'Booking changed during rescheduling.');
     const released = await Schedule.updateOne({ _id: booking.schedule, currentBookingCount: { $gt: 0 } },
       { $inc: { currentBookingCount: -1 } }, { session });
     if (released.modifiedCount !== 1) throw new HttpError(409, 'Previous schedule capacity could not be released.');
+    await engagement.recordBookingEvent(session, { ...booking, schedule: scheduleId, bookingDate: slot.date,
+      bookingTime: slot.timeSlot }, 'rescheduled', { version: `${booking.schedule}:${scheduleId}:${booking.lastProcessedAt?.getTime?.() || 'first'}` });
   });
   return get(bookingId);
 }

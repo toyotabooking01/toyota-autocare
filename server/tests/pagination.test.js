@@ -44,6 +44,10 @@ const cases = [
 ];
 for (const [label, name, list, filters] of cases) test(`${label}: filtered DB page, total count, stable ordering and legacy array`, async t => {
   const { seen } = fixture(t, models[name]);
+  if (name === 'ServiceBay') {
+    t.mock.method(models.JobOrder, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
+    t.mock.method(models.Booking, 'find', () => ({ select: () => ({ populate: () => ({ lean: async () => [] }) }) }));
+  }
   const legacy = await list(filters);
   const legacyFilter = seen.filter;
   assert.equal(legacy.length, 42);

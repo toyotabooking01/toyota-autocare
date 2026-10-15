@@ -6,7 +6,7 @@ const Vehicle = require('../models/Vehicle');
 const app = require('../app');
 const { signAccessToken } = require('../services/tokenService');
 
-test('Walk-In lookup, creation and Check-In routes are Staff-only', async () => {
+test('Walk-In lookup, creation and Check-In routes allow Staff and Admin', async () => {
   const oldSecret = process.env.JWT_SECRET;
   const oldReady = Object.getOwnPropertyDescriptor(mongoose.connection, 'readyState');
   const oldById = User.findById;
@@ -38,7 +38,7 @@ test('Walk-In lookup, creation and Check-In routes are Staff-only', async () => 
     const lookup = '/api/bookings/walk-in/clients?search=Client';
     assert.equal((await request(lookup, people[1])).status, 403);
     assert.equal((await request(lookup, people[2])).status, 403);
-    assert.equal((await request(lookup, people[0])).status, 403);
+    assert.equal((await request(lookup, people[0])).status, 200);
     const adminLookup = await request(lookup, people[3]);
     assert.equal(adminLookup.status, 200);
     const selected = (await adminLookup.json()).items[0];
@@ -46,19 +46,19 @@ test('Walk-In lookup, creation and Check-In routes are Staff-only', async () => 
     assert.equal(selected.vehicleCount, 0);
     const vehiclesPath = `/api/bookings/walk-in/clients/${people[1]._id}/vehicles`;
     assert.equal((await request(vehiclesPath, people[1])).status, 403);
-    assert.equal((await request(vehiclesPath, people[0])).status, 403);
+    assert.equal((await request(vehiclesPath, people[0])).status, 200);
     assert.equal((await request(vehiclesPath, people[3])).status, 200);
-    assert.equal((await request(vehiclesPath, people[0], 'POST', {})).status, 403);
+    assert.equal((await request(vehiclesPath, people[0], 'POST', {})).status, 400);
     assert.equal((await request(vehiclesPath, people[1], 'POST', {})).status, 403);
     assert.equal((await request(vehiclesPath, people[3], 'POST', {})).status, 400);
     assert.equal((await request('/api/bookings/walk-in', people[1], 'POST', {})).status, 403);
     assert.equal((await request('/api/bookings/walk-in', people[2], 'POST', {})).status, 403);
-    assert.equal((await request('/api/bookings/walk-in', people[0], 'POST', {})).status, 403);
+    assert.equal((await request('/api/bookings/walk-in', people[0], 'POST', {})).status, 400);
     assert.equal((await request('/api/bookings/walk-in', people[3], 'POST', {})).status, 400);
     const checkIn = '/api/bookings/not-an-id/check-in';
     assert.equal((await request(checkIn, people[1], 'POST', {})).status, 403);
     assert.equal((await request(checkIn, people[2], 'POST', {})).status, 403);
-    assert.equal((await request(checkIn, people[0], 'POST', {})).status, 403);
+    assert.equal((await request(checkIn, people[0], 'POST', {})).status, 400);
     assert.equal((await request(checkIn, people[3], 'POST', {})).status, 400);
   } finally {
     await new Promise(resolve => server.close(resolve));

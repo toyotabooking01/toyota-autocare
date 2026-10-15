@@ -92,11 +92,11 @@ async function sendTemporaryPassword({ email, password, accountType = 'client', 
   const isMechanic = accountType === 'mechanic';
   const isStaff = accountType === 'staff';
   const subject = isStaff ? 'Your Toyota AutoCare Staff Account' : isMechanic ? 'Toyota AutoCare - Your mechanic account sign-in details'
-    : 'Toyota AutoCare - Your client account has been created';
-  const title = isStaff ? 'Your staff account sign-in details' : isMechanic ? 'Your mechanic account sign-in details' : 'Your client account has been created';
+    : 'Toyota AutoCare Client Account';
+  const title = isStaff ? 'Your staff account sign-in details' : isMechanic ? 'Your mechanic account sign-in details' : 'Toyota AutoCare Client Account';
   const accountDescription = isStaff ? 'Your Toyota AutoCare staff account has been created.' : isMechanic
     ? 'A mechanic account was created for you at Toyota AutoCare.'
-    : 'Your Toyota AutoCare client account has been created.';
+    : 'Your account has been created for your Walk-In service visit.';
   if (isStaff || isMechanic) {
     const identifierLabel = isStaff ? 'Staff ID' : 'Mechanic ID';
     const identifier = isStaff ? staffId : employeeId;
@@ -118,7 +118,7 @@ async function sendTemporaryPassword({ email, password, accountType = 'client', 
   await module.exports.sendEmail({
     to: email,
     subject,
-    text: `Toyota AutoCare\n\n${title}\n\n${accountDescription}\n\nEmail\n${email}\n\nTemporary Password\n${password}\n\nYou’ll be required to change this password after your first sign-in.\n\nSecurity note: Keep this temporary password private. If you did not request this account, contact the Toyota AutoCare service desk.`,
+    text: `Toyota AutoCare\n\n${title}\n\n${accountDescription}\n\nLogin Email:\n${email}\n\nTemporary Password\n${password}\n\nYou will be required to create a new password when you sign in for the first time.\n\nSecurity note: Keep this temporary password private. If you did not request this account, contact the Toyota AutoCare service desk.`,
     html: `<!doctype html>
 <html lang="en">
   <body style="margin:0;padding:24px 12px;background:#f3f5f7;font-family:Arial,Helvetica,sans-serif;color:#202833;">
@@ -130,12 +130,12 @@ async function sendTemporaryPassword({ email, password, accountType = 'client', 
         <h1 style="margin:0 0 12px;font-size:23px;line-height:1.3;color:#192536;">${title}</h1>
         <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#4b5968;">${accountDescription}</p>
         <div style="margin:0 0 18px;padding:14px 16px;background:#f6f8fa;border:1px solid #e6eaee;border-radius:8px;">
-          <div style="margin-bottom:5px;font-size:12px;line-height:1.4;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#647284;">Email</div>
+          <div style="margin-bottom:5px;font-size:12px;line-height:1.4;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#647284;">Login Email</div>
           <div style="font-size:15px;line-height:1.5;color:#202833;overflow-wrap:anywhere;word-break:break-word;">${safeEmail}</div>
         </div>
         <div style="margin:0 0 8px;font-size:12px;line-height:1.4;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#647284;">Temporary Password</div>
         <div style="margin:0 0 20px;padding:18px 16px;background:#fff1f2;border:1px solid #f0b8bf;border-radius:8px;color:#b20b1e;font-family:'Courier New',Courier,monospace;font-size:24px;line-height:1.45;font-weight:700;letter-spacing:.5px;overflow-wrap:anywhere;word-break:break-all;">${safePassword}</div>
-        <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#354253;">You’ll be required to change this password after your first sign-in.</p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#354253;">You will be required to create a new password when you sign in for the first time.</p>
         <div style="margin:0 0 24px;padding:14px 16px;border-left:3px solid #eb0a1e;background:#fafbfc;font-size:13px;line-height:1.6;color:#566374;">
           <strong style="color:#354253;">Security note:</strong> Keep this temporary password private. If you did not request this account, contact the Toyota AutoCare service desk.
         </div>

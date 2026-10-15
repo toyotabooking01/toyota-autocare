@@ -5,8 +5,12 @@ const Booking = require('../models/Booking');
 const Schedule = require('../models/Schedule');
 const resources = require('../services/resourceAvailabilityService');
 const bookings = require('../services/bookingService');
+const engagement = require('../services/engagementService');
 
 test('Staff rescheduling moves one reservation and keeps booking identity', async t => {
+  t.mock.method(engagement, 'recordBookingEvent', async (_session, _booking, event) => {
+    assert.equal(event, 'rescheduled');
+  });
   const bookingId = String(new mongoose.Types.ObjectId());
   const previousId = new mongoose.Types.ObjectId();
   const nextId = new mongoose.Types.ObjectId();

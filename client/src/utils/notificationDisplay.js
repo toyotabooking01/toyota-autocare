@@ -1,10 +1,23 @@
 export function notificationDestination(item, role) {
-  if (item.type === 'maintenance_reminder') return ['client', 'admin'].includes(role) ? `/${role}/reminders` : ''
+  if (item.type === 'system') {
+    const allowed = {
+      admin: ['/admin/mechanics', '/admin/staff', '/admin/service-bays', '/admin/bookings', '/admin/job-orders'],
+      staff: ['/staff/profile'], mechanic: ['/mechanic/profile'], client: ['/client/profile'],
+    }
+    return allowed[role]?.includes(item.path) ? item.path : ''
+  }
+  if (item.type === 'maintenance_reminder') {
+    const reminder = /^[a-f\d]{24}$/i.test(String(item.maintenanceReminderId || '')) ? `?open=${item.maintenanceReminderId}` : ''
+    return ['client', 'admin'].includes(role) ? `/${role}/reminders${reminder}` : ''
+  }
+  const booking = /^[a-f\d]{24}$/i.test(String(item.bookingId || '')) ? `?open=${item.bookingId}` : ''
+  const job = /^[a-f\d]{24}$/i.test(String(item.jobOrderId || '')) ? `?open=${item.jobOrderId}` : ''
   if (item.type === 'booking') return role === 'mechanic' ? '/mechanic/jobs'
-    : ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings` : ''
-  if (item.type === 'job_order') return role === 'client' ? '/client/bookings'
-    : role === 'mechanic' ? '/mechanic/jobs'
-      : ['staff', 'admin'].includes(role) ? `/${role}/job-orders` : ''
+    : ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings${booking}` : ''
+  if (item.type === 'payment') return ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings${booking}` : ''
+  if (item.type === 'job_order') return role === 'client' ? `/client/bookings${booking}`
+    : role === 'mechanic' ? `/mechanic/jobs${job}`
+      : ['staff', 'admin'].includes(role) ? `/${role}/job-orders${job}` : ''
   return ''
 }
 

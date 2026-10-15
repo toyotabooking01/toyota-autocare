@@ -8,6 +8,7 @@ module.exports = {
   Schedule: require('./Schedule'),
   ServiceBay: require('./ServiceBay'),
   JobOrder: require('./JobOrder'),
+  Payment: require('./Payment'),
   Notification: require('./Notification'),
   MaintenanceReminder: require('./MaintenanceReminder'),
   EmailOtp: require('./EmailOtp'),

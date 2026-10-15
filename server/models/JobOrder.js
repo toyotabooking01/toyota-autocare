@@ -20,6 +20,12 @@ const jobOrderSchema = new mongoose.Schema({
   checklistRequired: { type: Boolean, default: false },
   serviceChecklist: { type: [checklistItemSchema], default: [] },
   mechanicNotes: { type: String, trim: true, maxlength: 5000, default: '' },
+  activity: [{
+    action: { type: String, required: true },
+    performedBy: reference('User'),
+    performedByRole: { type: String, enum: ['staff', 'mechanic', 'admin'], required: true },
+    performedAt: { type: Date, required: true },
+  }],
   startedAt: Date,
   completedAt: {
     type: Date,

@@ -77,6 +77,7 @@ async function create(raw) {
   try { await emailService.sendTemporaryPassword({ email: data.email, password: secret,
     accountType: 'staff', firstName: data.firstName, staffId: created.staffId }); }
   catch { emailSent = false; }
+  await require('./engagementService').recordAccountEvent(created, 'created');
   return { item: { _id: created._id, firstName: created.firstName, lastName: created.lastName,
     fullName: created.fullName, email: created.email, phone: created.phone, staffId: created.staffId,
     status: created.status }, emailSent,

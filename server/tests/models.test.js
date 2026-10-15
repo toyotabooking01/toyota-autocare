@@ -13,6 +13,7 @@ const fixtures = {
   Schedule: { date: '2026-10-10', timeSlot: '09:00', maximumCapacity: 2 },
   ServiceBay: { name: 'Bay 1' },
   JobOrder: { booking: id(), mechanic: id(), serviceBay: id() },
+  Payment: { booking: id(), client: id(), stage: 'final', amountCents: 10000, method: 'gcash', submittedBy: id() },
   Notification: { user: id(), title: 'Update', message: 'Booking updated', type: 'booking' },
   MaintenanceReminder: { client: id(), vehicle: id(), service: id(), lastServiceDate: '2026-10-10', nextRecommendedServiceDate: '2026-11-10' },
   EmailOtp: { email: ' USER@Example.com ', otpHash: 'a'.repeat(64), purpose: 'email_verification', expiresAt: new Date(Date.now() + 600000) },

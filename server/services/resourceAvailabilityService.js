@@ -149,7 +149,13 @@ async function availabilityForPeriods(periods, { session, excludeBookingId, allo
     bookingQuery.lean(), jobQuery.lean(), mechanicsQuery.lean(), baysQuery.lean(),
   ]);
   const normalizedMechanics = mechanics.map(item => String(item._id) === String(allowBusyMechanicId) ? { ...item, availability: 'available' } : item);
-  const normalizedBays = serviceBays.map(item => String(item._id) === String(allowOccupiedBayId) ? { ...item, availability: 'available' } : item);
+  const assignedBayIds = new Set([
+    ...jobs.map(job => String(job.serviceBay || '')),
+    ...bookings.map(booking => String(booking.assignedServiceBay || '')).filter(Boolean),
+  ]);
+  const normalizedBays = serviceBays.map(item =>
+    String(item._id) === String(allowOccupiedBayId) || !assignedBayIds.has(String(item._id))
+      ? { ...item, availability: 'available' } : item);
   const snapshot = { mechanics: normalizedMechanics, serviceBays: normalizedBays, bookings, jobs };
   return periods.map(period => assessAvailability(snapshot, period));
 }
