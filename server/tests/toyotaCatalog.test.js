@@ -109,7 +109,7 @@ test('CarAPI fallback accepts only exact Toyota model and year photos', async t 
   assert.equal(fetchCall.mock.callCount(), 2);
 });
 
-test('vehicle selection rejects other makes, unknown models, wrong years, variants, and transmission', async t => {
+test('vehicle selection accepts historical years and custom trims while enforcing core fields', async t => {
   const entry = { _id: new mongoose.Types.ObjectId(), ...valid };
   t.mock.method(ToyotaCatalog, 'distinct', async (field, filter) => {
     if (field !== 'year') return [];
@@ -122,26 +122,27 @@ test('vehicle selection rejects other makes, unknown models, wrong years, varian
   assert.equal((await service.validateSelection(valid))._id, entry._id);
   await assert.rejects(service.validateSelection({ ...valid, make: 'Honda' }), { status: 400, errors: { make: 'Select Toyota.' } });
   await assert.rejects(service.validateSelection({ ...valid, model: 'Unknown' }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, year: 2024 }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, year: 2004 }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, model: 'Raize', year: 2018 }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, model: '86', year: 2025 }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, model: 'Urban Cruiser', year: 2025 }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, variant: 'Unknown trim' }), { status: 400 });
+  assert.equal(await service.validateSelection({ ...valid, year: 2010, variant: '2.5 G D-4D 4x2 A/T' }), null);
+  assert.equal(await service.validateSelection({ ...valid, model: 'Raize', year: 2018 }), null);
+  assert.equal((await service.validateSelection({ ...valid, variant: 'Unknown trim' }))._id, entry._id);
+  await assert.rejects(service.validateSelection({ ...valid, year: 1989 }), { status: 400 });
+  await assert.rejects(service.validateSelection({ ...valid, year: new Date().getUTCFullYear() + 2 }), { status: 400 });
+  await assert.rejects(service.validateSelection({ ...valid, year: 2010.5 }), { status: 400 });
   await assert.rejects(service.validateSelection({ ...valid, variant: '' }), { status: 400 });
-  await assert.rejects(service.validateSelection({ ...valid, transmission: 'manual' }), { status: 400 });
+  await assert.rejects(service.validateSelection({ ...valid, transmission: 'invalid' }), { status: 400 });
   await assert.rejects(service.validateSelection({ ...valid, model: 'Avanza', year: 2020, variant: '' }), { status: 400 });
   assert.throws(() => people.vehicleInput({ ...valid, make: 'Ford' }, true), { status: 400 });
   assert.equal(people.vehicleInput({ ...valid, model: '  TOYOTA VIOS ' }, true).model, 'Vios');
 });
 
-test('a verified year without trim data accepts null variant and chosen transmission', async t => {
+test('a catalog row without trim data still accepts a customer-entered variant', async t => {
   const entry = { _id: new mongoose.Types.ObjectId(), make: 'Toyota', model: '86', year: 2020,
     variant: null, imageUrl: '/toyota/86.webp' };
   t.mock.method(ToyotaCatalog, 'distinct', async () => [2020]);
   t.mock.method(ToyotaCatalog, 'find', () => ({ select: () => ({ sort: () => ({ lean: async () => [entry] }) }) }));
-  const vehicle = { ...valid, model: '86', year: 2020, variant: null, transmission: 'manual' };
+  const vehicle = { ...valid, model: '86', year: 2020, variant: 'Custom 2.0 M/T', transmission: 'manual' };
   assert.equal((await service.validateSelection(vehicle))._id, entry._id);
-  await assert.rejects(service.validateSelection({ ...vehicle, variant: 'Invented trim' }), { status: 400 });
-  assert.equal(people.vehicleInput({ ...vehicle, variant: '' }, true).variant, null);
+  assert.equal((await service.validateSelection({ ...vehicle, variant: 'Invented trim' }))._id, entry._id);
+  assert.equal(people.vehicleInput(vehicle, true).variant, 'Custom 2.0 M/T');
+  assert.throws(() => people.vehicleInput({ ...vehicle, variant: '' }, true), { status: 400 });
 });

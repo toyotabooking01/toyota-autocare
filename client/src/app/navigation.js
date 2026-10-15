@@ -8,6 +8,7 @@ import GarageOutlined from '@mui/icons-material/GarageOutlined'
 import BarChartOutlined from '@mui/icons-material/BarChartOutlined'
 import AccessTimeOutlined from '@mui/icons-material/AccessTimeOutlined'
 import PlaylistAddOutlined from '@mui/icons-material/PlaylistAddOutlined'
+import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined'
 
 const item = (path, label, icon) => ({ path, label, icon })
 export const roleNavigation = {
@@ -16,6 +17,7 @@ export const roleNavigation = {
     item('vehicles', 'My Vehicles', DirectionsCarOutlined),
     item('book-service', 'Book Service', CalendarMonthOutlined),
     item('bookings', 'My Bookings', AssignmentOutlined),
+    item('service-history', 'Service History', AssignmentOutlined),
     item('reminders', 'Maintenance', AccessTimeOutlined),
   ],
   mechanic: [
@@ -33,8 +35,10 @@ export const roleNavigation = {
     item('schedules', 'Schedules', AccessTimeOutlined),
     item('service-bays', 'Service Bays', GarageOutlined),
     item('job-orders', 'Service Monitoring', AssignmentOutlined),
+    item('service-history', 'Service History', AssignmentOutlined),
     item('reminders', 'Reminders', NotificationsNoneOutlined),
     item('reports', 'Reports', BarChartOutlined),
+    item('archive', 'Archive', Inventory2Outlined),
   ],
   staff: [
     item('dashboard', 'Dashboard', DashboardOutlined),
@@ -42,6 +46,7 @@ export const roleNavigation = {
     item('walk-in', 'Walk-In', PlaylistAddOutlined),
     item('customers', 'Customers', DirectionsCarOutlined),
     item('job-orders', 'Job Coordination', AssignmentOutlined),
+    item('service-history', 'Service History', AssignmentOutlined),
     item('transactions', 'Transactions', BarChartOutlined),
   ],
 }

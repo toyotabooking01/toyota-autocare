@@ -41,6 +41,8 @@ const userSchema = new mongoose.Schema({
   specialization: { type: [String], default: [] },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   availability: { type: String, enum: ['available', 'busy', 'off_duty'], default: 'off_duty' },
+  availabilityBeforeArchive: { type: String, enum: ['available', 'busy', 'off_duty'], select: false },
+  bookingLockVersion: { type: Number, min: 0, default: 0, select: false },
   ...archive,
 }, { timestamps: true });
 
@@ -53,6 +55,7 @@ userSchema.index({ staffId: 1 }, {
 userSchema.index({ contactEmail: 1 }, {
   unique: true, partialFilterExpression: { contactEmail: { $type: 'string' } },
 });
+userSchema.index({ role: 1, isArchived: 1, fullName: 1 });
 userSchema.set('toJSON', {
   transform(doc, result) {
     delete result.password;

@@ -1,5 +1,6 @@
 import BookingRecordDetails from '../components/BookingRecordDetails'
-import FormWorkspace, { formWorkspaceGrid } from '../components/FormWorkspace'
+import FormWorkspace from '../components/FormWorkspace'
+import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useEffect, useState } from 'react'

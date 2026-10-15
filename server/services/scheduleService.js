@@ -4,6 +4,7 @@ const Schedule = require('../models/Schedule');
 const Service = require('../models/Service');
 const HttpError = require('../utils/HttpError');
 const resources = require('./resourceAvailabilityService');
+const holds = require('./bookingHoldService');
 
 function id(value) {
   if (!mongoose.isObjectIdOrHexString(value)) throw new HttpError(400, 'Invalid schedule ID.');
@@ -76,8 +77,9 @@ async function list(query) {
 }
 async function available() {
   const now = manilaNow();
+  await holds.releaseExpired({ bookingDate: { $gte: now.date } });
   const slots = await Schedule.find({ isEnabled: true, date: { $gte: now.date },
-    $expr: { $lt: ['$currentBookingCount', '$maximumCapacity'] } })
+    $expr: holds.capacityAvailable })
     .sort({ date: 1, timeSlot: 1 }).lean();
   return slots.filter(isFuture);
 }
@@ -106,6 +108,7 @@ async function availability({ serviceIds, fromDate, toDate }) {
   let durationMinutes;
   try { durationMinutes = resources.calculateTotalDuration(services); }
   catch { throw new HttpError(409, 'Selected services do not have valid durations.', { services: 'Please choose services with valid durations.' }); }
+  await holds.releaseExpired({ bookingDate: { $gte: from, $lte: to } });
   const schedules = await Schedule.find({ isEnabled: true, date: { $gte: from, $lte: to } })
     .sort({ date: 1, timeSlot: 1 }).lean();
   const candidates = schedules.map(slot => ({ slot, period: resources.intervalFor(slot.date, slot.timeSlot, durationMinutes) }))
@@ -114,7 +117,7 @@ async function availability({ serviceIds, fromDate, toDate }) {
   const byDate = new Map();
   candidates.forEach(({ slot, period }, index) => {
     const fit = fits[index];
-    const capacityRemaining = slot.currentBookingCount < slot.maximumCapacity;
+    const capacityRemaining = slot.currentBookingCount + (slot.temporaryHoldCount || 0) < slot.maximumCapacity;
     const available = capacityRemaining && fit.available;
     const dateSlots = byDate.get(slot.date) || [];
     dateSlots.push({ scheduleId: slot._id, time: slot.timeSlot,
@@ -171,7 +174,7 @@ async function generate(raw) {
       if (!isFuture({ date: dateValue, timeSlot })) continue;
       operations.push({ updateOne: { filter: { date: dateValue, timeSlot }, update: { $setOnInsert: {
         date: dateValue, timeSlot, openingTime: settings.openingTime, closingTime: settings.closingTime,
-        maximumCapacity: settings.maximumCapacity, currentBookingCount: 0, isEnabled: true,
+        maximumCapacity: settings.maximumCapacity, currentBookingCount: 0, temporaryHoldCount: 0, isEnabled: true,
       } }, upsert: true } });
       if (operations.length > 5000) throw new HttpError(400, 'This range creates too many slots. Shorten the date range or use a wider interval.');
     }
@@ -190,22 +193,24 @@ async function generate(raw) {
 }
 async function update(rawId, raw) {
   const slotId = id(rawId);
+  await holds.releaseExpired({ schedule: slotId });
   const data = input(raw);
   const existing = await Schedule.findById(slotId).lean();
   if (!existing) throw new HttpError(404, 'Schedule not found.');
   if (!isFuture(existing)) throw new HttpError(409, 'Past schedules cannot be edited.');
   const proposed = { ...existing, ...data };
   if (!isFuture(proposed)) throw new HttpError(400, 'Schedule must be in the future.', { timeSlot: 'Schedule must be in the future.' });
-  if (existing.currentBookingCount > 0 && (proposed.date !== existing.date || proposed.timeSlot !== existing.timeSlot)) {
+  const occupied = existing.currentBookingCount + (existing.temporaryHoldCount || 0);
+  if (occupied > 0 && (proposed.date !== existing.date || proposed.timeSlot !== existing.timeSlot)) {
     throw new HttpError(409, 'A reserved schedule cannot change date or time.', { timeSlot: 'A reserved schedule cannot change date or time.' });
   }
-  if (existing.currentBookingCount > 0 && (proposed.openingTime !== existing.openingTime || proposed.closingTime !== existing.closingTime)) {
+  if (occupied > 0 && (proposed.openingTime !== existing.openingTime || proposed.closingTime !== existing.closingTime)) {
     throw new HttpError(409, 'Working hours cannot change while bookings are reserved.', { closingTime: 'Working hours cannot change while bookings are reserved.' });
   }
   // The booked-count predicate protects this update against a concurrent reservation.
   const changed = await Schedule.findOneAndUpdate({ _id: slotId,
-    currentBookingCount: { $lte: proposed.maximumCapacity },
-    ...(existing.currentBookingCount > 0 ? { date: existing.date, timeSlot: existing.timeSlot } : { currentBookingCount: 0 }),
+    $expr: holds.capacityWithin(proposed.maximumCapacity),
+    ...(occupied > 0 ? { date: existing.date, timeSlot: existing.timeSlot } : { currentBookingCount: 0, temporaryHoldCount: { $in: [0, null] } }),
   }, { $set: data }, { returnDocument: 'after', runValidators: true });
   if (!changed) throw new HttpError(409, 'Schedule changed or capacity is below current reservations. Please refresh.', { maximumCapacity: 'Schedule changed or capacity is below current reservations. Please refresh.' });
   return changed;

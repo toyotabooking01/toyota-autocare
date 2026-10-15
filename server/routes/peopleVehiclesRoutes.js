@@ -26,8 +26,6 @@ function routes(kind) {
     router.get('/:id', actions.vehicleGet);
     router.post('/', actions.vehicleCreate);
     router.patch('/:id', actions.vehicleUpdate);
-    router.post('/:id/archive', actions.vehicleArchive);
-    router.post('/:id/restore', actions.vehicleRestore);
   }
   return router;
 }

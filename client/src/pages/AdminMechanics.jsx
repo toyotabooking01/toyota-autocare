@@ -107,7 +107,7 @@ export default function AdminMechanics() {
               {!item.isArchived && <StatusBadge size="small" label={mechanicAvailabilityLabel(item.availability)} variant="outlined" />}
             </>}>
               <DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>
-              <MoreActionsMenu label={item.fullName} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, { label: item.isArchived ? 'Restore' : 'Archive', destructive: !item.isArchived, onClick: () => setArchiveTarget(item) }]} />
+              <MoreActionsMenu label={item.fullName} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, { label: item.isArchived ? 'Restore' : 'Archive', onClick: () => setArchiveTarget(item) }]} />
             </RecordActions>
           </PersonRecordCard>}
       </RecordList>

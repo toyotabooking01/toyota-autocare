@@ -1,5 +1,6 @@
 import BookingRecordDetails from '../components/BookingRecordDetails'
-import FormWorkspace, { formWorkspaceGrid } from '../components/FormWorkspace'
+import FormWorkspace from '../components/FormWorkspace'
+import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Box, Button, Checkbox, FormControlLabel, MenuItem, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
 import { Link } from 'react-router-dom'
@@ -11,7 +12,6 @@ import { money } from './bookingDisplay'
 import BookingDateTimePicker from '../components/BookingDateTimePicker'
 import ToyotaVehiclePicker from '../components/ToyotaVehiclePicker'
 import useToyotaCatalog from '../hooks/useToyotaCatalog'
-import { catalogHasVariants } from '../utils/toyotaCatalog'
 import MileageInput from '../components/MileageInput'
 import { validateForm } from '../utils/validationRules'
 
@@ -38,7 +38,7 @@ export default function NewWalkInForm({ role = 'staff', services = [], loading, 
   const inFlight = useRef(false)
   const confirm = useConfirmation()
   const customerValidation = useFormValidation('walkInClient', customer)
-  const vehicleValidation = useFormValidation('vehicle', vehicle, { requireVariant: catalogHasVariants(catalog.items, vehicle) })
+  const vehicleValidation = useFormValidation('vehicle', vehicle)
   const validationSlots = slot ? [{ _id: slot.scheduleId, isEnabled: true, date: selectedDate, timeSlot: slot.time, maximumCapacity: 1, currentBookingCount: 0 }] : []
   const serviceOptions = Array.isArray(services) ? services : []
   const bookingValidation = useFormValidation('booking', { services: serviceIds, schedule: slot?.scheduleId || '' }, { skip: ['vehicle'], available: { services: serviceOptions, schedule: validationSlots } })
@@ -111,7 +111,7 @@ export default function NewWalkInForm({ role = 'staff', services = [], loading, 
       if (inFlight.current || !checkAll()) return
       inFlight.current = true; setBusy(true); onBusy(true); setError('')
       try {
-        const { data } = await api.post('/bookings/walk-in/visit', { client: linkedAccount.id, vehicle: { ...vehicle, year: Number(vehicle.year),
+        const { data } = await api.post('/bookings/walk-in/visit', { client: linkedAccount.id, vehicle: { ...vehicle, variant: vehicle.variant.trim(), year: Number(vehicle.year),
           ...(vehicle.currentMileage === '' ? { currentMileage: 0 } : { currentMileage: Number(vehicle.currentMileage) }) }, services: serviceIds, schedule: slot.scheduleId, concern })
         setCompleted(data); onComplete(data.item)
       } catch (requestError) {

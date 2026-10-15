@@ -14,11 +14,12 @@ import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import { DetailDialog, DetailInfo, DetailSection } from '../components/RecordDetails'
 import { Link } from 'react-router-dom'
+import { statusStyles } from '../app/statuses'
 
 const definitions = {
   service: {
     title: 'Services', singular: 'service', endpoint: '/services',
-    empty: { name: '', description: '', estimatedDuration: '', estimatedPrice: '', maintenanceReminderInterval: '', isActive: true, isOtherService: false, checklistTemplate: [''] },
+    empty: { name: '', description: '', estimatedDuration: '', estimatedPrice: '', maintenanceReminderInterval: '', maintenanceIntervalKm: '', isActive: true, isOtherService: false, checklistTemplate: [''] },
   },
   bay: {
     title: 'Service bays', singular: 'bay', endpoint: '/service-bays',
@@ -36,6 +37,7 @@ function payload(kind, form) {
     name: form.name.trim(), description: form.description.trim(),
     estimatedDuration: Number(form.estimatedDuration), estimatedPrice: Number(form.estimatedPrice),
     maintenanceReminderInterval: form.maintenanceReminderInterval === '' ? null : Number(form.maintenanceReminderInterval),
+    maintenanceIntervalKm: form.maintenanceIntervalKm === '' ? null : Number(form.maintenanceIntervalKm),
     isActive: form.isActive,
     checklistTemplate: form.checklistTemplate,
   }
@@ -68,7 +70,7 @@ export default function AdminMasterData({ kind }) {
     setEditing(item)
     setForm(item?._id ? kind === 'service' ? {
       name: item.name, description: item.description || '', estimatedDuration: String(item.estimatedDuration),
-      estimatedPrice: String(item.estimatedPrice), maintenanceReminderInterval: item.maintenanceReminderInterval == null ? '' : String(item.maintenanceReminderInterval), isActive: item.isActive,
+      estimatedPrice: String(item.estimatedPrice), maintenanceReminderInterval: item.maintenanceReminderInterval == null ? '' : String(item.maintenanceReminderInterval), maintenanceIntervalKm: item.maintenanceIntervalKm == null ? '' : String(item.maintenanceIntervalKm), isActive: item.isActive,
       isOtherService: item.isOtherService === true,
       checklistTemplate: item.checklistTemplate?.length ? [...item.checklistTemplate] : [''],
     } : { name: item.name, operationalStatus: item.operationalStatus } : { ...definition.empty, checklistTemplate: [...(definition.empty.checklistTemplate || [])] })
@@ -154,7 +156,7 @@ export default function AdminMasterData({ kind }) {
               {kind === 'service' && item.isOtherService && <StatusBadge label="Diagnostic" />}
             </>}>
               <DetailsButton onClick={() => setSelected(item)} />
-              <MoreActionsMenu label={item.name} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, !(kind === 'service' && item.isOtherService && !item.isArchived) && { label: item.isArchived ? 'Restore' : 'Archive', destructive: !item.isArchived, onClick: () => setArchiveTarget(item) }]} />
+              <MoreActionsMenu label={item.name} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, !(kind === 'service' && item.isOtherService && !item.isArchived) && { label: item.isArchived ? 'Restore' : 'Archive', onClick: () => setArchiveTarget(item) }]} />
             </RecordActions>
           </RecordCard>}
       </RecordList>
@@ -166,9 +168,10 @@ export default function AdminMasterData({ kind }) {
           ['Service', selected.name], ['Duration', `${selected.estimatedDuration} minutes`],
           ['Estimated price', `₱${Number(selected.estimatedPrice).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`],
           ['Reminder interval', selected.maintenanceReminderInterval ? `${selected.maintenanceReminderInterval} days` : 'Not configured'],
+          ['Mileage interval', selected.maintenanceIntervalKm ? `${Number(selected.maintenanceIntervalKm).toLocaleString()} km` : 'Not configured'],
           ['Description', selected.description],
         ] : [['Service Bay', selected.name], ['Operational status', selected.operationalStatus.replaceAll('_', ' ')], ['Availability', selected.availability?.replaceAll('_', ' ')]]} /></DetailSection>
-        {kind === 'bay' && selected.activeAssignments?.length > 0 && <DetailSection title="Active assignment"><Stack spacing={1}>{selected.activeAssignments.map((assignment, index) => <Box key={assignment.jobOrderId || assignment.bookingId || index}><Typography sx={{ fontSize: 13 }}>{assignment.vehiclePlate || 'Vehicle unavailable'} · {assignment.bookingStatus?.replaceAll('_', ' ') || 'Active job'}</Typography><Button size="small" component={Link} to={assignment.jobOrderId ? `/admin/job-orders?open=${assignment.jobOrderId}` : `/admin/bookings?open=${assignment.bookingId}`}>{assignment.jobOrderId ? 'View job order' : 'View booking'}</Button></Box>)}</Stack></DetailSection>}
+        {kind === 'bay' && selected.activeAssignments?.length > 0 && <DetailSection title="Active assignment"><Stack spacing={1}>{selected.activeAssignments.map((assignment, index) => <Box key={assignment.jobOrderId || assignment.bookingId || index}><Typography sx={{ fontSize: 13 }}>{assignment.vehiclePlate || 'Vehicle unavailable'} · {statusStyles[assignment.bookingStatus]?.label || 'Active job'}</Typography><Button size="small" component={Link} to={assignment.jobOrderId ? `/admin/job-orders?open=${assignment.jobOrderId}` : `/admin/bookings?open=${assignment.bookingId}`}>{assignment.jobOrderId ? 'View job order' : 'View booking'}</Button></Box>)}</Stack></DetailSection>}
         {kind === 'service' && selected.checklistTemplate?.length > 0 && <DetailSection title="Service checklist"><Stack spacing={1}>{selected.checklistTemplate.map((item, index) => <Typography key={index} sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>{item}</Typography>)}</Stack></DetailSection>}
       </>}
     </DetailDialog>
@@ -188,6 +191,7 @@ export default function AdminMasterData({ kind }) {
               <TextField label="Estimated price (PHP)" type="number" value={form.estimatedPrice} {...validation.field('estimatedPrice')} onChange={event => change('estimatedPrice', event.target.value)} required fullWidth slotProps={{ htmlInput: { min: 0, step: 'any' } }} />
             </Stack>
             <TextField label="Reminder interval (days, optional)" type="number" value={form.maintenanceReminderInterval} {...validation.field('maintenanceReminderInterval')} onChange={event => change('maintenanceReminderInterval', event.target.value)} fullWidth slotProps={{ htmlInput: { min: 1, step: 1 } }} />
+            <TextField label="Mileage interval (km, optional)" type="number" value={form.maintenanceIntervalKm} onChange={event => change('maintenanceIntervalKm', event.target.value)} fullWidth slotProps={{ htmlInput: { min: 1, max: 9999999, step: 1 } }} />
             <Box>
               <Typography sx={{ fontSize: 14, fontWeight: 650, mb: 1 }}>Service Checklist</Typography>
               <Stack spacing={1}>

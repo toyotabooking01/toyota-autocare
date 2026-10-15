@@ -1,5 +1,7 @@
 # Phase 2.5 model relationships and enforcement plan
 
+> Historical design notes from Phase 2.5. Use [System Overview](SYSTEM_OVERVIEW.md) and [README](../README.md) for the current workflow and state map.
+
 These model decisions began in Phase 2.5. Booking, assignment, schedule, and
 completion rules are now implemented in services and controllers. See
 [the API contract](api-contract.md) for the current endpoints and

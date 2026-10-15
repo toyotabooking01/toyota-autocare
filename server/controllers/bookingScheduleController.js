@@ -33,7 +33,7 @@ exports.resendClientCredentials = async (req, res) => res.json(await require('..
 exports.bookingConfirm = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'confirm') });
 exports.bookingReject = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'reject') });
 exports.bookingCancel = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'cancel') });
-exports.bookingCheckIn = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'check-in') });
+exports.bookingCheckIn = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'check-in', req.body) });
 exports.bookingNoShow = async (req, res) => res.json({ item: await bookings.transition(req.params.id, req.user, 'no-show') });
 exports.bookingAssign = async (req, res) => res.status(201).json({ item: await jobs.assign(req.params.id, req.body, req.user) });
 exports.bookingReschedule = async (req, res) => res.json({ item: await bookings.reschedule(req.params.id, req.body, req.user) });

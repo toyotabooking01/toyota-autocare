@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Alert, Box, Button, DialogActions, DialogContent, DialogTitle, Stack, TextField } from '@mui/material'
-import { FormWorkspaceDialog, formWorkspaceGrid } from '../components/FormWorkspace'
+import { FormWorkspaceDialog } from '../components/FormWorkspace'
+import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import api from '../services/api'
 import useFormValidation from '../components/useFormValidation'
 import { normalizePlateInput } from '../../../shared/accountValidation.mjs'
 import { message } from './useCatalog'
 import ToyotaVehiclePicker from '../components/ToyotaVehiclePicker'
 import useToyotaCatalog from '../hooks/useToyotaCatalog'
-import { catalogHasVariants } from '../utils/toyotaCatalog'
 import MileageInput from '../components/MileageInput'
 
 const blank = { make: 'Toyota', model: '', year: '', variant: '', plateNumber: '', transmission: '', currentMileage: '' }
@@ -17,7 +17,7 @@ export default function WalkInVehicleDialog({ customer, onClose, onAdded }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const catalog = useToyotaCatalog()
-  const validation = useFormValidation('vehicle', form, { requireVariant: catalogHasVariants(catalog.items, form) })
+  const validation = useFormValidation('vehicle', form)
   function field(name, label, options = {}) {
     return <TextField fullWidth key={name} name={name} required={!options.optional} label={label} value={form[name]} {...validation.field(name)}
       type="text" disabled={busy} slotProps={{ htmlInput: { maxLength: options.maxLength } }}
@@ -30,7 +30,7 @@ export default function WalkInVehicleDialog({ customer, onClose, onAdded }) {
     if (busy || !validation.validate()) return
     setBusy(true); setError('')
     try {
-      const payload = { ...form, year: Number(form.year),
+      const payload = { ...form, variant: form.variant.trim(), year: Number(form.year),
         ...(form.currentMileage === '' ? {} : { currentMileage: Number(form.currentMileage) }) }
       if (form.currentMileage === '') delete payload.currentMileage
       const { data } = await api.post(`/bookings/walk-in/clients/${customer._id}/vehicles`, payload)

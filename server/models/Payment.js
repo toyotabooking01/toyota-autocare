@@ -9,6 +9,14 @@ const paymentSchema = new mongoose.Schema({
   method: { type: String, enum: ['cash', 'bank_transfer', 'gcash', 'maya', 'no_charge'], required: true },
   reference: { type: String, trim: true, maxlength: 120, default: '' },
   proof: { type: String, trim: true, maxlength: 500, default: '' },
+  proofImage: { type: new mongoose.Schema({
+    secureUrl: { type: String, required: true, match: /^https:\/\//, maxlength: 2000 },
+    publicId: { type: String, required: true, trim: true, maxlength: 500 },
+    width: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+    height: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+    format: { type: String, required: true, enum: ['jpg', 'jpeg', 'png', 'webp'] },
+    bytes: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+  }, { _id: false }), default: undefined },
   status: { type: String, enum: ['submitted', 'verified', 'rejected'], default: 'submitted' },
   submittedBy: reference('User'),
   verifiedBy: reference('User', false),
@@ -19,5 +27,6 @@ const paymentSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 paymentSchema.index({ booking: 1, stage: 1, status: 1 });
+paymentSchema.index({ status: 1, verifiedAt: 1 });
 paymentSchema.index({ booking: 1, stage: 1 }, { unique: true, partialFilterExpression: { status: 'submitted' } });
 module.exports = mongoose.model('Payment', paymentSchema);

@@ -38,9 +38,10 @@ async function login(body) {
   const user = await User.findOne({ email: input.email }).select('+password +authVersion');
   const fallback = await dummyHash;
   const valid = await bcrypt.compare(input.password, user?.password || fallback);
-  if (!user || !valid || user.isArchived || user.status !== 'active' || user.isWalkInCustomer) {
+  if (!user || !valid || user.isWalkInCustomer) {
     throw new HttpError(401, 'Invalid email or password.');
   }
+  if (user.isArchived || user.status !== 'active') throw new HttpError(401, 'This account is inactive.');
   if (!require('../config/roles').roles.includes(user.role)) {
     throw new HttpError(401, 'Your account session could not be verified. Please contact support.');
   }

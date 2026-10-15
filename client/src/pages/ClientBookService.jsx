@@ -1,19 +1,22 @@
 import BookingRecordDetails from '../components/BookingRecordDetails'
-import FormWorkspace, { formWorkspaceGrid } from '../components/FormWorkspace'
+import FormWorkspace from '../components/FormWorkspace'
+import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useEffect, useState } from 'react'
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined'
 import RadioButtonUncheckedOutlined from '@mui/icons-material/RadioButtonUncheckedOutlined'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import { money } from './bookingDisplay'
 import { message } from './useCatalog'
 import BookingDateTimePicker from '../components/BookingDateTimePicker'
+import PaymentPanel from '../components/PaymentPanel'
+import { formatPaymentMethod } from '../utils/paymentMethod'
 
-const steps = ['Vehicle', 'Services', 'Date & Time', 'Review']
+const steps = ['Vehicle', 'Services', 'Date & Time', 'Review', 'Downpayment', 'Confirmation']
 const card = { p: 2, border: '1px solid var(--line)', borderRadius: 2, cursor: 'pointer', minWidth: 0 }
 const bookingStepperSx = { mb: 4, display: { xs: 'none', sm: 'flex' },
   '& .MuiStepIcon-root': { color: 'text.disabled' },
@@ -28,6 +31,9 @@ const flowPrimaryButtonSx = { bgcolor: 'var(--action)', color: 'var(--action-ink
   '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'text.disabled' } }
 const flowBackButtonSx = { color: 'var(--ink)', borderColor: 'var(--line-strong)', '&:hover': { borderColor: 'var(--ink)', bgcolor: 'var(--surface-soft)' } }
 export default function ClientBookService() {
+  const [searchParams] = useSearchParams()
+  const suggestedVehicle = searchParams.get('vehicle')
+  const suggestedService = searchParams.get('service')
   const confirm = useConfirmation()
   const [vehicles, setVehicles] = useState([])
   const [services, setServices] = useState([])
@@ -50,7 +56,8 @@ export default function ClientBookService() {
   const validationSlots = slot ? [{ _id: slot.scheduleId, isEnabled: true, date: selectedDate, timeSlot: slot.time, maximumCapacity: 1, currentBookingCount: 0 }] : []
   const validation = useFormValidation('booking', { vehicle: vehicleId, services: serviceIds, schedule: slot?.scheduleId || '' }, { available: { vehicle: vehicles, services, schedule: validationSlots } })
   const [saving, setSaving] = useState(false)
-  const [completed, setCompleted] = useState(null)
+  const [provisional, setProvisional] = useState(null)
+  const [paymentSummary, setPaymentSummary] = useState(null)
   const [refresh, setRefresh] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -60,6 +67,8 @@ export default function ClientBookService() {
     ]).then(([vehicleResponse, optionResponse]) => {
       setVehicles(vehicleResponse.data.items)
       setServices(optionResponse.data.services)
+      if (suggestedVehicle && vehicleResponse.data.items.some(item => item._id === suggestedVehicle)) setVehicleId(current => current || suggestedVehicle)
+      if (suggestedService && optionResponse.data.services.some(item => item._id === suggestedService)) setServiceIds(current => current.length ? current : [suggestedService])
       setServiceIds(current => current.filter(id => optionResponse.data.services.some(item => item._id === id)))
       setOptionsError(false)
       setError('')
@@ -68,7 +77,7 @@ export default function ClientBookService() {
     } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [refresh])
+  }, [refresh, suggestedVehicle, suggestedService])
   useEffect(() => {
     if (!vehicleId) return undefined
     const controller = new AbortController()
@@ -100,13 +109,14 @@ export default function ClientBookService() {
     if (saving) return
     if (otherService && !concern.trim()) { setConcernError(true); setStep(1); return }
     if (!validation.validate()) { setStep(({ vehicle: 0, services: 1, schedule: 2 })[validation.firstError()] ?? 0); return }
-    return confirm('Are you sure you want to confirm this service booking?', async () => {
+    return confirm('Proceed to downpayment and hold this schedule for 15 minutes?', async () => {
       if (!validation.validate()) { setStep(({ vehicle: 0, services: 1, schedule: 2 })[validation.firstError()] ?? 0); return }
       setSaving(true); setError('')
       try {
         const response = await api.post('/bookings', { vehicle: vehicleId, services: serviceIds, schedule: slot.scheduleId, concern })
-        setCompleted(response.data.item)
-        setNotice('Booking submitted. It is awaiting confirmation.')
+        setProvisional(response.data.item)
+        setStep(4)
+        setNotice('Your temporary schedule hold is active for 15 minutes.')
       } catch (requestError) {
         validation.receive(requestError)
         const fields = requestError.response?.data?.errors || {}
@@ -129,6 +139,28 @@ export default function ClientBookService() {
       } finally { setSaving(false) }
     })
   }
+  async function editBooking() {
+    if (!provisional || saving) return
+    setSaving(true); setError('')
+    try {
+      await api.post(`/bookings/${provisional._id}/cancel`)
+      setProvisional(null); setPaymentSummary(null); setStep(3)
+      setNotice('Temporary hold released. You can edit your booking.')
+      setActiveServicesRefresh(value => value + 1); setRefresh(value => value + 1)
+    } catch (requestError) {
+      if (requestError.response?.status === 409) {
+        try {
+          const response = await api.get(`/bookings/${provisional._id}`)
+          if (response.data.item?.status === 'cancelled') {
+            setProvisional(null); setPaymentSummary(null); setStep(2); setSlot(null); setRefresh(value => value + 1)
+            setNotice('The temporary hold expired. Select another schedule.')
+            return
+          }
+        } catch { /* Keep the original cancellation error. */ }
+      }
+      setError(message(requestError))
+    } finally { setSaving(false) }
+  }
   return <>
     <PageHeading title="Book a service" subtitle="Select your Toyota, services, and a time that works for you." preview={false} />
     {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
@@ -136,10 +168,9 @@ export default function ClientBookService() {
     <FormWorkspace>
       {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading booking options…</Typography></Stack>
         : optionsError ? <Stack alignItems="flex-start" spacing={2} sx={{ py: 5 }}><Typography sx={{ color: 'text.secondary', fontSize: 13 }}>Booking options could not be loaded.</Typography><Button variant="outlined" onClick={() => { setError(''); setOptionsError(false); setLoading(true); setRefresh(value => value + 1) }}>Retry loading</Button></Stack>
-        : completed ? <Stack spacing={2} alignItems="flex-start" sx={{ py: 4 }}><Typography component="h2" sx={{ fontSize: 23, fontWeight: 700 }}>Booking received</Typography><Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Reference: {completed._id}. You can follow its status in My Bookings.</Typography><Button variant="contained" component={Link} to="/client/bookings">View my bookings</Button></Stack>
-          : <>
+        : <>
             <Stepper activeStep={step} alternativeLabel sx={bookingStepperSx}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
-            <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 4 · {steps[step]}</Typography>
+            <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 6 · {steps[step]}</Typography>
             {step === 0 && <>{validation.errors.vehicle && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.vehicle}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Choose your vehicle</Typography>
               {!vehicles.length ? <Alert severity="info">Add a vehicle in My Vehicles before booking.</Alert> : <Box sx={formWorkspaceGrid}>{vehicles.map(item => <Paper key={item._id} component="button" type="button" onClick={() => { setVehicleId(item._id); setSlot(null); setSelectedDate(''); setDuplicateNotice('') }} aria-pressed={vehicleId === item._id} variant="outlined" sx={{ ...card, textAlign: 'left', borderColor: vehicleId === item._id ? 'var(--blue-ink)' : 'var(--line)', bgcolor: vehicleId === item._id ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }}><Typography sx={{ fontWeight: 650 }}>{item.make} {item.model} {item.year}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.plateNumber}</Typography></Paper>)}</Box>}
             </>}
@@ -164,8 +195,28 @@ export default function ClientBookService() {
             </>}
             {step === 3 && <><Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Review your booking</Typography>
               <Stack spacing={2}><BookingRecordDetails total={estimate} booking={{ vehicle, services: chosen, bookingDate: selectedDate, bookingTime: slot?.time, concern: otherService ? concern : '' }} /></Stack>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 2 }}>Estimate uses current service prices. No payment is collected here.</Typography></>}
-            <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}><Button variant="outlined" sx={flowBackButtonSx} disabled={step === 0 || saving} onClick={() => setStep(value => value - 1)}>Back</Button>{step < 3 ? <Button variant="contained" sx={flowPrimaryButtonSx} disabled={!canContinue} onClick={continueStep}>Continue</Button> : <Button variant="contained" sx={flowPrimaryButtonSx} disabled={saving || !vehicle || !slot || !chosen.length} onClick={submit}>{saving ? 'Submitting…' : 'Submit booking'}</Button>}</Stack>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 2 }}>The final estimate and exact 50% downpayment will be calculated from current service prices when you proceed.</Typography></>}
+            {step === 4 && provisional && <Stack spacing={2}>
+              <Typography component="h2" sx={{ fontSize: 18, fontWeight: 700 }}>Downpayment</Typography>
+              <Typography sx={{ fontSize: 13 }}>Booking Summary · {vehicle?.make} {vehicle?.model} · {selectedDate} {slot?.time}</Typography>
+              <PaymentPanel bookingId={provisional._id} bookingStatus={provisional.status} role="client"
+                onSummary={setPaymentSummary} onHoldExpired={editBooking}
+                onPaymentSubmitted={summary => { setPaymentSummary(summary); setStep(5); setNotice('Downpayment submitted for verification.') }} />
+              <Button variant="text" disabled={saving || paymentSummary?.holdStatus === 'payment_submitted'} onClick={editBooking}>Edit booking and release hold</Button>
+            </Stack>}
+            {step === 5 && provisional && <Stack spacing={1.5} alignItems="flex-start" sx={{ py: 3 }}>
+              <Typography component="h2" sx={{ fontSize: 23, fontWeight: 700 }}>Downpayment submitted</Typography>
+              <Typography sx={{ fontSize: 13 }}>Your payment proof has been submitted for verification. The selected schedule is being held while your payment is reviewed. Your booking will proceed after Staff or Admin verifies the downpayment.</Typography>
+              <Typography sx={{ fontSize: 13 }}>Booking Reference: {provisional._id}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Vehicle: {vehicle?.make} {vehicle?.model}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Schedule: {selectedDate} · {slot?.time}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Estimated Total: {money((paymentSummary?.estimatedTotalCents || 0) / 100)}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Downpayment Submitted: {money((paymentSummary?.downpaymentRequiredCents || 0) / 100)}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Payment Method: {formatPaymentMethod(paymentSummary?.payments?.filter(item => item.stage === 'downpayment').at(-1)?.method)}</Typography>
+              <Typography sx={{ fontSize: 13 }}>Payment Status: Pending Verification</Typography>
+              <Button variant="contained" component={Link} to="/client/bookings">View my bookings</Button>
+            </Stack>}
+            {step < 4 && <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}><Button variant="outlined" sx={flowBackButtonSx} disabled={step === 0 || saving} onClick={() => setStep(value => value - 1)}>Back</Button>{step < 3 ? <Button variant="contained" sx={flowPrimaryButtonSx} disabled={!canContinue} onClick={continueStep}>Continue</Button> : <Button variant="contained" sx={flowPrimaryButtonSx} disabled={saving || !vehicle || !slot || !chosen.length} onClick={submit}>{saving ? 'Creating hold…' : 'Proceed to Downpayment'}</Button>}</Stack>}
           </>}
     </FormWorkspace>
   </>

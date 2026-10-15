@@ -2,6 +2,7 @@ const ToyotaCatalog = require('../models/ToyotaCatalog');
 const seedEntries = require('../data/toyotaPhilippinesCatalog');
 const modelRules = require('../data/toyotaPhilippinesModels');
 const HttpError = require('../utils/HttpError');
+const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.mjs');
 const canonicalModels = new Map(modelRules.map(entry => [entry.model.toLowerCase(), entry.model]));
 canonicalModels.set('supra', 'GR Supra');
 for (const [alias, parent] of Object.entries({
@@ -126,22 +127,17 @@ async function validateSelection(vehicle) {
   if (vehicle.make?.trim().toLowerCase() !== 'toyota') throw new HttpError(400, 'Only Toyota vehicles are supported.', { make: 'Select Toyota.' });
   const model = normalizeModel(vehicle.model);
   if (!modelRules.some(item => item.model === model)) throw new HttpError(400, 'Select a valid Toyota model.', { model: 'Select an available Toyota model.' });
-  if (!(await years(model)).includes(Number(vehicle.year))) throw new HttpError(400,
-    'This Toyota model is not available for the selected year.', { year: 'This Toyota model is not available for the selected year.' });
+  if (!Number.isInteger(vehicle.year) || vehicle.year < VEHICLE_YEAR_FLOOR || vehicle.year > latestVehicleYear(true))
+    throw new HttpError(400, 'Invalid vehicle year.', { year: 'Select a valid model year.' });
+  if (typeof vehicle.variant !== 'string' || !vehicle.variant.trim() || vehicle.variant.trim().length > 120)
+    throw new HttpError(400, 'Invalid vehicle variant.', { variant: 'Enter a variant of up to 120 characters.' });
+  if (!['manual', 'automatic', 'cvt'].includes(vehicle.transmission))
+    throw new HttpError(400, 'Invalid transmission.', { transmission: 'Select a valid transmission.' });
+  // Catalog entries provide optional imagery; their trims do not validate customer-entered variants.
+  if (vehicle.year > latestVehicleYear()) return null;
   const entries = await catalog({ model, year: vehicle.year });
-  if (!entries.length) throw new HttpError(400, 'This Toyota model is not available for the selected year.', {
-    year: 'This Toyota model is not available for the selected year.',
-  });
-  const knownVariants = entries.filter(item => item.variant?.trim());
-  if (!knownVariants.length && !vehicle.variant) return entries[0];
-  const entry = knownVariants.find(item => item.variant.trim().toLowerCase() === vehicle.variant?.trim().toLowerCase());
-  if (!entry) throw new HttpError(400, 'Select a valid variant for this Toyota model and year.', {
-    variant: knownVariants.length ? 'Select an available variant.' : 'No verified variants are available for this model year.',
-  });
-  if (vehicle.transmission !== entry.transmission) throw new HttpError(400, 'Transmission does not match the selected variant.', {
-    transmission: 'Transmission must match the selected variant.',
-  });
-  return entry;
+  return entries.find(item => item.variant?.trim().toLowerCase() === vehicle.variant?.trim().toLowerCase())
+    || entries[0] || null;
 }
 
 module.exports = { seed, catalog, catalogModels, models, years, variants, validateSelection, normalizeModel, externalImage };

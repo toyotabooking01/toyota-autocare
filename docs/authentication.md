@@ -1,5 +1,7 @@
 # Phase 3A: backend authentication
 
+> Historical implementation notes from Phase 3A. Use [System Overview](SYSTEM_OVERVIEW.md) and [README](../README.md) for current application behavior and setup.
+
 Implemented in the existing Express API. No React auth pages, booking controllers,
 public staff registration, refresh-token feature or user-management feature is added.
 

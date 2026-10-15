@@ -19,7 +19,10 @@ const serviceSchema = new mongoose.Schema({
   maintenanceReminderInterval: {
     type: Number, min: 1, validate: value => value == null || Number.isInteger(value), default: null,
   }, // days; null disables automatic reminders
+  maintenanceIntervalKm: { type: Number, min: 1, max: 9999999,
+    validate: value => value == null || Number.isSafeInteger(value), default: null },
   isActive: { type: Boolean, default: true },
+  bookingLockVersion: { type: Number, min: 0, default: 0, select: false },
   ...archive,
 }, { timestamps: true });
 

@@ -18,7 +18,9 @@ import JobOrders from './pages/JobOrders'
 import ActiveJob from './pages/ActiveJob'
 import NotificationsPage from './pages/NotificationsPage'
 import MaintenanceReminders from './pages/MaintenanceReminders'
+import ServiceHistory from './pages/ServiceHistory'
 import AdminReports from './pages/AdminReports'
+import AdminArchive from './pages/AdminArchive'
 import { ClientDashboard, MechanicDashboard, AdminDashboard, StaffDashboard } from './pages/RoleDashboards'
 import { CustomersDirectory, StaffDirectory } from './pages/PeopleDirectory'
 import { roleNavigation } from './app/navigation'
@@ -56,6 +58,7 @@ export default function App() {
       {role === 'admin' && <Route path="walk-in" element={<StaffWalkIn role="admin" />} />}
       {roleNavigation[role].filter(item => item.path !== 'dashboard').map(item => <Route key={item.path} path={item.path} element={role === 'admin' && ['services', 'service-bays'].includes(item.path)
         ? <AdminMasterData key={item.path} kind={item.path === 'services' ? 'service' : 'bay'} />
+        : item.path === 'service-history' ? <ServiceHistory role={role} />
         : role === 'admin' && item.path === 'mechanics' ? <AdminMechanics />
           : role === 'admin' && item.path === 'staff' ? <StaffDirectory />
             : ['admin', 'staff'].includes(role) && item.path === 'customers' ? <CustomersDirectory role={role} />
@@ -68,6 +71,7 @@ export default function App() {
                     : role === 'mechanic' && item.path === 'active-job' ? <ActiveJob />
                       : role === 'admin' && item.path === 'reminders' ? <MaintenanceReminders role="admin" />
                         : role === 'admin' && item.path === 'reports' ? <AdminReports />
+                          : role === 'admin' && item.path === 'archive' ? <AdminArchive />
           : role === 'client' && item.path === 'vehicles' ? <ClientVehicles />
             : role === 'client' && item.path === 'book-service' ? <ClientBookService />
               : role === 'client' && item.path === 'bookings' ? <BookingList role="client" />

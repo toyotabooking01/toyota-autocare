@@ -9,17 +9,18 @@ const { duplicatePlateFilter, duplicatePlateError } = require('../utils/plateNum
 const scheduleService = require('./scheduleService');
 const engagement = require('./engagementService');
 const resourceAvailability = require('./resourceAvailabilityService');
+const holds = require('./bookingHoldService');
 const { identity, audit } = require('../utils/operationalActor');
 
 const releaseable = ['pending', 'confirmed'];
-const activeServiceStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'];
-const allStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
+const activeServiceStatuses = ['awaiting_downpayment', 'pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'];
+const allStatuses = ['awaiting_downpayment', 'pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
   'final_inspection', 'ready_for_release', 'completed', 'cancelled', 'rejected', 'no_show'];
 const populate = [
   { path: 'client', select: 'fullName email contactEmail phone isWalkInCustomer' },
   { path: 'vehicle', select: 'make model year plateNumber isArchived' },
   { path: 'services', select: 'name estimatedDuration estimatedPrice isOtherService isActive isArchived' },
-  { path: 'schedule', select: 'date timeSlot isEnabled maximumCapacity currentBookingCount' },
+  { path: 'schedule', select: 'date timeSlot isEnabled maximumCapacity currentBookingCount temporaryHoldCount' },
   { path: 'assignedMechanic', select: 'fullName' },
   { path: 'assignedServiceBay', select: 'name' },
   { path: 'createdByStaff', select: 'fullName staffId role' },
@@ -88,7 +89,7 @@ async function addWalkInVehicle(rawClientId, raw) {
   const vehicle = require('./peopleVehiclesService').vehicleInput(raw, true);
   const entry = await require('./toyotaCatalogService').validateSelection(vehicle);
   if (await Vehicle.exists(duplicatePlateFilter(vehicle.plateNumber))) throw duplicatePlateError();
-  try { return await Vehicle.create({ ...vehicle, owner: clientId, catalogEntry: entry._id }); }
+  try { return await Vehicle.create({ ...vehicle, owner: clientId, catalogEntry: entry?._id || null }); }
   catch (error) {
     if (error.code === 11000) throw duplicatePlateError();
     throw error;
@@ -97,12 +98,14 @@ async function addWalkInVehicle(rawClientId, raw) {
 async function activeServiceIds(rawVehicleId, clientId) {
   const vehicleId = id(rawVehicleId, 'vehicle');
   if (!await Vehicle.exists({ _id: vehicleId, owner: clientId, isArchived: false })) throw new HttpError(404, 'Vehicle not found.');
+  await holds.releaseExpired({ vehicle: vehicleId });
   const active = await Booking.find({ vehicle: vehicleId, client: clientId, status: { $in: activeServiceStatuses } })
     .select('services').lean();
   return [...new Set(active.flatMap(booking => booking.services || []).map(String))];
 }
 async function createFor(clientId, raw, bookingType, staffId) {
   const data = input(raw);
+  await holds.releaseExpired({ schedule: data.schedule });
   const createdId = await mongoose.connection.transaction(session => reserveBooking(session, clientId, data, bookingType, staffId));
   return get(createdId, bookingType === 'online' ? clientId : undefined);
 }
@@ -112,6 +115,9 @@ async function reserveBooking(session, clientId, data, bookingType, staffId) {
       const client = await User.exists({ _id: clientId, role: 'client', status: 'active', isArchived: false, isWalkInCustomer: false }).session(session);
       if (!client) throw new HttpError(400, 'Select an active client account.', { client: 'Select an active client account.' });
     }
+    const clientGuard = await User.updateOne({ _id: clientId, role: 'client', status: 'active', isArchived: false },
+      { $inc: { bookingLockVersion: 1 } }, { session });
+    if (clientGuard.matchedCount !== 1) throw new HttpError(400, 'Select an active client account.', { client: 'Select an active client account.' });
     const vehicle = await Vehicle.exists({ _id: data.vehicle, owner: clientId, isArchived: false }).session(session);
     if (!vehicle) throw new HttpError(400, 'Select one of your current vehicles.', { vehicle: 'Select one of your current vehicles.' });
     // Serialize bookings per vehicle so concurrent requests cannot both pass this check.
@@ -119,8 +125,11 @@ async function reserveBooking(session, clientId, data, bookingType, staffId) {
       { $inc: { bookingLockVersion: 1 } }, { session });
     if (vehicleGuard.matchedCount !== 1) throw new HttpError(400, 'Select one of your current vehicles.', { vehicle: 'Select one of your current vehicles.' });
     const selectedServices = await Service.find({ _id: { $in: data.services }, isActive: true, isArchived: false })
-      .select('_id estimatedDuration isOtherService').session(session).lean();
+      .select('_id name estimatedDuration estimatedPrice isOtherService').session(session).lean();
     if (selectedServices.length !== data.services.length) throw new HttpError(400, 'One or more services are unavailable.', { services: 'One or more services are unavailable.' });
+    const serviceGuard = await Service.updateMany({ _id: { $in: data.services }, isActive: true, isArchived: false },
+      { $inc: { bookingLockVersion: 1 } }, { session });
+    if (serviceGuard.matchedCount !== data.services.length) throw new HttpError(400, 'One or more services are unavailable.', { services: 'One or more services are unavailable.' });
     const activeBookings = await Booking.find({ vehicle: data.vehicle, status: { $in: activeServiceStatuses }, services: { $in: data.services } })
       .select('services').session(session).lean();
     const activeServiceSet = new Set(activeBookings.flatMap(booking => booking.services || []).map(String));
@@ -145,20 +154,38 @@ async function reserveBooking(session, clientId, data, bookingType, staffId) {
     if (!resourceFit.available) throw new HttpError(409, 'No Mechanic and Service Bay are available for the full service duration.', { schedule: 'Choose another time with enough continuous availability.' });
     const reserved = await Schedule.findOneAndUpdate({
       _id: data.schedule, isEnabled: true, date: slot.date, timeSlot: slot.timeSlot,
-      $expr: { $lt: ['$currentBookingCount', '$maximumCapacity'] },
-    }, { $inc: { currentBookingCount: 1 } }, { returnDocument: 'after', session });
+      $expr: holds.capacityAvailable,
+    }, { $inc: { [bookingType === 'walk-in' ? 'currentBookingCount' : 'temporaryHoldCount']: 1 } }, { returnDocument: 'after', session });
     if (!reserved) throw new HttpError(409, 'The selected schedule is already full. Please choose another time.', { schedule: 'The selected schedule is already full. Please choose another time.' });
+    const estimatedTotalCents = selectedServices.reduce((sum, service) => {
+      const price = service.estimatedPrice;
+      const amount = Math.round(price * 100);
+      if (typeof price !== 'number' || !Number.isFinite(price) || amount < 0
+        || Math.abs(amount - price * 100) > 0.000001 || !Number.isSafeInteger(sum + amount)) {
+        throw new HttpError(409, 'A selected service has no valid estimate.');
+      }
+      return sum + amount;
+    }, 0);
+    const holdStartedAt = new Date();
     const [booking] = await Booking.create([{
       client: clientId, vehicle: data.vehicle, services: data.services, schedule: data.schedule,
       bookingDate: reserved.date, bookingTime: reserved.timeSlot, bookingType,
       initialEstimatedDurationMinutes: estimatedDurationMinutes,
       estimatedDurationMinutes, reservedStartAt: period.startAt, reservedEndAt: period.endAt,
-      concern: data.concern, status: bookingType === 'walk-in' ? 'checked_in' : 'pending',
+      concern: data.concern, status: bookingType === 'walk-in' ? 'checked_in' : 'awaiting_downpayment',
+      estimatedTotalCents,
+      estimatedServiceItems: data.services.map(serviceId => {
+          const service = selectedServices.find(item => String(item._id) === String(serviceId));
+          return { serviceId, name: service.name, priceCents: Math.round(service.estimatedPrice * 100) };
+        }),
+      ...(bookingType === 'online' ? {
+        downpaymentRequiredCents: Math.ceil(estimatedTotalCents / 2), holdStartedAt,
+        holdExpiresAt: new Date(holdStartedAt.getTime() + holds.HOLD_MS), holdStatus: 'active' } : {}),
       activity: [audit({ _id: creator.id, role: creator.role }, bookingType === 'walk-in' ? 'walk_in_created' : 'created')],
       ...(bookingType === 'walk-in' ? { createdByStaff: creator.id, createdByRole: creator.role,
         lastProcessedBy: creator.id, lastProcessedByRole: creator.role, lastProcessedAt: new Date() } : {}),
     }], { session });
-    await engagement.recordBookingEvent(session, booking, bookingType === 'walk-in' ? 'walk_in_created' : 'created');
+    if (bookingType === 'walk-in') await engagement.recordBookingEvent(session, booking, 'walk_in_created');
     if (bookingType === 'walk-in') await engagement.recordBookingEvent(session, booking, 'checked_in');
     return booking._id;
 }
@@ -182,6 +209,7 @@ function queryFilters(query, clientId) {
 }
 async function list(query, clientId) {
   const filter = queryFilters(query, clientId);
+  if (clientId) await holds.releaseExpired({ client: clientId });
   if (query.search !== undefined) {
     if (clientId) throw new HttpError(400, 'Search is available to staff and Admin only.');
     if (typeof query.search !== 'string' || query.search.length > 100) throw new HttpError(400, 'Invalid search.');
@@ -202,29 +230,66 @@ async function list(query, clientId) {
 }
 async function get(rawId, clientId) {
   const filter = { _id: id(rawId, 'booking') };
+  await holds.releaseExpired(filter);
   if (clientId) filter.client = clientId;
   const booking = await Booking.findOne(filter).populate(populate).lean();
   if (!booking) throw new HttpError(404, 'Booking not found.');
   return publicBooking(booking);
 }
-async function transition(rawId, actor, action) {
+async function transition(rawId, actor, action, body = {}) {
   const bookingId = id(rawId, 'booking');
+  await holds.releaseExpired({ _id: bookingId });
   if (!['confirm', 'reject', 'cancel', 'check-in', 'no-show'].includes(action)) throw new HttpError(400, 'Invalid booking action.');
   if (action === 'no-show' && !['staff', 'admin'].includes(actor.role)) throw new HttpError(403, 'Access denied.');
   if (!['staff', 'admin', 'client'].includes(actor.role) || (actor.role === 'client' && action !== 'cancel')) throw new HttpError(403, 'Access denied.');
   const filter = { _id: bookingId };
   if (actor.role === 'client') filter.client = actor._id;
+  if (action === 'cancel') {
+    let provisional = false;
+    await mongoose.connection.transaction(async session => {
+      const now = new Date();
+      const previous = await Booking.findOneAndUpdate({ ...filter, status: 'awaiting_downpayment',
+        holdStatus: 'active', holdExpiresAt: { $gt: now } },
+      { $set: { status: 'cancelled', holdStatus: 'released', holdReleasedAt: now,
+        holdReleaseReason: actor.role === 'client' ? 'client_cancelled' : 'booking_cancelled', holdExpiresAt: null,
+        cancellationReason: 'downpayment_hold_cancelled' }, $push: { activity: audit(actor, 'cancel') } },
+      { returnDocument: 'before', session });
+      if (!previous) return;
+      const released = await Schedule.updateOne({ _id: previous.schedule, temporaryHoldCount: { $gt: 0 } },
+        { $inc: { temporaryHoldCount: -1 } }, { session });
+      if (released.modifiedCount !== 1) throw new HttpError(409, 'Temporary capacity could not be released.');
+      provisional = true;
+    });
+    if (provisional) return get(bookingId, filter.client);
+  }
   if (action === 'confirm' || action === 'check-in') {
     const expected = action === 'confirm' ? 'pending' : 'confirmed';
     const next = action === 'confirm' ? 'confirmed' : 'checked_in';
     await mongoose.connection.transaction(async session => {
-      const changed = await Booking.findOneAndUpdate({ ...filter, status: expected },
-        { $set: { status: next, lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date() },
+      let serviceMileage;
+      if (action === 'check-in' && body.serviceMileage !== undefined && body.serviceMileage !== null && body.serviceMileage !== '') {
+        serviceMileage = Number(body.serviceMileage);
+        if (!Number.isSafeInteger(serviceMileage) || serviceMileage < 0 || serviceMileage > 9999999)
+          throw new HttpError(400, 'Service mileage must be a whole number from 0 to 9,999,999.');
+        const current = await Booking.findById(bookingId).session(session).select('vehicle').lean();
+        if (!current) throw new HttpError(404, 'Booking not found.');
+        const vehicle = await Vehicle.findById(current.vehicle).session(session).select('currentMileage').lean();
+        if (vehicle && serviceMileage < vehicle.currentMileage) throw new HttpError(400, 'Service mileage cannot be lower than the vehicle mileage already recorded.');
+        const prior = await Booking.findOne({ vehicle: current.vehicle, status: 'completed', serviceMileage: { $ne: null } })
+          .sort({ releasedAt: -1, _id: -1 }).session(session).select('serviceMileage').lean();
+        if (prior && serviceMileage < prior.serviceMileage) throw new HttpError(400, 'Service mileage cannot be lower than the previous recorded service mileage.');
+      }
+      const changed = await Booking.findOneAndUpdate({ ...filter, status: expected,
+        ...(action === 'confirm' ? { $or: [{ holdStatus: 'converted' }, { holdStatus: { $exists: false } }] } : {}) },
+        { $set: { status: next, lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date(),
+          ...(serviceMileage === undefined ? {} : { serviceMileage }) },
           $push: { activity: audit(actor, action) } }, { returnDocument: 'after', session });
       if (!changed) {
         await get(bookingId, filter.client);
         throw new HttpError(409, action === 'confirm' ? 'Only pending bookings can be confirmed.' : 'Only confirmed bookings can be checked in.');
       }
+      if (serviceMileage !== undefined) await Vehicle.updateOne({ _id: changed.vehicle, currentMileage: { $lte: serviceMileage } },
+        { $set: { currentMileage: serviceMileage } }, { session });
       await engagement.recordBookingEvent(session, changed, next);
     });
   } else {
@@ -259,6 +324,7 @@ async function reschedule(rawId, raw, staffId) {
     throw new HttpError(400, 'Select a new schedule.');
   }
   const scheduleId = id(raw.schedule, 'schedule');
+  await holds.releaseExpired({ schedule: scheduleId });
   await mongoose.connection.transaction(async session => {
     const booking = await Booking.findOne({ _id: bookingId, status: { $in: ['pending', 'confirmed'] } }).session(session).lean();
     if (!booking) throw new HttpError(409, 'Only pending or confirmed bookings can be rescheduled.');
@@ -274,7 +340,7 @@ async function reschedule(rawId, raw, staffId) {
     const fit = await resourceAvailability.canFitBooking(period, { session, excludeBookingId: bookingId });
     if (!fit.available) throw new HttpError(409, 'Mechanic or service bay capacity is unavailable.');
     const reserved = await Schedule.findOneAndUpdate({ _id: scheduleId, isEnabled: true,
-      $expr: { $lt: ['$currentBookingCount', '$maximumCapacity'] } },
+      $expr: holds.capacityAvailable },
     { $inc: { currentBookingCount: 1 } }, { session });
     if (!reserved) throw new HttpError(409, 'The selected schedule is full.');
     const changed = await Booking.updateOne({ _id: bookingId, status: booking.status, schedule: booking.schedule },

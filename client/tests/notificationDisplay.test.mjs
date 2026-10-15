@@ -10,6 +10,11 @@ test('notifications open the related record for the recipient role', () => {
   assert.equal(notificationDestination({ type: 'booking', bookingId }, 'staff'), `/staff/bookings?open=${bookingId}`)
   assert.equal(notificationDestination({ type: 'job_order', bookingId, jobOrderId }, 'mechanic'), `/mechanic/jobs?open=${jobOrderId}`)
   assert.equal(notificationDestination({ type: 'job_order', bookingId, jobOrderId }, 'client'), `/client/bookings?open=${bookingId}`)
+  assert.equal(notificationDestination({ type: 'payment', bookingId }, 'client'), `/client/bookings?open=${bookingId}&section=payment`)
+  assert.equal(notificationDestination({ type: 'job_order', bookingId, eventKey: `${bookingId}:ready_for_release` }, 'client'),
+    `/client/bookings?open=${bookingId}&section=billing`)
+  assert.equal(notificationDestination({ type: 'job_order', bookingId, eventKey: 'additional-work:request:sent_to_client' }, 'client'),
+    `/client/bookings?open=${bookingId}&section=additional-work`)
   assert.equal(notificationDestination({ type: 'maintenance_reminder' }, 'client'), '/client/reminders')
   assert.equal(notificationDestination({ type: 'maintenance_reminder', maintenanceReminderId: bookingId }, 'client'), `/client/reminders?open=${bookingId}`)
 });

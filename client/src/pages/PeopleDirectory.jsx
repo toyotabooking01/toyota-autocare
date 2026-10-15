@@ -1,6 +1,7 @@
 import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
 import { useState } from 'react'
-import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import AddRounded from '@mui/icons-material/AddRounded'
 import AccountFormDialog from '../components/AccountFormDialog'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
@@ -53,7 +54,10 @@ export function CustomersDirectory({ role }) {
 const emptyStaff = { firstName: '', lastName: '', email: '', phone: '' }
 export function StaffDirectory() {
   const confirm = useConfirmation()
-  const { items, loading, error, reload } = useCatalog('/people/staff', {})
+  const [archive, setArchive] = useState('active')
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('all')
+  const { items, loading, error, reload, pagination } = useCatalog('/people/staff', { archive, search, status }, true)
   const [form, setForm] = useState(emptyStaff)
   const validation = useFormValidation('staff', form)
   const [open, setOpen] = useState(false)
@@ -100,10 +104,16 @@ export function StaffDirectory() {
     <PageHeading title="Staff monitoring" subtitle="Manage staff access and review account status." preview={false} />
     {(error || actionError) && <Alert severity="error" sx={{ mb: 2 }}>{error || actionError}</Alert>}
     {notice && <Alert severity={noticeSeverity} sx={{ mb: 2 }}>{notice}</Alert>}
-    <RecordPanel><Button variant="contained" onClick={openCreate} sx={{ mb: 2 }}>Add staff</Button>
-      <RecordList items={items} loading={loading && <Typography>Loading staff...</Typography>} empty="No staff records to show.">
-        {item => <PersonRecordCard key={item._id} person={item} idLabel="Staff ID" idValue={item.staffId} activity={`${item.processedBookings || 0} bookings processed`}>
-          <RecordActions statuses={<StatusBadge label={item.status} />}><DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton><MoreActionsMenu label={item.fullName} disabled={busy} items={[{ label: item.status === 'active' ? 'Disable' : 'Enable', destructive: item.status === 'active', onClick: () => change(item) }]} /></RecordActions>
+    <RecordPanel>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
+        <TextField label="Search staff" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
+        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)} sx={{ minWidth: 130 }}><MenuItem value="active">Current</MenuItem><MenuItem value="archived">Archived</MenuItem><MenuItem value="all">All registered</MenuItem></TextField>
+        <TextField select label="Account" size="small" value={status} onChange={event => setStatus(event.target.value)} sx={{ minWidth: 125 }}><MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
+        <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>Add staff</Button>
+      </Stack>
+      <RecordList items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading staff…</Typography></Stack>} empty="No staff records match these filters.">
+        {item => <PersonRecordCard key={item._id} person={item} idLabel="Staff ID" idValue={item.staffId} activity={`${item.processedBookings || 0} bookings processed`} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}>
+          <RecordActions statuses={<StatusBadge size="small" label={item.isArchived ? 'Archived' : item.status} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : item.status === 'active' ? 'var(--green-soft)' : 'var(--amber-soft)' }} />}><DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>{!item.isArchived && <MoreActionsMenu label={item.fullName} disabled={busy} items={[{ label: item.status === 'active' ? 'Disable' : 'Enable', destructive: item.status === 'active', onClick: () => change(item) }]} />}</RecordActions>
         </PersonRecordCard>}
       </RecordList>
     </RecordPanel>

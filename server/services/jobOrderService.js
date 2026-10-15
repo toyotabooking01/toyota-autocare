@@ -12,16 +12,21 @@ const scheduleService = require('./scheduleService');
 const { identity, audit } = require('../utils/operationalActor');
 const bayOccupancy = require('./bayOccupancyService');
 const paymentService = require('./paymentService');
+const additionalWork = require('./additionalWorkService');
+const finalBilling = require('./finalBillingService');
+const invoices = require('./invoiceService');
+const Invoice = require('../models/Invoice');
 
 const activeJobs = ['pending', 'in_progress'];
 const details = [
   { path: 'mechanic', select: 'fullName employeeId' },
   { path: 'serviceBay', select: 'name' },
   { path: 'activity.performedBy', select: 'fullName role' },
-  { path: 'booking', select: 'client vehicle services bookingDate bookingTime bookingType status concern estimatedDurationMinutes initialEstimatedDurationMinutes actualDurationMinutes reservedStartAt reservedEndAt', populate: [
+  { path: 'booking', select: 'client vehicle services bookingDate bookingTime bookingType status concern estimatedDurationMinutes initialEstimatedDurationMinutes actualDurationMinutes reservedStartAt reservedEndAt releasedAt releasedByRole lastProcessedBy', populate: [
     { path: 'client', select: 'fullName' },
     { path: 'vehicle', select: 'make model year plateNumber' },
     { path: 'services', select: 'name estimatedDuration isOtherService' },
+    { path: 'lastProcessedBy', select: 'fullName role' },
   ] },
 ];
 
@@ -244,31 +249,50 @@ async function transition(rawId, actor, action) {
   const step = actions[action];
   if (!step) throw new HttpError(400, 'Invalid Job Order action.');
   if (actor.role !== step.role && actor.role !== 'admin') throw new HttpError(403, 'Access denied.');
+  let invoiceId;
   await mongoose.connection.transaction(async session => {
     const filter = { _id: jobId, status: step.jobFrom };
     if (actor.role === 'mechanic') filter.mechanic = actor._id;
     const job = await JobOrder.findOne(filter).session(session).lean();
     if (!job) throw new HttpError(actor.role === 'mechanic' ? 404 : 409, 'Job Order is unavailable at this stage.');
+    if (action === 'ready-for-release') {
+      const previous = await Booking.findById(job.booking).select('status finalBillingLockedAt finalTotalCents').session(session).lean();
+      if (previous?.status === 'ready_for_release' && previous.finalBillingLockedAt && previous.finalTotalCents != null) {
+        const issued = await Invoice.findOne({ booking: job.booking, type: 'final_service' }).session(session).lean();
+        if (!issued || issued.financialSnapshot?.finalServiceTotalCents !== previous.finalTotalCents)
+          throw new HttpError(409, 'Final invoice is unavailable for this locked booking.');
+        invoiceId = issued._id;
+        return;
+      }
+    }
     if (action === 'final-inspection' && job.checklistRequired === true && (job.serviceChecklist || []).some(item => !item.isCompleted)) {
       throw new HttpError(409, 'Complete all service checklist items before final inspection.');
     }
+    if (action === 'final-inspection' && await additionalWork.hasUnresolved(job.booking, session)) {
+      throw new HttpError(409, 'Resolve all additional work requests before starting final inspection.');
+    }
     if (action === 'complete' && !job.startedAt) throw new HttpError(409, 'Service has not started.');
-    let paymentSnapshot;
+    let billing, invoicePayment;
     if (action === 'ready-for-release' || action === 'complete') {
-      const bookingQuery = Booking.findById(job.booking).select('client services status finalTotalCents');
+      const bookingQuery = Booking.findById(job.booking).select('client vehicle services status finalTotalCents estimatedTotalCents estimatedServiceItems finalBillingLockedAt');
       const currentBooking = await bookingQuery.session(session).lean();
       if (!currentBooking || currentBooking.status !== step.from) throw new HttpError(409, 'Booking is unavailable at this stage.');
       if (action === 'ready-for-release') {
-        const payment = await paymentService.calculate(currentBooking, session);
-        if (payment.payments.some(item => item.stage === 'downpayment' && item.status === 'submitted'))
+        if (await Invoice.exists({ booking: job.booking, type: 'final_service' }).session(session))
+          throw new HttpError(409, 'Final invoice already exists for this booking.');
+        if (await additionalWork.hasUnresolved(job.booking, session))
+          throw new HttpError(409, 'Resolve all additional work requests before final billing.');
+        billing = await finalBilling.calculate(currentBooking, session);
+        invoicePayment = await paymentService.calculate({ ...currentBooking, finalTotalCents: billing.finalTotalCents }, session);
+        if (invoicePayment.payments.some(item => item.stage === 'downpayment' && item.status === 'submitted'))
           throw new HttpError(409, 'Verify or reject the submitted downpayment before marking ready for release.');
-        paymentSnapshot = payment.finalTotalCents;
       }
       else {
+        if (currentBooking.finalTotalCents == null)
+          throw new HttpError(409, 'Final service total is unavailable for release.');
         const payment = await paymentService.calculate(currentBooking, session);
         const reason = paymentService.releaseReason(payment);
         if (reason) throw new HttpError(409, reason);
-        paymentSnapshot = payment.finalTotalCents;
       }
     }
     const completedAt = action === 'complete' ? new Date() : null;
@@ -279,13 +303,20 @@ async function transition(rawId, actor, action) {
     const processing = { lastProcessedBy: actor._id, lastProcessedByRole: actor.role, lastProcessedAt: new Date() };
     const bookingUpdate = action === 'complete'
       ? { $set: { status: step.to, reservedEndAt: completedAt, actualDurationMinutes,
-        finalTotalCents: paymentSnapshot, releasedAt: completedAt, releasedBy: actor._id, releasedByRole: actor.role, ...processing },
+        releasedAt: completedAt, releasedBy: actor._id, releasedByRole: actor.role, ...processing },
         $push: { activity: audit(actor, action) }, $inc: { __v: 1 } }
-      : { $set: { status: step.to, ...(action === 'ready-for-release' ? { finalTotalCents: paymentSnapshot } : {}),
+      : { $set: { status: step.to, ...(action === 'ready-for-release' ? {
+        finalTotalCents: billing.finalTotalCents,
+        originalServicesTotalCents: billing.originalServicesTotalCents,
+        additionalWorkTotalCents: billing.additionalWorkTotalCents,
+        finalBillingLockedAt: new Date(),
+      } : {}),
         ...processing }, $push: { activity: audit(actor, action) } };
     const changedBooking = await Booking.findOneAndUpdate(bookingFilter,
       bookingUpdate, { returnDocument: 'after', session });
     if (!changedBooking) throw new HttpError(409, 'Booking is unavailable at this stage.');
+    if (action === 'ready-for-release') invoiceId = await invoices.createForRelease(session, changedBooking,
+      billing, invoicePayment, changedBooking.finalBillingLockedAt);
     const update = action === 'start'
       ? { $set: { status: 'in_progress', startedAt: new Date() }, $push: { activity: audit(actor, action) } }
       : action === 'complete'
@@ -303,6 +334,7 @@ async function transition(rawId, actor, action) {
     }
     await engagement.recordBookingEvent(session, changedBooking, step.to, { jobOrderId: jobId });
   });
+  if (invoiceId) await invoices.processAfterRelease(invoiceId);
   return get(jobId, actor.role === 'mechanic' ? actor._id : undefined);
 }
 module.exports = { assignmentInput, options, assign, list, get, active, workInput, saveWork, durationInput, updateEstimatedDuration, transition };

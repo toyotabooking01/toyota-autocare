@@ -8,6 +8,16 @@ const email = {
 const archive = {
   isArchived: { type: Boolean, default: false },
   archivedAt: { type: Date, default: null },
+  archivedBy: reference('User', false),
+  archivedByRole: { type: String, enum: ['admin', 'client'] },
+  archiveReason: { type: String, trim: true, maxlength: 300, default: '' },
+  restoredAt: { type: Date, default: null },
+  restoredBy: reference('User', false),
+  restoredByRole: { type: String, enum: ['admin', 'client'] },
+  archiveActivity: [{ action: { type: String, enum: ['archived', 'restored'], required: true },
+    actor: reference('User'), actorRole: { type: String, enum: ['admin', 'client'], required: true },
+    reason: { type: String, trim: true, maxlength: 300, default: '' },
+    timestamp: { type: Date, required: true } }],
 };
 const timeSlot = { type: String, required: true, match: /^([01]\d|2[0-3]):[0-5]\d$/ };
 const calendarDate = {

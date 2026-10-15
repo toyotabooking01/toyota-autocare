@@ -1,11 +1,6 @@
 import { Dialog, Paper } from '@mui/material'
 import { workspaceCardWidth, workspaceSidebarWidth, workspaceTopbarHeight } from '../layouts/workspaceDimensions'
 
-export const formWorkspaceGrid = {
-  display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' },
-  gap: 2, minWidth: 0,
-}
-
 const panel = {
   ...workspaceCardWidth,
   p: { xs: 2, sm: 3, lg: 4 }, borderColor: 'var(--line)', borderRadius: '16px',

@@ -12,10 +12,13 @@ export function notificationDestination(item, role) {
   }
   const booking = /^[a-f\d]{24}$/i.test(String(item.bookingId || '')) ? `?open=${item.bookingId}` : ''
   const job = /^[a-f\d]{24}$/i.test(String(item.jobOrderId || '')) ? `?open=${item.jobOrderId}` : ''
+  const bookingSection = section => booking ? `${booking}&section=${section}` : ''
   if (item.type === 'booking') return role === 'mechanic' ? '/mechanic/jobs'
     : ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings${booking}` : ''
-  if (item.type === 'payment') return ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings${booking}` : ''
-  if (item.type === 'job_order') return role === 'client' ? `/client/bookings${booking}`
+  if (item.type === 'payment') return ['client', 'staff', 'admin'].includes(role) ? `/${role}/bookings${bookingSection('payment')}` : ''
+  const clientSection = String(item.eventKey || '').includes(':ready_for_release') ? 'billing'
+    : String(item.eventKey || '').startsWith('additional-work:') ? 'additional-work' : ''
+  if (item.type === 'job_order') return role === 'client' ? `/client/bookings${clientSection ? bookingSection(clientSection) : booking}`
     : role === 'mechanic' ? `/mechanic/jobs${job}`
       : ['staff', 'admin'].includes(role) ? `/${role}/job-orders${job}` : ''
   return ''

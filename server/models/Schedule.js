@@ -14,10 +14,14 @@ const scheduleSchema = new mongoose.Schema({
       message: 'Booking count must be an integer within capacity.',
     },
   },
+  temporaryHoldCount: { ...nonNegativeInteger, default: 0 },
   isEnabled: { type: Boolean, default: true },
 }, { timestamps: true });
 
 scheduleSchema.pre('validate', function () {
+  if (this.currentBookingCount + this.temporaryHoldCount > this.maximumCapacity) {
+    this.invalidate('temporaryHoldCount', 'Bookings and holds must fit within capacity.');
+  }
   const hasOpening = this.openingTime != null;
   const hasClosing = this.closingTime != null;
   if (hasOpening !== hasClosing) this.invalidate('closingTime', 'Working hours need both opening and closing times.');

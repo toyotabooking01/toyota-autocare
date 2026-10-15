@@ -49,6 +49,7 @@ test('browser: required consent, direct login, themes and confirmed actions pres
       { _id: '606060606060606060606060', make: 'Toyota', model: 'Raize', year: 2026, variant: '1.2 G CVT', transmission: 'cvt', category: 'Crossover', fuelType: 'gasoline', seatingCapacity: 5, imageUrl: '/toyota/raize.webp' },
     ]
     let bookingAvailabilityDate = ''
+    let bookingPaymentSubmitted = false
     let vehicles = [], plateConflict = true, walkInEmailConflict = true
     let staffItems = []
     let mechanicJob = null
@@ -172,7 +173,26 @@ test('browser: required consent, direct login, themes and confirmed actions pres
               }] }] }
             }
             if (url.pathname === '/api/schedules' && request.method === 'GET') body = { items: [{ ...slot, currentBookingCount: 2 }] }
-            if (url.pathname === '/api/bookings' && request.method === 'POST') body = { item: { _id: '555555555555555555555555' } }
+            if (url.pathname === '/api/bookings' && request.method === 'POST') body = { item: {
+              _id: '555555555555555555555555', status: 'awaiting_downpayment', holdStatus: 'active',
+              holdExpiresAt: new Date(Date.now() + 15 * 60_000).toISOString(), estimatedTotalCents: 100000,
+              downpaymentRequiredCents: 50000,
+            } }
+            if (url.pathname === '/api/bookings/555555555555555555555555/payment') body = { item: {
+              bookingStatus: 'awaiting_downpayment', estimatedTotalCents: 100000, finalTotalCents: 100000,
+              downpaymentRequiredCents: 50000, downpaymentPaidCents: 0, totalPaidCents: 0,
+              holdStatus: bookingPaymentSubmitted ? 'payment_submitted' : 'active',
+              holdExpiresAt: bookingPaymentSubmitted ? null : new Date(Date.now() + 15 * 60_000).toISOString(),
+              paymentStatus: 'final_payment_due', payments: bookingPaymentSubmitted
+                ? [{ id: '999999999999999999999999', stage: 'downpayment', amountCents: 50000, method: 'gcash', status: 'submitted' }] : [],
+            } }
+            if (url.pathname === '/api/bookings/555555555555555555555555/payments' && request.method === 'POST') {
+              bookingPaymentSubmitted = true
+              body = { item: { bookingStatus: 'awaiting_downpayment', estimatedTotalCents: 100000, finalTotalCents: 100000,
+                downpaymentRequiredCents: 50000, downpaymentPaidCents: 0, totalPaidCents: 0, holdStatus: 'payment_submitted',
+                holdExpiresAt: null, paymentStatus: 'final_payment_due', payments: [{ id: '999999999999999999999999',
+                  stage: 'downpayment', amountCents: 50000, method: 'gcash', status: 'submitted' }] } }
+            }
             if (recordLayoutFixtures && request.method === 'GET') {
               const longName = 'Long customer and vehicle record name '.repeat(3)
               const rows = Array.from({ length: recordFixtureCount }, (_, index) => ({
@@ -579,10 +599,25 @@ test('browser: required consent, direct login, themes and confirmed actions pres
     await waitFor(() => evaluate(`Array.from(document.querySelectorAll('button')).some(b => b.getAttribute('aria-label') === ${JSON.stringify(`${bookingAvailabilityDate}, available`)})`), 'booking date button')
     await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.getAttribute('aria-label') === ${JSON.stringify(`${bookingAvailabilityDate}, available`)}).click()`)
     await evaluate(`Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('10:00')).click()`)
-    await click('Continue'); await click('Submit booking')
-    assert.equal(await text('Are you sure you want to confirm this service booking?'), true)
+    await click('Continue'); await click('Proceed to Downpayment')
+    assert.equal(await text('Proceed to downpayment and hold this schedule for 15 minutes?'), true)
     await click('No'); await noDialog(); assert.equal(count('/api/bookings'), 0); assert.equal(await text('Review your booking'), true)
-    await click('Submit booking'); await click('Yes', true); await noDialog(); await waitFor(() => text('Booking received'), 'booking completed'); assert.equal(count('/api/bookings'), 1)
+    await click('Proceed to Downpayment'); await click('Yes', true); await noDialog(); await waitFor(() => text('Required Downpayment'), 'downpayment step'); assert.equal(count('/api/bookings'), 1)
+    assert.equal(await text('Temporary Slot Hold'), true)
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('input')).some(input => input.labels?.[0]?.textContent.includes('Downpayment amount'))`), false)
+    await evaluate(`document.querySelector('[role="combobox"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))`)
+    await waitFor(() => evaluate(`Array.from(document.querySelectorAll('[role="option"]')).some(item => item.textContent.includes('bank transfer'))`), 'digital methods')
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('[role="option"]')).some(item => /^(cash|no charge)$/i.test(item.textContent.trim()))`), false)
+    await evaluate(`Array.from(document.querySelectorAll('[role="option"]')).find(item => item.textContent.includes('gcash')).click()`)
+    await evaluate(`{ const el = document.querySelector('input[aria-label="Payment proof image"]'); if (el) el.hidden = false }`)
+    const proofPath = join(profileDir, 'booking-proof.png')
+    writeFileSync(proofPath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y4R3b8AAAAASUVORK5CYII=', 'base64'))
+    const documentNode = await send('DOM.getDocument')
+    const proofNode = await send('DOM.querySelector', { nodeId: documentNode.root.nodeId, selector: 'input[aria-label="Payment proof image"]' })
+    await send('DOM.setFileInputFiles', { nodeId: proofNode.nodeId, files: [proofPath] })
+    await evaluate(`{ const el = Array.from(document.querySelectorAll('input')).find(input => input.labels?.[0]?.textContent.includes('Reference Number')); if (!el) throw new Error('Missing payment reference'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'G123'); el.dispatchEvent(new Event('input', { bubbles: true })); }`)
+    await click('Submit Downpayment'); await waitFor(() => text('Payment Status: Pending Verification'), 'payment confirmation')
+    assert.equal(count('/api/bookings/555555555555555555555555/payments'), 1)
     await evaluate(`document.querySelector('[aria-label="Juan Santos, Client. Open profile menu"]').click()`)
     await evaluate(`Array.from(document.querySelectorAll('[role="menuitem"]')).find(item => item.textContent.trim() === 'Sign out').click()`)
     assert.equal(await text('Are you sure you want to sign out of your account?'), true)

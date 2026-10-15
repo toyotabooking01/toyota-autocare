@@ -8,10 +8,14 @@ const ServiceBay = require('../models/ServiceBay');
 const jobs = require('../services/jobOrderService');
 const engagement = require('../services/engagementService');
 const paymentService = require('../services/paymentService');
+const additionalWork = require('../services/additionalWorkService');
 const originalRecordEvent = engagement.recordBookingEvent;
 const originalReminders = engagement.updateReminders;
-before(() => { engagement.recordBookingEvent = async () => {}; engagement.updateReminders = async () => {}; });
-after(() => { engagement.recordBookingEvent = originalRecordEvent; engagement.updateReminders = originalReminders; });
+const originalUnresolved = additionalWork.hasUnresolved;
+before(() => { engagement.recordBookingEvent = async () => {}; engagement.updateReminders = async () => {};
+  additionalWork.hasUnresolved = async () => false; });
+after(() => { engagement.recordBookingEvent = originalRecordEvent; engagement.updateReminders = originalReminders;
+  additionalWork.hasUnresolved = originalUnresolved; });
 
 const id = () => String(new mongoose.Types.ObjectId());
 
@@ -54,6 +58,11 @@ test('final inspection is blocked until every snapshotted checklist item is comp
     await assert.rejects(jobs.transition(jobId, { role: 'mechanic', _id: mechanic }, 'final-inspection'), { status: 409 });
     assert.equal(bookingWrites, 0);
     items = [{ description: 'Inspect brake pads', isCompleted: true }];
+    additionalWork.hasUnresolved = async () => true;
+    await assert.rejects(jobs.transition(jobId, { role: 'mechanic', _id: mechanic }, 'final-inspection'),
+      error => error.status === 409 && /additional work requests/.test(error.message));
+    assert.equal(bookingWrites, 0);
+    additionalWork.hasUnresolved = async () => false;
     await jobs.transition(jobId, { role: 'mechanic', _id: mechanic }, 'final-inspection');
     assert.equal(bookingWrites, 1);
   } finally {

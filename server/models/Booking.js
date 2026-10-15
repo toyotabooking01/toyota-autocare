@@ -49,13 +49,29 @@ const bookingSchema = new mongoose.Schema({
   concern: { type: String, trim: true, maxlength: 3000, default: '' },
   notes: { type: String, trim: true, maxlength: 5000, default: '' },
   estimatedCompletion: Date,
+  serviceMileage: { type: Number, min: 0, max: 9999999, validate: value => value == null || Number.isSafeInteger(value) },
   finalTotalCents: { type: Number, min: 0, validate: value => value == null || Number.isSafeInteger(value) },
+  originalServicesTotalCents: { type: Number, min: 0, validate: value => value == null || Number.isSafeInteger(value) },
+  additionalWorkTotalCents: { type: Number, min: 0, validate: value => value == null || Number.isSafeInteger(value) },
+  finalBillingLockedAt: Date,
+  estimatedTotalCents: { type: Number, min: 0, validate: value => value == null || Number.isSafeInteger(value) },
+  estimatedServiceItems: [{ serviceId: reference('Service'), name: String,
+    priceCents: { type: Number, min: 0, validate: Number.isSafeInteger } }],
+  downpaymentRequiredCents: { type: Number, min: 0, validate: value => value == null || Number.isSafeInteger(value) },
+  holdStartedAt: Date,
+  holdExpiresAt: Date,
+  holdStatus: { type: String, enum: ['active', 'payment_submitted', 'converted', 'released'] },
+  holdReleasedAt: Date,
+  holdConvertedAt: Date,
+  reservationActivatedAt: Date,
+  holdReleaseReason: { type: String, enum: ['expired', 'client_cancelled', 'booking_cancelled', 'payment_rejected', 'converted_to_reservation'] },
+  cancellationReason: String,
   releasedAt: Date,
   releasedBy: reference('User', false),
   releasedByRole: { type: String, enum: ['staff', 'admin'] },
   status: {
     type: String, required: true, default: 'pending',
-    enum: ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
+    enum: ['awaiting_downpayment', 'pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
       'final_inspection', 'ready_for_release', 'completed', 'cancelled', 'rejected', 'no_show'],
   },
 }, { timestamps: true });
@@ -63,6 +79,11 @@ const bookingSchema = new mongoose.Schema({
 bookingSchema.index({ bookingDate: 1, bookingTime: 1, status: 1 });
 bookingSchema.index({ bookingDate: 1, status: 1, reservedStartAt: 1, reservedEndAt: 1 });
 bookingSchema.index({ client: 1, createdAt: -1 });
+bookingSchema.index({ client: 1, status: 1, releasedAt: -1 });
+bookingSchema.index({ vehicle: 1, status: 1, releasedAt: -1 });
+bookingSchema.index({ status: 1, releasedAt: 1 });
+bookingSchema.index({ schedule: 1, status: 1, holdStatus: 1, holdExpiresAt: 1 });
+bookingSchema.index({ bookingDate: 1, status: 1, holdStatus: 1, holdExpiresAt: 1 });
 
 bookingSchema.pre('validate', function () {
   const hasStart = this.reservedStartAt != null;

@@ -39,9 +39,9 @@ function MaintenanceCard({ reminder, vehicles }) {
   return <Panel className="client-dashboard-card" title="Next maintenance" to="/client/reminders" action="View maintenance">
     {reminder ? <><RecordCard entityType="service"><Box className="record-card-copy">
       <Typography>{vehicleText(reminder.vehicle)}</Typography>
-      <Typography>{reminder.service?.name || 'Recommended service'} · {dateText(reminder.nextRecommendedServiceDate)}</Typography>
+      <Typography>{reminder.service?.name || 'Recommended service'} · {reminder.nextRecommendedServiceDate ? dateText(reminder.nextRecommendedServiceDate) : reminder.nextRecommendedMileage != null ? `${reminder.nextRecommendedMileage.toLocaleString('en-PH')} km` : 'Recommendation unavailable'}</Typography>
       <Typography>Last service: {dateText(reminder.lastServiceDate)}{Number.isFinite(vehicle?.currentMileage) ? ` · ${vehicle.currentMileage.toLocaleString('en-PH')} km current mileage` : ''}</Typography>
-    </Box><RecordActions statuses={<StatusBadge label={reminder.status?.replaceAll('_', ' ') || 'Maintenance'} />}><DetailsButton component={Link} to="/client/reminders" /></RecordActions></RecordCard>
+    </Box><RecordActions statuses={<StatusBadge label={reminder.displayStatus || 'Maintenance'} />}><DetailsButton component={Link} to="/client/reminders" /></RecordActions></RecordCard>
       <Box sx={{ mt: 1.5 }}><CompactActionButton component={Link} to="/client/book-service">Schedule a visit</CompactActionButton></Box></>
       : <DashboardEmpty icon={BuildOutlined} title="No recommendation yet" description="Your next service recommendation will appear after a completed visit." action="Plan a visit" to="/client/book-service" />}
   </Panel>

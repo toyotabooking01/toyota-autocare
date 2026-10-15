@@ -9,6 +9,7 @@ const { registrationNames, normalizeMobile } = require('../../shared/accountVali
 const { vehicleInput } = require('./peopleVehiclesService');
 const toyotaCatalog = require('./toyotaCatalogService');
 const bookings = require('./bookingService');
+const holds = require('./bookingHoldService');
 const bcrypt = require('bcrypt');
 const temporaryPassword = require('../utils/temporaryPassword');
 const credentialDelivery = require('./clientCredentialDeliveryService');
@@ -91,13 +92,14 @@ async function createVisit(raw, actor) {
   const catalogEntry = await toyotaCatalog.validateSelection(vehicle);
   const vehicleId = new mongoose.Types.ObjectId();
   const data = bookings.input({ vehicle: String(vehicleId), services: raw.services, schedule: raw.schedule, concern: raw.concern });
+  await holds.releaseExpired({ schedule: data.schedule });
   if (await Vehicle.exists(duplicatePlateFilter(vehicle.plateNumber))) throw duplicatePlateError();
   try {
     const bookingId = await mongoose.connection.transaction(async session => {
       const client = await User.exists({ _id: raw.client, role: 'client', status: 'active', isArchived: false,
         isWalkInCustomer: false }).session(session);
       if (!client) throw new HttpError(409, 'A Client account is required before creating this visit.');
-      await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: raw.client, catalogEntry: catalogEntry._id }], { session });
+      await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: raw.client, catalogEntry: catalogEntry?._id || null }], { session });
       return bookings.reserveBooking(session, raw.client, data, 'walk-in', actor);
     });
     return { item: await bookings.get(bookingId) };
@@ -122,6 +124,7 @@ async function create(raw, staffId) {
   const catalogEntry = await toyotaCatalog.validateSelection(vehicle);
   const vehicleId = new mongoose.Types.ObjectId();
   const data = bookings.input({ vehicle: String(vehicleId), services: raw.services, schedule: raw.schedule, concern: raw.concern });
+  await holds.releaseExpired({ schedule: data.schedule });
   if (await Vehicle.exists(duplicatePlateFilter(vehicle.plateNumber))) throw duplicatePlateError();
   let result;
   for (let attempt = 0; !result; attempt++) {
@@ -147,7 +150,7 @@ async function create(raw, staffId) {
           }
           if (secret) credentials = { id: String(user._id), fullName: user.fullName, email: user.email, secret, deliveryToken: grant.token };
         }
-        await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: user._id, catalogEntry: catalogEntry._id }], { session });
+        await Vehicle.create([{ ...vehicle, _id: vehicleId, owner: user._id, catalogEntry: catalogEntry?._id || null }], { session });
         const bookingId = await bookings.reserveBooking(session, user._id, data, 'walk-in', staffId);
         return { bookingId, credentials, existingClient };
       });

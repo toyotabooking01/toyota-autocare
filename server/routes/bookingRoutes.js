@@ -5,6 +5,10 @@ const authorize = require('../middleware/authorize');
 const HttpError = require('../utils/HttpError');
 const actions = require('../controllers/bookingScheduleController');
 const payments = require('../services/paymentService');
+const receipts = require('../services/receiptService');
+const invoices = require('../services/invoiceService');
+const additionalWork = require('../services/additionalWorkService');
+const { uploadProof } = require('../middleware/imageUpload');
 const credentialEmails = require('../middleware/rateLimit')({ limit: 20, windowMs: 15 * 60 * 1000 });
 
 const router = express.Router();
@@ -39,7 +43,12 @@ router.post('/:id/no-show', authorize('staff', 'admin'), actions.bookingNoShow);
 router.post('/:id/assign', authorize('staff', 'admin'), actions.bookingAssign);
 router.post('/:id/reschedule', authorize('staff', 'admin'), actions.bookingReschedule);
 router.get('/:id/payment', authorize('client', 'staff', 'admin'), async (req, res) => res.json({ item: await payments.summary(req.params.id, req.user) }));
-router.post('/:id/payments', authorize('client', 'staff', 'admin'), async (req, res) => res.status(201).json({ item: await payments.submit(req.params.id, req.user, req.body) }));
+router.get('/:id/receipts', authorize('client', 'staff', 'admin'), async (req, res) => res.json({ items: await receipts.list(req.params.id, req.user) }));
+router.get('/:id/invoices', authorize('client', 'staff', 'admin'), async (req, res) => res.json({ items: await invoices.list(req.params.id, req.user) }));
+router.get('/:id/additional-work', authorize('client', 'staff', 'admin'), async (req, res) => res.json({ items: await additionalWork.list(req.params.id, req.user) }));
+router.post('/:id/payments', authorize('client', 'staff', 'admin'),
+  async (req, res, next) => { await payments.assertAccess(req.params.id, req.user); next(); },
+  uploadProof, async (req, res) => res.status(201).json({ item: await payments.submit(req.params.id, req.user, req.body, req.file) }));
 router.post('/:id/payments/:paymentId/verify', authorize('staff', 'admin'), async (req, res) => res.json({ item: await payments.decide(req.params.id, req.params.paymentId, req.user, 'verify') }));
 router.post('/:id/payments/:paymentId/reject', authorize('staff', 'admin'), async (req, res) => res.json({ item: await payments.decide(req.params.id, req.params.paymentId, req.user, 'reject') }));
 module.exports = router;

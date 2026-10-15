@@ -1,7 +1,7 @@
 import { useId, useRef } from 'react'
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from '@mui/material'
 
-export default function ConfirmationDialog({ open, message, details, title = 'Confirm action', confirmLabel = 'Yes', cancelLabel = 'No', busy = false, error, onConfirm, onCancel }) {
+export default function ConfirmationDialog({ open, message, details, children, title = 'Confirm action', confirmLabel = 'Yes', cancelLabel = 'No', busy = false, error, onConfirm, onCancel }) {
   const id = useId()
   const executing = useRef(false)
   async function approve() {
@@ -15,6 +15,7 @@ export default function ConfirmationDialog({ open, message, details, title = 'Co
     <DialogContent>
       <DialogContentText id={`${id}-message`} sx={{ fontSize: 14, color: 'text.primary' }}>{message}</DialogContentText>
       {details && <DialogContentText sx={{ fontSize: 13, mt: 1 }}>{details}</DialogContentText>}
+      {children}
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
     </DialogContent>
     <DialogActions sx={{ p: 2 }}>

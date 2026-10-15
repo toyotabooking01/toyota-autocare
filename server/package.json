@@ -15,7 +15,8 @@
     "seed:demo": "node scripts/seed-demo.js",
     "seed:toyota": "node scripts/seed-toyota-catalog.js",
     "verify:toyota": "node scripts/verify-toyota-catalog.js",
-    "audit:toyota-images": "node scripts/audit-toyota-images.js"
+    "audit:toyota-images": "node scripts/audit-toyota-images.js",
+    "check:cloudinary": "node scripts/check-cloudinary.js"
   },
   "keywords": [],
   "author": "",
@@ -23,12 +24,15 @@
   "type": "commonjs",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.6",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.0",
-    "nodemailer": "^10.0.15"
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.15",
+    "pdfkit": "^0.17.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

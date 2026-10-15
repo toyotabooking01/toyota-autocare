@@ -1,4 +1,5 @@
 import { passwordError, MOBILE_PATTERN, MOBILE_HINT, CONSENT_HINT, registrationNameFields, REGISTRATION_MOBILE_HINT, canonicalPlateNumber } from '../../../shared/accountValidation.mjs'
+import { VEHICLE_YEAR_FLOOR, latestVehicleYear } from '../../../shared/vehicleYearRules.mjs'
 // Client form schemas; account policy comes from the shared browser-safe module.
 const text = (label, max, required = true) => ({ label, max, required })
 const number = (label, min, max, required = true, integer = true) => ({ label, min, max, required, number: true, integer })
@@ -27,10 +28,10 @@ export const schemas = {
     status: select('Account status', ['active', 'inactive']), availability: select('Availability', ['available', 'busy', 'off_duty']) },
   staff: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName,
     email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT } },
-  vehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', 1886, new Date().getUTCFullYear() + 1), variant: text('Variant', 120, false),
+  vehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', VEHICLE_YEAR_FLOOR, latestVehicleYear(true)), fourDigits: true }, variant: text('Variant', 120),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: number('Mileage', 0, 9999999, false) },
-  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', 1886, new Date().getUTCFullYear()), digits: true }, variant: text('Variant', 120, false),
+  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', VEHICLE_YEAR_FLOOR, latestVehicleYear(true)), fourDigits: true }, variant: text('Variant', 120),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: { ...number('Current mileage', 0, 9999999), digits: true } },
   service: { name: text('Name', 120), description: text('Description', 3000, false), estimatedDuration: number('Duration', 1, 525600),
@@ -67,6 +68,10 @@ export function validateForm(kind, values, { partial = false, browser = false, s
       continue
     }
     if (rule.number) {
+      if (browser && rule.fourDigits && typeof value === 'string' && !/^\d{4}$/.test(value)) {
+        errors[field] = `${rule.label} must be exactly 4 digits.`
+        continue
+      }
       const numeric = browser && typeof value === 'string' ? Number(value) : value
       if ((browser && rule.digits && typeof value === 'string' && !/^\d+$/.test(value))
         || typeof numeric !== 'number' || !Number.isFinite(numeric) || (rule.integer && !Number.isSafeInteger(numeric)) || numeric < rule.min || numeric > rule.max) {

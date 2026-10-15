@@ -1,4 +1,5 @@
 import { passwordError, MOBILE_PATTERN, MOBILE_HINT, CONSENT_HINT, registrationNameFields, REGISTRATION_MOBILE_HINT, canonicalPlateNumber } from '../../shared/accountValidation.mjs'
+import { VEHICLE_YEAR_FLOOR, latestVehicleYear } from '../../shared/vehicleYearRules.mjs'
 // API form schemas; account policy comes from the shared browser-safe module.
 const text = (label, max, required = true) => ({ label, max, required })
 const number = (label, min, max, required = true, integer = true) => ({ label, min, max, required, number: true, integer })
@@ -27,10 +28,10 @@ export const schemas = {
     status: select('Account status', ['active', 'inactive']), availability: select('Availability', ['available', 'busy', 'off_duty']) },
   staff: { firstName: registrationNameFields.firstName, lastName: registrationNameFields.lastName,
     email, phone: { ...phone, hint: REGISTRATION_MOBILE_HINT } },
-  vehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', 1886, new Date().getUTCFullYear() + 1), variant: text('Variant', 120, false),
+  vehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', VEHICLE_YEAR_FLOOR, latestVehicleYear(true)), variant: text('Variant', 120, false),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: number('Mileage', 0, 9999999, false) },
-  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', 1886, new Date().getUTCFullYear()), variant: text('Variant', 120, false),
+  clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: number('Year', VEHICLE_YEAR_FLOOR, latestVehicleYear(true)), variant: text('Variant', 120, false),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: number('Current mileage', 0, 9999999) },
   service: { name: text('Name', 120), description: text('Description', 3000, false), estimatedDuration: number('Duration', 1, 525600),

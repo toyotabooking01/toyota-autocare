@@ -14,6 +14,7 @@ const resourceAvailability = require('../services/resourceAvailabilityService');
 const walkIn = require('../services/newWalkInService');
 const toyotaCatalog = require('../services/toyotaCatalogService');
 const auth = require('../services/authService');
+const holds = require('../services/bookingHoldService');
 const { signAccessToken, verifyAccessToken } = require('../services/tokenService');
 const { validateForm } = require('../utils/formValidation.mjs');
 const id = () => String(new mongoose.Types.ObjectId());
@@ -23,6 +24,7 @@ const input = () => ({ customer: { firstName: 'Juan', middleName: '', lastName: 
   vehicle: { make: 'Toyota', model: 'Vios', year: 2025, variant: '1.3 XLE CVT', plateNumber: 'ABC1234', transmission: 'cvt', currentMileage: 0 }, services: [id()], schedule: id() });
 
 beforeEach(t => {
+  t.mock.method(holds, 'releaseExpired', async () => {});
   const oldSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = 'test-only-polish-b-secret-with-more-than-thirty-two-bytes';
   t.after(() => { if (oldSecret === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = oldSecret; });
@@ -75,7 +77,7 @@ function fixture(t, { full = false, failBooking = false, failVehicle = false, re
     assert.equal(session, activeSession); return { lean: async () => ({ date: '2099-05-12', timeSlot: '09:00', isEnabled: true }) };
   } }));
   t.mock.method(Schedule, 'findOneAndUpdate', async (filter, update, options) => {
-    sessionCheck(options); assert.deepEqual(filter.$expr.$lt, ['$currentBookingCount', '$maximumCapacity']);
+    sessionCheck(options); assert.deepEqual(filter.$expr, holds.capacityAvailable);
     if (full) return null;
     state.capacity += update.$inc.currentBookingCount; return { date: '2099-05-12', timeSlot: '09:00' };
   });

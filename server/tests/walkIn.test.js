@@ -10,9 +10,11 @@ const bookings = require('../services/bookingService');
 const toyotaCatalog = require('../services/toyotaCatalogService');
 const engagement = require('../services/engagementService');
 const resourceAvailability = require('../services/resourceAvailabilityService');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
 const originalRecordEvent = engagement.recordBookingEvent;
-before(() => { engagement.recordBookingEvent = async () => {}; });
-after(() => { engagement.recordBookingEvent = originalRecordEvent; });
+before(() => { engagement.recordBookingEvent = async () => {}; holds.releaseExpired = async () => {}; });
+after(() => { engagement.recordBookingEvent = originalRecordEvent; holds.releaseExpired = originalReleaseExpired; });
 
 const id = () => String(new mongoose.Types.ObjectId());
 const request = () => ({ client: id(), vehicle: id(), services: [id(), id()], schedule: id() });
@@ -75,7 +77,7 @@ test('client active-service lookup is ownership-scoped and includes every active
   try {
     const ids = await bookings.activeServiceIds(vehicleId, clientId);
     assert.equal(bookingFilter.vehicle, vehicleId); assert.equal(bookingFilter.client, clientId);
-    assert.deepEqual(bookingFilter.status.$in, ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release']);
+    assert.deepEqual(bookingFilter.status.$in, ['awaiting_downpayment', 'pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release']);
     assert.equal(ids.length, 2); assert.equal(new Set(ids).size, 2);
   } finally { Vehicle.exists = oldExists; Booking.find = oldFind; }
 });
@@ -119,7 +121,7 @@ test('online and walk-in calls use the same atomic reservation, with distinct fi
   Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
   Service.find = filter => ({ select: () => ({ session: () => ({ lean: async () => {
     assert.equal(filter.isActive, true); assert.equal(filter.isArchived, false);
-    return body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60 }));
+    return body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60, estimatedPrice: 1000 }));
   } }) }) });
   resourceAvailability.canFitBooking = async () => ({ available: true });
   Schedule.findById = () => ({ session: () => ({ lean: async () => ({ date: '2035-05-12', timeSlot: '09:00', isEnabled: true }) }) });
@@ -133,8 +135,8 @@ test('online and walk-in calls use the same atomic reservation, with distinct fi
     await bookings.create(body.client, { vehicle: body.vehicle, services: body.services, schedule: body.schedule });
     await bookings.createWalkIn(body, staffId);
     assert.deepEqual(reservations[0], reservations[1]);
-    assert.deepEqual(reservations[0].$expr.$lt, ['$currentBookingCount', '$maximumCapacity']);
-    assert.equal(created[0].bookingType, 'online'); assert.equal(created[0].status, 'pending');
+    assert.deepEqual(reservations[0].$expr, holds.capacityAvailable);
+    assert.equal(created[0].bookingType, 'online'); assert.equal(created[0].status, 'awaiting_downpayment');
     assert.equal(created[1].bookingType, 'walk-in'); assert.equal(created[1].status, 'checked_in');
     assert.equal(created[1].createdByStaff, staffId);
   } finally {

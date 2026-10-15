@@ -1,4 +1,8 @@
-const { test } = require('node:test');
+const { test, before, after } = require('node:test');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
+before(() => { holds.releaseExpired = async () => {}; });
+after(() => { holds.releaseExpired = originalReleaseExpired; });
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Schedule = require('../models/Schedule');

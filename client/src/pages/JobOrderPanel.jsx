@@ -13,6 +13,7 @@ import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import PersonOutlined from '@mui/icons-material/PersonOutlined'
 import BuildOutlined from '@mui/icons-material/BuildOutlined'
 import PaymentPanel from '../components/PaymentPanel'
+import AdditionalWorkPanel from '../components/AdditionalWorkPanel'
 import { releaseBlockReason } from '../utils/paymentRelease'
 
 const sectionIcon = Icon => <Icon sx={{ fontSize: 16, verticalAlign: '-3px', mr: .75, color: 'text.secondary' }} />
@@ -21,7 +22,7 @@ const nextAction = {
   mechanic_assigned: { role: 'mechanic', path: 'start', label: 'Start Service' },
   in_service: { role: 'mechanic', path: 'final-inspection', label: 'Mark for Final Inspection' },
   final_inspection: { role: 'staff', path: 'ready-for-release', label: 'Ready for Release' },
-  ready_for_release: { role: 'staff', path: 'complete', label: 'Complete Service' },
+  ready_for_release: { role: 'staff', path: 'complete', label: 'Release Vehicle' },
 }
 export default function JobOrderPanel({ job, role, onChanged, showHeader = true, compact = false }) {
   const confirm = useConfirmation()
@@ -34,6 +35,7 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
   const [paymentSummary, setPaymentSummary] = useState(null)
   const [duration, setDuration] = useState(String(job.estimatedDurationMinutes || job.booking?.estimatedDurationMinutes || ''))
   const [durationError, setDurationError] = useState('')
+  const [additionalUnresolved, setAdditionalUnresolved] = useState(null)
   const status = job.booking?.status
   const next = nextAction[status]
   const action = next && (role === 'admin' || next.role === role)
@@ -43,6 +45,7 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     ? !paymentSummary ? 'Loading authoritative payment summary.'
       : paymentSummary.payments?.some(item => item.stage === 'downpayment' && item.status === 'submitted')
         ? 'Verify or reject the submitted downpayment before marking ready for release.' : '' : ''
+  const readyWorkBlock = action?.path === 'ready-for-release' && additionalUnresolved !== false
   const editable = ['mechanic', 'admin'].includes(role) && status === 'in_service' && job.status === 'in_progress'
   const unsaved = editable && (notes !== (job.mechanicNotes || '') || JSON.stringify(checklist) !== JSON.stringify(job.serviceChecklist || []))
   const estimatedDuration = job.estimatedDurationMinutes || job.booking?.estimatedDurationMinutes
@@ -87,15 +90,26 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
   async function advance() {
     if (!action || saving || unsaved) return
     if (downpaymentBlock) { setError(downpaymentBlock); return }
+    if (readyWorkBlock) { setError('Resolve all additional work requests before final billing.'); return }
     if (action.path === 'complete' && releaseBlockReason(paymentSummary)) {
       setError(releaseBlockReason(paymentSummary))
+      return
+    }
+    if (action.path === 'final-inspection' && additionalUnresolved !== false) {
+      setError('Resolve all additional work requests before starting final inspection.')
       return
     }
     if (action.path === 'final-inspection' && checklistIncomplete) {
       setError('Complete and save all checklist items before final inspection.')
       return
     }
-    return confirm(`Are you sure you want to ${action.label.toLowerCase()}?`, async () => {
+    const vehicle = job.booking?.vehicle
+    const confirmation = action.path === 'complete'
+      ? { title: 'Release Vehicle?', message: 'This booking is fully paid and ready for release.',
+        details: `Vehicle: ${[vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(' ') || 'Not recorded'}. Plate: ${vehicle?.plateNumber || 'Not recorded'}. This will mark the booking as Completed.`,
+        confirmLabel: 'Release Vehicle', cancelLabel: 'Cancel' }
+      : `Are you sure you want to ${action.label.toLowerCase()}?`
+    return confirm(confirmation, async () => {
       setSaving(true); setError(''); setNotice('')
       try {
         const response = await api.post(`/job-orders/${job._id}/${action.path}`)
@@ -138,9 +152,13 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     {notice && <Alert severity="success">{notice}</Alert>}
     <DetailSection title="Job overview">
       <DetailInfo items={[
-        ['Job Order status', compact ? <StatusChip status={job.status === 'in_progress' ? status : job.status} /> : job.status?.replaceAll('_', ' ')],
+        ['Job Order status', compact ? <StatusChip status={job.status === 'in_progress' ? status : job.status} />
+          : job.status === 'in_progress' ? 'In Progress' : job.status === 'completed' ? 'Completed' : 'Pending'],
         ['Schedule', job.booking ? `${dateLabel(job.booking.bookingDate)} · ${job.booking.bookingTime}` : null],
         ['Assigned mechanic', job.mechanic?.fullName], ['Bay', job.serviceBay?.name],
+        ...(status === 'completed' ? [['Release Status', 'Vehicle Released'],
+          ...(job.booking?.releasedAt ? [['Released At', new Date(job.booking.releasedAt).toLocaleString()]] : []),
+          ...(job.booking?.releasedByRole ? [['Released By', `${job.booking.lastProcessedBy?.fullName || 'Service center'} (${job.booking.releasedByRole === 'admin' ? 'Admin' : 'Staff'})`]] : [])] : []),
       ]} />
       {compact && <Typography sx={{ mt: 1, fontSize: 11, color: 'text.secondary', overflowWrap: 'anywhere' }}>Job Order {job._id}</Typography>}
     </DetailSection>
@@ -167,6 +185,9 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     </DetailGrid>
     {job.booking?._id && ['staff', 'admin'].includes(role) && ['final_inspection', 'ready_for_release', 'completed'].includes(status) && <PaymentPanel bookingId={job.booking._id}
       bookingStatus={status} role={role} onSummary={setPaymentSummary} />}
+    {job.booking?._id && ['in_service', 'final_inspection', 'ready_for_release', 'completed'].includes(status)
+      && <AdditionalWorkPanel bookingId={job.booking._id} jobId={job._id} bookingStatus={status}
+        role={role} mechanicName={job.mechanic?.fullName} onUnresolvedChange={setAdditionalUnresolved} />}
     <DetailSection title="Service notes & checklist">
       <Box sx={compact ? { display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, .72fr) minmax(0, 1.28fr)' }, gap: { xs: 1.5, md: 2 }, alignItems: 'start' } : { display: 'grid', gap: 1.5 }}>
         <Box sx={{ minWidth: 0 }}>
@@ -180,13 +201,16 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     {job.activity?.length > 0 && compact && <Box component="details" sx={{ fontSize: 12, color: 'text.secondary', px: .5, '& summary': { cursor: 'pointer', width: 'fit-content' } }}><Box component="summary">Job activity</Box><Box sx={{ mt: 1 }}><DetailInfo items={job.activity.slice(-8).reverse().map(entry => [entry.action.replaceAll('_', ' ').replaceAll('-', ' '), `${entry.performedBy?.fullName || 'User'} (${entry.performedByRole}) · ${new Date(entry.performedAt).toLocaleString()}`])} /></Box></Box>}
     {action && unsaved && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Save notes and checklist changes before marking for final inspection.</Typography>}
     {action?.path === 'final-inspection' && checklistIncomplete && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Complete all checklist items and save your progress before final inspection.</Typography>}
+    {action?.path === 'final-inspection' && additionalUnresolved !== false && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{additionalUnresolved === null ? 'Checking additional work requests.' : 'Resolve all additional work requests before final inspection.'}</Typography>}
     {downpaymentBlock && <Typography role="status" sx={{ fontSize: 12, color: 'text.secondary' }}>{downpaymentBlock}</Typography>}
+    {readyWorkBlock && <Typography role="status" sx={{ fontSize: 12, color: 'text.secondary' }}>{additionalUnresolved === null
+      ? 'Checking additional work requests.' : 'Resolve all additional work requests before final billing.'}</Typography>}
     {action?.path === 'complete' && releaseBlockReason(paymentSummary) && <Typography role="status" sx={{ fontSize: 12, color: 'text.secondary' }}>{releaseBlockReason(paymentSummary)}</Typography>}
     {(canAdjustDuration || editable || action) && <Box sx={compact ? { '& .detail-footer': { mt: 0, pt: 2, pb: 1, gap: 1 } } : undefined}><DetailFooter>
       {canAdjustDuration && <Button variant="outlined" disabled={saving || !duration} onClick={saveDuration}>{saving ? <CircularProgress size={18} /> : 'Update estimate'}</Button>}
       {editable && <Button variant={action ? 'outlined' : 'contained'} disabled={saving} onClick={saveWork}>{saving ? <CircularProgress size={20} /> : 'Save notes & checklist'}</Button>}
-      {action && <Button variant="contained" disabled={saving || unsaved || Boolean(downpaymentBlock) || (action.path === 'final-inspection' && checklistIncomplete)
-        || (action.path === 'complete' && Boolean(releaseBlockReason(paymentSummary)))} onClick={advance}>{action.path === 'complete' ? 'Release Vehicle / Complete' : action.label}</Button>}
+      {action && <Button variant="contained" disabled={saving || unsaved || Boolean(downpaymentBlock) || readyWorkBlock || (action.path === 'final-inspection' && (checklistIncomplete || additionalUnresolved !== false))
+        || (action.path === 'complete' && Boolean(releaseBlockReason(paymentSummary)))} onClick={advance}>{action.label}</Button>}
     </DetailFooter></Box>}
   </Stack>
 }

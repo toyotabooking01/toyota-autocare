@@ -7,8 +7,8 @@ async function connectDatabase({ dbName } = {}) {
     return;
   }
 
-  // Use Cloudflare DNS to resolve Atlas SRV records on the local development environment.
-  dns.setServers(['1.1.1.1', '1.0.0.1']);
+  // Local Windows development needs alternate DNS for Atlas SRV records.
+  if (process.env.NODE_ENV !== 'production') dns.setServers(['1.1.1.1', '1.0.0.1']);
 
   await mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 10000,

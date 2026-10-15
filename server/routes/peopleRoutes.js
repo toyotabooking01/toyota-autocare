@@ -16,14 +16,29 @@ router.use((req, res, next) => {
 }, authenticate, authorize('admin', 'staff'));
 
 router.get('/staff', authorize('admin'), async (req, res) => {
-  const items = await User.find({ role: 'staff' }).select(staffAccounts.projection)
-    .sort({ createdAt: -1 }).lean();
+  const archive = req.query.archive || 'active';
+  if (!['active', 'archived', 'all'].includes(archive)) throw new HttpError(400, 'Invalid archive filter.');
+  const status = req.query.status || 'all';
+  if (!['all', 'active', 'inactive'].includes(status)) throw new HttpError(400, 'Invalid status filter.');
+  const search = req.query.search || '';
+  if (typeof search !== 'string' || search.length > 100) throw new HttpError(400, 'Invalid search.');
+  const filter = { role: 'staff', ...(archive === 'all' ? {} : { isArchived: archive === 'archived' }),
+    ...(status === 'all' ? {} : { status }) };
+  if (search.trim()) {
+    const pattern = { $regex: search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+    filter.$or = ['firstName', 'lastName', 'fullName', 'staffId', 'email', 'phone']
+      .map(field => ({ [field]: pattern }));
+  }
+  const result = await require('../utils/pagination').listPage(User, filter, req.query,
+    () => User.find(filter).select(staffAccounts.projection).sort({ createdAt: -1, _id: -1 }));
+  const items = Array.isArray(result) ? result : result.items;
   const activity = items.length ? await Booking.aggregate([
     { $match: { lastProcessedBy: { $in: items.map(item => item._id) } } },
     { $group: { _id: '$lastProcessedBy', processedBookings: { $sum: 1 } } },
   ]) : [];
   const counts = new Map(activity.map(item => [String(item._id), item.processedBookings]));
-  res.json({ items: items.map(item => ({ ...item, processedBookings: counts.get(String(item._id)) || 0 })) });
+  res.json({ ...(Array.isArray(result) ? {} : result),
+    items: items.map(item => ({ ...item, processedBookings: counts.get(String(item._id)) || 0 })) });
 });
 router.get('/staff/next-id', authorize('admin'), async (req, res) => {
   res.json({ staffId: await staffAccounts.previewNextStaffId() });
@@ -50,7 +65,7 @@ router.get('/customers', async (req, res) => {
   const search = String(req.query.search || '').trim();
   if (search.length > 100) throw new HttpError(400, 'Invalid search.');
   const pattern = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-  const filter = { role: 'client', ...(search ? { $or: [{ fullName: pattern }, { email: pattern }, { contactEmail: pattern }, { phone: pattern }] } : {}) };
+  const filter = { role: 'client', isArchived: false, ...(search ? { $or: [{ fullName: pattern }, { email: pattern }, { contactEmail: pattern }, { phone: pattern }] } : {}) };
   const items = await User.find(filter).select('fullName email contactEmail phone status isArchived isWalkInCustomer').sort({ fullName: 1 }).limit(100).lean();
   res.json({ items: items.map(item => ({ ...item, email: item.isWalkInCustomer ? item.contactEmail || '' : item.email,
     contactEmail: undefined })) });

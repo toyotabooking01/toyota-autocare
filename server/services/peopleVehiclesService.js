@@ -5,14 +5,13 @@ const temporaryPassword = require('../utils/temporaryPassword');
 const User = require('../models/User');
 const Counter = require('../models/Counter');
 const Vehicle = require('../models/Vehicle');
-const JobOrder = require('../models/JobOrder');
-const Booking = require('../models/Booking');
 const authValidation = require('../utils/authValidation');
 const emailService = require('./emailService');
 const toyotaCatalog = require('./toyotaCatalogService');
 const { normalizeMobile } = require('../../shared/accountValidation.mjs');
 const HttpError = require('../utils/HttpError');
 const { canonicalPlateNumber } = require('../../shared/accountValidation.mjs');
+const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.mjs');
 const { duplicatePlateFilter, duplicatePlateError } = require('../utils/plateNumbers');
 
 const mechanicFields = ['fullName', 'firstName', 'lastName', 'email', 'phone', 'specialization', 'status', 'availability'];
@@ -20,7 +19,6 @@ const mechanicCreationFields = ['firstName', 'lastName', 'email', 'phone'];
 const vehicleFields = ['make', 'model', 'year', 'variant', 'plateNumber', 'transmission', 'currentMileage'];
 const mechanicProjection = 'firstName lastName fullName email phone role employeeId specialization status availability emailVerified isArchived archivedAt createdAt updatedAt';
 const availabilityValues = ['available', 'busy', 'off_duty'];
-const unfinishedBookings = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release'];
 
 function object(raw, allowed) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Object.keys(raw).length
@@ -80,11 +78,13 @@ function vehicleInput(raw, create = false, clientForm = false, { legacy = false,
   if (data.make && data.make.toLowerCase() !== 'toyota' && !legacy) throw new HttpError(400, 'Only Toyota vehicles are supported.', { make: 'Select Toyota.' });
   if (data.make?.toLowerCase() === 'toyota') data.make = 'Toyota';
   if (data.model) data.model = toyotaCatalog.normalizeModel(data.model);
+  if (!legacy && (create || 'variant' in body) && (typeof body.variant !== 'string' || !body.variant.trim()))
+    throw new HttpError(400, 'Variant is required.', { variant: 'Variant is required.' });
   if ('variant' in body || create) data.variant = body.variant?.trim()
     ? requiredText(body.variant, 'Variant', 120) : null;
   if ('year' in body) {
-    const latestYear = new Date().getUTCFullYear() + (clientForm ? 0 : 1);
-    if (!Number.isInteger(body.year) || body.year < 1886 || body.year > latestYear) throw new HttpError(400, 'Invalid vehicle year.');
+    const latestYear = latestVehicleYear(true);
+    if (!Number.isInteger(body.year) || body.year < VEHICLE_YEAR_FLOOR || body.year > latestYear) throw new HttpError(400, 'Invalid vehicle year.');
     data.year = body.year;
   } else if (create) throw new HttpError(400, 'Year is required.');
   if ('plateNumber' in body) {
@@ -216,25 +216,8 @@ async function mechanicUpdate(rawId, raw) {
   await item.save();
   return mechanicGet(id);
 }
-async function mechanicArchive(rawId, archived) {
-  const id = recordId(rawId);
-  const item = await User.findOne({ _id: id, role: 'mechanic' });
-  if (!item) throw new HttpError(404, 'Mechanic not found.');
-  if (item.isArchived !== archived) {
-    if (archived) {
-      const [job, booking] = await Promise.all([
-        JobOrder.exists({ mechanic: id, status: { $in: ['pending', 'in_progress'] } }),
-        Booking.exists({ assignedMechanic: id, status: { $in: unfinishedBookings } }),
-      ]);
-      if (job || booking) throw new HttpError(409, 'Mechanic has unfinished assigned work and cannot be archived.');
-    }
-    item.isArchived = archived;
-    item.archivedAt = archived ? new Date() : null;
-    if (archived) item.availability = 'off_duty';
-    await item.save();
-    await require('./engagementService').recordAccountEvent(item, archived ? 'disabled' : 'enabled');
-  }
-  return mechanicGet(id);
+async function mechanicArchive(rawId, archived, actor, body = {}) {
+  return require('./archiveService').user(rawId, archived, actor, body, 'mechanic');
 }
 async function vehicleList(ownerId, query) {
   const filter = { owner: ownerId, ...archiveFilter(query) };
@@ -254,7 +237,7 @@ async function vehicleCreate(ownerId, raw) {
   const data = vehicleInput(raw, true, true);
   const entry = await toyotaCatalog.validateSelection(data);
   await checkPlate(data.plateNumber);
-  return Vehicle.create({ ...data, owner: ownerId, catalogEntry: entry._id });
+  return Vehicle.create({ ...data, owner: ownerId, catalogEntry: entry?._id || null });
 }
 async function vehicleUpdate(ownerId, rawId, raw) {
   const id = recordId(rawId);
@@ -266,21 +249,12 @@ async function vehicleUpdate(ownerId, rawId, raw) {
     && data.variant === item.variant && data.transmission === item.transmission;
   if (!legacy && !identityUnchanged) {
     const entry = await toyotaCatalog.validateSelection(data);
-    data.catalogEntry = entry._id;
+    data.catalogEntry = entry?._id || null;
   }
   await checkPlate(data.plateNumber, id, item.plateNumber);
   item.$locals = { ...item.$locals, existingPlate: item.plateNumber };
   Object.assign(item, data);
   return item.save();
 }
-async function vehicleArchive(ownerId, rawId, archived) {
-  const item = await ownVehicle(ownerId, rawId);
-  if (item.isArchived !== archived) {
-    item.isArchived = archived;
-    item.archivedAt = archived ? new Date() : null;
-    await item.save();
-  }
-  return item;
-}
 module.exports = { mechanicInput, vehicleInput, mechanicList, mechanicGet, mechanicCreate, mechanicUpdate, previewMechanicId, nextMechanicEmployeeId,
-  mechanicArchive, vehicleList, vehicleGet, vehicleCreate, vehicleUpdate, vehicleArchive };
+  mechanicArchive, vehicleList, vehicleGet, vehicleCreate, vehicleUpdate };

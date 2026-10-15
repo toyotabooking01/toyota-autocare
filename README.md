@@ -1,137 +1,80 @@
 # Toyota AutoCare
 
-Toyota AutoCare is a university MERN project for vehicle service booking and
-workshop operations. React, MUI, React Router, and Axios run in `client/`;
-Express, CommonJS, Mongoose, and MongoDB Atlas run in `server/`.
+Toyota AutoCare is a MERN application for vehicle service booking, workshop operations, billing, and after-sales records. It is a release candidate pending final manual QA.
 
-## Prerequisites
+## Technology stack
 
-- Node.js 24 LTS and npm
-- A MongoDB Atlas cluster, database user, and network access for your IP
-- Two terminals for the backend and frontend
-- Mailjet SMTP credentials and a verified sender for registration and password recovery
+- Client: React, Vite, React Router, MUI, Axios
+- API: Node.js, Express, MongoDB with Mongoose
+- Integrations: Cloudinary for uploaded images and financial PDFs; Nodemailer with SMTP for OTP and document email
 
-## Server setup
+## Roles and features
+
+| Role | Main capabilities |
+| --- | --- |
+| Client | Dashboard, vehicles, online booking, bookings, additional-work decisions, service history, maintenance reminders, profile and settings |
+| Staff | Operational bookings, walk-ins, check-in, payment verification, additional-work pricing review, job coordination, transactions, vehicle release |
+| Mechanic | Assigned jobs, active work, notes and checklist, additional-work requests, recording approved work as performed |
+| Admin | Dashboards and monitoring, Staff and Mechanic actions, customers and vehicles, services, schedules, bays, reports, archive |
+
+Unified login, role access, OTP recovery, and temporary-password change support the account flows. Role-specific navigation is defined in `client/src/app/navigation.js`; account settings are available through the profile menu.
+
+## Core workflow
+
+Online booking moves through Vehicle → Services → Date & Time → Review → Downpayment → Confirmation. Submitting proof does not reserve a slot. Staff/Admin verification of the required 50% downpayment moves a booking from `awaiting_downpayment` to `pending` and establishes its official reservation. Staff then confirm and check in the vehicle. A Mechanic performs the service and may request additional work; Client approval and recorded performance are required before that work enters final billing. Final inspection leads to Ready for Release, where the final invoice total is locked. Verified final payments reduce the balance. Full payment makes the vehicle eligible for release; Staff/Admin must explicitly release it to complete the booking. Service history and maintenance reminders follow the completed service.
+
+Financial documents are distinct immutable snapshots: Downpayment Receipt after verified downpayment, Final Service Invoice at billing lock, Final Payment Receipt after a verified final payment, and Full Payment Receipt once the locked total is fully paid. Submitted or rejected payments have no receipt. Archived records are soft archived; historical bookings, payments, receipts, invoices, and job orders remain available.
+
+See [System Overview](docs/SYSTEM_OVERVIEW.md) for the state and document map.
+
+## Project structure
+
+- `client/`: React app, pages, components, API client, and Vercel SPA rewrite
+- `server/`: Express routes, controllers, services, models, scripts, and checks
+- `shared/`: shared project assets and reference data
+- `docs/`: architecture, manual QA checklist, and release notes
+
+## Local setup
+
+Use Node.js 24 LTS and npm, a reachable MongoDB database, and two terminals. Run these commands from the repository root:
 
 ```powershell
 cd server
 npm ci
-Copy-Item .env.example .env  # Only if .env does not already exist
+Copy-Item .env.example .env  # Only if .env does not exist
+# Set local values in .env, then:
 npm run dev
 ```
-
-Configure `server/.env` before starting. The server loads that file regardless of
-the terminal's working directory. Store real secrets there; it is ignored by Git.
-Set `MONGO_URI` to the Atlas connection string, including the application database
-name. The local Windows setup uses Cloudflare DNS for Atlas SRV lookups. Set
-`JWT_SECRET` and `OTP_HASH_SECRET` to independent random values of at least 32
-bytes. `PORT` defaults to `5000`; `CLIENT_ORIGIN` defaults to
-`http://localhost:5173`. `GET /` and `GET /api/health` show database status.
-
-Registration and password recovery use Nodemailer SMTP when email delivery is
-enabled. For Mailjet, configure `SMTP_HOST=in-v3.mailjet.com`, `SMTP_PORT=465`,
-`SMTP_SECURE=true`, `SMTP_USER` with the Mailjet API key, `SMTP_PASS` with the
-Mailjet Secret key, and `EMAIL_FROM` with a verified Mailjet sender.
-
-For registration, set the following in `server/.env`:
-
-```ini
-NODE_ENV=development
-EMAIL_DELIVERY_ENABLED=true
-```
-
-Newly registered clients remain unverified until they enter the six-digit OTP
-sent through Mailjet. Successful registration opens the OTP verification page;
-login is allowed only after verification. This also applies in development,
-and the old `DEV_AUTO_VERIFY_EMAIL` setting no longer bypasses verification.
-If delivery fails, the account stays unverified; fix delivery and use the
-verification/resend link. No OTP or password is exposed in API responses.
-
-## Client setup
 
 ```powershell
 cd client
 npm ci
-Copy-Item .env.example .env  # Optional, only if .env does not already exist
+Copy-Item .env.example .env.local  # Only if .env.local does not exist
 npm run dev
 ```
 
-Open `http://localhost:5173`. `VITE_API_URL` defaults to
-`http://localhost:5000/api`; set it in `client/.env` if the API origin changes.
-All `VITE_` values are public browser configuration, so never put secrets there.
-Restart Vite after changing its environment file. If Vite uses another port,
-update `CLIENT_ORIGIN` in `server/.env` and restart the server.
+The API defaults to port 5000 and the Vite app to port 5173. `GET /api/health` checks the API process. Use `npm run seed:toyota` in `server/` explicitly to populate the Toyota catalog and diagnostic service; `npm run verify:toyota` and `npm run audit:toyota-images` inspect that data. `npm run check:cloudinary` pings the configured Cloudinary account. `npm run bootstrap:admin` creates the first Admin using `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PHONE`, and `BOOTSTRAP_ADMIN_PASSWORD` supplied locally. It refuses an existing Admin. `npm run bootstrap:dev-users` and `npm run seed:demo` are development-only opt-in scripts that require `NODE_ENV=development` and locally supplied `DEV_ADMIN_*` and `DEV_MECHANIC_*` account values; the demo seed also requires `DEMO_CLIENT_*` and creates demo vehicles, services, bays, and schedules. It creates no bookings or job orders. Existing eligible demo data is kept when rerun. No seed runs at API startup. The development Admin email used by the dev bootstrap is `admin@toyota.com`; its password is configured locally or provided separately. Never reuse demo credentials in production.
 
-On Windows PowerShell installations that block `npm.ps1`, use `npm.cmd` in place
-of `npm` for these commands.
+## Environment variables
 
-## Development users and demo data
+Copy the examples in `server/.env.example` and `client/.env.example`; they contain no credentials. Keep real values in ignored local files or the host's secret settings.
 
-Public registration creates **Client** accounts only. For development Admin
-and Mechanic accounts, set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`,
-`DEV_MECHANIC_EMAIL`, and `DEV_MECHANIC_PASSWORD` in `server/.env`, then run:
+| Scope | Variables |
+| --- | --- |
+| Server secrets | `MONGO_URI`, `JWT_SECRET`, `OTP_HASH_SECRET`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_API_KEY`, `SMTP_USER`, `SMTP_PASS`, optional `CARAPI_TOKEN`, `BOOTSTRAP_ADMIN_PASSWORD`, `DEV_ADMIN_PASSWORD`, `DEV_MECHANIC_PASSWORD`, `DEMO_CLIENT_PASSWORD` |
+| Server configuration | `NODE_ENV`, `PORT`, `CLIENT_ORIGIN`, `JWT_EXPIRES_IN`, `OTP_EXPIRY_MINUTES`, `CLOUDINARY_CLOUD_NAME`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `EMAIL_FROM`, `EMAIL_DELIVERY_ENABLED`, `EMAIL_DIAGNOSTICS`, `OTHER_SERVICE_ESTIMATED_DURATION_MINUTES`, `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PHONE`, `DEV_ADMIN_EMAIL`, `DEV_MECHANIC_EMAIL`, `DEMO_CLIENT_EMAIL` |
+| Client public | `VITE_API_URL` only; it must point to the API `/api` base URL |
 
-```powershell
-cd server
-npm run bootstrap:dev-users
-```
+Do not put secrets in any `VITE_*` variable. Use independent random values of at least 32 bytes for the JWT and OTP secrets. Cloudinary stores payment proofs, service evidence, and generated financial PDFs. SMTP sends OTP, temporary account credentials where applicable, and financial documents.
 
-Passwords must be at least 12 characters and at most 72 UTF-8 bytes. The
-bootstrap is development-only, verified/active, and does not overwrite an
-existing email. `npm run bootstrap:admin` is a separate one-time initial-Admin
-option described in [authentication documentation](docs/authentication.md).
+## Production deployment
 
-For presentation data, also set `DEMO_CLIENT_EMAIL` and
-`DEMO_CLIENT_PASSWORD`, then run:
+Deploy `server/` as a persistent Node service with `npm ci` and `npm start`, a production MongoDB URI, independent auth secrets, and an exact HTTPS `CLIENT_ORIGIN`. Set the Cloudinary and SMTP variables for their respective functions. Production startup validates required database, origin, and auth configuration; it does not seed data. Run catalog seed or first Admin bootstrap separately when needed.
 
-```powershell
-cd server
-npm run seed:demo
-```
+Deploy `client/` as a Vite build, for example on Vercel with root directory `client/`, build command `npm run build`, and output directory `dist`. Set the public `VITE_API_URL` to the deployed backend's HTTPS `/api` URL at build time. `client/vercel.json` rewrites SPA routes to `index.html`. Keep the backend origin and the client API URL aligned, then check `/api/health`, login, a deep link, uploads, and email in the deployed environment.
 
-The development-only seed creates missing Admin, Mechanic, and Client accounts,
-a Toyota vehicle, three services, two service bays, and six future schedule
-slots. It keeps existing matching records and refuses conflicting or ineligible
-ones; rerunning it does not reset records. It never creates Bookings, Job Orders,
-notifications, or payment data. Use the Client and Admin UI to create the
-transactions you want to show. **Do not run demo seeding in production.**
+## Security and release checks
 
-## Roles and core workflow
+The API enforces role and ownership checks, server-authoritative financial totals, payment verification, archive constraints, and upload validation. Browser navigation is presentation only. Keep `.env` files untracked and protect production secrets in the hosting environment.
 
-- **Client:** register/login, add a vehicle, select one or more services and an
-  available schedule, submit an online Booking, view or cancel eligible
-  Bookings, read notifications, and view maintenance recommendations.
-- **Admin:** manage services, bays, mechanics, and schedules; confirm online
-  Bookings or create Walk-In Bookings; check in a Client; assign an eligible
-  Mechanic and Bay; review Job Orders; approve final inspection, release, and
-  completion; view reminders and operational reports.
-- **Mechanic:** see only assigned Job Orders, start service, save notes and
-  checklist items, and submit the work for final inspection.
-
-The demo menu shows working sections only. Planned Profile, Archive, dedicated
-Service History, and dedicated Completed Jobs pages remain outside this release;
-completed visits are still visible in My Bookings and My Jobs.
-
-The normal Booking path is `pending → confirmed → checked_in →
-mechanic_assigned → in_service → final_inspection → ready_for_release →
-completed`. Assignment creates one Job Order per Booking. Completion keeps
-history, releases the Mechanic and Bay, and creates configured maintenance
-reminders. Online and Walk-In Bookings share atomic schedule capacity logic.
-No payment collection or financial ledger is implemented; report price totals
-are estimates based on current Service catalog prices.
-
-## Checks and documentation
-
-```powershell
-cd server
-npm test
-cd ../client
-npm run build
-npm run lint
-```
-
-Backend tests are offline. Atlas integration scripts are separate, explicit
-commands; they use disposable databases and are not needed for routine UI
-development. See the [API contract](docs/api-contract.md),
-[model rules](docs/model-relationships.md), and
-[authentication details](docs/authentication.md) for implementation notes.
+Implementation is frozen for manual review. Follow the [Manual Test Checklist](docs/MANUAL_TEST_CHECKLIST.md) and record deployment findings in [Release Candidate Notes](docs/RELEASE_CANDIDATE.md). Historical phase documents in `docs/` are retained as design context; use the System Overview for current behavior.

@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const MaintenanceReminder = require('../models/MaintenanceReminder');
 const Service = require('../models/Service');
+const AdditionalWorkRequest = require('../models/AdditionalWorkRequest');
 const User = require('../models/User');
+const Vehicle = require('../models/Vehicle');
 const HttpError = require('../utils/HttpError');
 
 const eventContent = {
@@ -16,7 +18,7 @@ const eventContent = {
   mechanic_assigned: ['Mechanic assigned', 'A mechanic has been assigned to your vehicle.'],
   in_service: ['Service started', 'Service on your vehicle has started.'],
   final_inspection: ['Final inspection', 'Your vehicle is undergoing final inspection.'],
-  ready_for_release: ['Ready for release', 'Your vehicle is ready for release.'],
+  ready_for_release: ['Final service invoice ready', 'Review your final invoice and remaining balance. Payment must be verified before vehicle release.'],
   completed: ['Service completed', 'Your service has been completed.'],
   no_show: ['Booking marked No Show', 'Your booking was marked as a no show.'],
 };
@@ -27,6 +29,8 @@ function id(raw) {
 async function recordNotification(session, { user, eventKey, title, message, type, bookingId, jobOrderId,
   paymentId, vehicleId, serviceBayId, maintenanceReminderId, relatedUserId, path }) {
   if (!user) return;
+  const recipient = User.findOne({ _id: user, status: 'active', isArchived: false }).select('_id');
+  if (!await (session ? recipient.session(session) : recipient).lean()) return;
   try {
     await Notification.updateOne({ eventKey }, { $setOnInsert: {
       user, eventKey, title, message, type, bookingId, jobOrderId, paymentId, vehicleId, serviceBayId,
@@ -91,7 +95,7 @@ async function recordBookingEvent(session, booking, status, options = {}) {
     cancelled: ['Booking cancelled', 'A booking was cancelled and the schedule has changed.'],
     rescheduled: ['Booking rescheduled', 'A booking schedule has changed.'],
     final_inspection: ['Final inspection complete', 'A job is ready for release review.'],
-    ready_for_release: ['Vehicle ready for release', 'A vehicle is ready for release processing.'],
+    ready_for_release: ['Final billing ready', 'A vehicle has reached final billing. Verify full payment before release.'],
   }[status];
   if (staffMessage && !(status === 'cancelled' && options.actorRole === 'staff')) {
     for (const staff of await activeStaff(session)) {
@@ -109,37 +113,82 @@ async function recordBookingEvent(session, booking, status, options = {}) {
     }
   }
 }
+async function recordDownpaymentOutcome(session, booking, payment, decision, actor) {
+  const verified = decision === 'verified';
+  const related = { type: 'payment', bookingId: booking._id, paymentId: payment._id,
+    vehicleId: booking.vehicle, relatedUserId: booking.client };
+  await recordNotification(session, { user: booking.client, eventKey: `payment:${payment._id}:${decision}:client`,
+    title: verified ? 'Downpayment verified' : 'Downpayment rejected',
+    message: verified
+      ? 'Your downpayment was verified and your selected schedule is now reserved. Your booking is awaiting confirmation.'
+      : 'Your payment proof needs correction. The selected schedule remains held for 15 minutes while you submit a new proof.',
+    path: '/client/bookings', ...related });
+  if (!verified) return;
+  for (const [role, users] of [['staff', await activeStaff(session)], ['admin', await activeAdmins(session)]]) {
+    for (const user of users) {
+      if (String(user._id) === String(actor._id)) continue;
+      await recordNotification(session, { user: user._id,
+        eventKey: `booking:${booking._id}:pending:${role}:${user._id}`,
+        title: 'Booking awaiting confirmation',
+        message: 'A verified downpayment has reserved a schedule. This booking is awaiting confirmation.',
+        type: 'booking', bookingId: booking._id, vehicleId: booking.vehicle,
+        relatedUserId: booking.client, path: `/${role}/bookings` });
+    }
+  }
+}
 async function updateReminders(session, booking, completedAt) {
-  const services = await Service.find({ _id: { $in: booking.services } })
-    .select('_id maintenanceReminderInterval').session(session).lean();
+  const performed = await AdditionalWorkRequest.find({ booking: booking._id, status: 'performed', clientDecision: 'approved' })
+    .select('approvedItems').session(session).lean();
+  const serviceIds = [...new Set([...booking.services.map(String), ...performed.flatMap(request =>
+    (request.approvedItems || []).filter(item => item.kind === 'service' && item.serviceId).map(item => String(item.serviceId)))])];
+  const services = await Service.find({ _id: { $in: serviceIds } })
+    .select('_id name maintenanceReminderInterval maintenanceIntervalKm').session(session).lean();
   for (const service of services) {
     const filter = { client: booking.client, vehicle: booking.vehicle, service: service._id };
-    if (service.maintenanceReminderInterval == null) {
+    if (service.maintenanceReminderInterval == null && service.maintenanceIntervalKm == null) {
       await MaintenanceReminder.updateOne({ ...filter, status: { $in: ['pending', 'sent'] } },
         { $set: { status: 'completed' } }, { session });
       continue;
     }
-    const next = new Date(completedAt);
-    next.setUTCDate(next.getUTCDate() + service.maintenanceReminderInterval);
+    const next = service.maintenanceReminderInterval == null ? null : new Date(completedAt);
+    if (next) next.setUTCDate(next.getUTCDate() + service.maintenanceReminderInterval);
+    const mileage = Number.isSafeInteger(booking.serviceMileage) ? booking.serviceMileage : null;
+    const nextMileage = mileage == null || service.maintenanceIntervalKm == null ? null : mileage + service.maintenanceIntervalKm;
+    if (next == null && nextMileage == null) continue;
+    const old = await MaintenanceReminder.findOne(filter).session(session);
+    if (old?.sourceBooking && String(old.sourceBooking) === String(booking._id)) continue;
+    if (old && old.lastServiceDate > completedAt) continue;
+    if (old) await Notification.updateMany({ maintenanceReminderId: old._id, isRead: false },
+      { $set: { isRead: true } }, { session });
+    const previousRecommendations = old ? [...(old.previousRecommendations || []), {
+      sourceBooking: old.sourceBooking, lastServiceDate: old.lastServiceDate,
+      nextRecommendedServiceDate: old.nextRecommendedServiceDate, lastServiceMileage: old.lastServiceMileage,
+      nextRecommendedMileage: old.nextRecommendedMileage, status: 'superseded', supersededAt: completedAt,
+    }] : [];
     const reminder = await MaintenanceReminder.findOneAndUpdate(filter, { $set: {
-      lastServiceDate: completedAt, nextRecommendedServiceDate: next, status: 'pending',
+      sourceBooking: booking._id, lastServiceDate: completedAt, lastServiceMileage: mileage,
+      nextRecommendedServiceDate: next, nextRecommendedMileage: nextMileage,
+      status: 'pending', notifiedAt: null, previousRecommendations,
     } }, { upsert: true, returnDocument: 'after', session });
     if (reminder?._id) await recordNotification(session, {
-      user: booking.client, eventKey: `reminder:${reminder._id}:${next.toISOString()}:created`,
-      title: 'New maintenance reminder', message: 'Your next recommended service date has been scheduled.',
+      user: booking.client, eventKey: `reminder:${booking._id}:${service._id}:created`,
+      title: 'Maintenance recommendation', message: `Your next ${service.name} service has a recommendation based on its configured interval.`,
       type: 'maintenance_reminder', vehicleId: booking.vehicle, maintenanceReminderId: reminder._id,
       relatedUserId: booking.client,
     });
   }
 }
 async function syncDueReminders(user) {
-  if (user.role !== 'client') return;
+  if (user.role !== 'client' || user.isArchived || user.status !== 'active') return;
   const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const soon = new Date(`${today}T00:00:00+08:00`);
   soon.setUTCDate(soon.getUTCDate() + 8);
   const due = await MaintenanceReminder.find({ client: user._id, status: { $in: ['pending', 'sent'] },
     nextRecommendedServiceDate: { $lt: soon } }).select('_id client vehicle nextRecommendedServiceDate').lean();
+  const activeVehicles = new Set((await Vehicle.find({ _id: { $in: due.map(item => item.vehicle) }, isArchived: false })
+    .select('_id').lean()).map(item => String(item._id)));
   for (const reminder of due) {
+    if (!activeVehicles.has(String(reminder.vehicle))) continue;
     const date = new Date(new Date(reminder.nextRecommendedServiceDate).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const stage = date < today ? 'overdue' : date === today ? 'today' : 'soon';
     const content = { soon: ['Maintenance due soon', 'A recommended service is due soon.'],
@@ -148,6 +197,7 @@ async function syncDueReminders(user) {
     await recordNotification(null, { user: user._id, eventKey: `reminder:${reminder._id}:${date}:${stage}`,
       title: content[0], message: content[1], type: 'maintenance_reminder',
       vehicleId: reminder.vehicle, maintenanceReminderId: reminder._id, relatedUserId: user._id });
+    await MaintenanceReminder.updateOne({ _id: reminder._id, notifiedAt: null }, { $set: { notifiedAt: new Date(), status: 'sent' } });
   }
 }
 async function notifications(userId) {
@@ -172,11 +222,17 @@ async function markAllRead(userId) {
 }
 async function reminders(clientId, query = {}) {
   const filter = clientId ? { client: clientId } : {};
-  return require('../utils/pagination').listPage(MaintenanceReminder, filter, clientId ? {} : query, () => MaintenanceReminder.find(filter)
+  const result = await require('../utils/pagination').listPage(MaintenanceReminder, filter, clientId ? {} : query, () => MaintenanceReminder.find(filter)
     .sort({ nextRecommendedServiceDate: 1, _id: 1 })
-    .populate([{ path: 'vehicle', select: 'make model year plateNumber' },
-      { path: 'service', select: 'name maintenanceReminderInterval' },
+    .populate([{ path: 'vehicle', select: 'make model year plateNumber currentMileage isArchived' },
+      { path: 'service', select: 'name maintenanceReminderInterval maintenanceIntervalKm isActive isArchived' },
       { path: 'client', select: 'fullName' }]));
+  const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const display = item => ({ ...item, displayStatus: item.status === 'completed' || item.status === 'dismissed' ? item.status
+    : (item.nextRecommendedServiceDate && new Date(new Date(item.nextRecommendedServiceDate).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) <= today)
+      || (item.nextRecommendedMileage != null && Number.isFinite(item.vehicle?.currentMileage) && item.vehicle.currentMileage >= item.nextRecommendedMileage)
+      ? 'due' : 'upcoming' });
+  return Array.isArray(result) ? result.map(display) : { ...result, items: result.items.map(display) };
 }
-module.exports = { recordNotification, recordBookingEvent, recordAccountEvent, recordBayProblem, updateReminders, syncDueReminders,
+module.exports = { recordNotification, recordBookingEvent, recordDownpaymentOutcome, recordAccountEvent, recordBayProblem, updateReminders, syncDueReminders,
   notifications, unreadCount, markRead, markAllRead, reminders };

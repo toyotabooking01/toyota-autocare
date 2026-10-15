@@ -1,7 +1,7 @@
 const Booking = require('../models/Booking');
 const scheduleService = require('./scheduleService');
 
-const statuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
+const statuses = ['awaiting_downpayment', 'pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service',
   'final_inspection', 'ready_for_release', 'completed', 'cancelled', 'rejected', 'no_show'];
 
 function range(query = {}) {
@@ -37,7 +37,8 @@ function summarize(bookings, selectedRange) {
       item.bookings++;
       if (booking.status === 'completed') {
         item.completed++; completedServices++;
-        completedEstimate += Number(service.estimatedPrice || 0);
+        completedEstimate += (booking.estimatedServiceItems || []).filter(item => String(item.serviceId) === key)
+          .reduce((sum, item) => sum + Number(item.priceCents || 0), 0) / 100;
       }
       services.set(key, item);
     }
@@ -70,8 +71,8 @@ function summarize(bookings, selectedRange) {
 async function summary(query) {
   const selectedRange = range(query);
   const bookings = await Booking.find({ bookingDate: { $gte: selectedRange.from, $lte: selectedRange.to } })
-    .select('bookingDate status bookingType services assignedMechanic assignedServiceBay lastProcessedBy')
-    .populate([{ path: 'services', select: 'name estimatedPrice' },
+    .select('bookingDate status bookingType services estimatedServiceItems assignedMechanic assignedServiceBay lastProcessedBy')
+    .populate([{ path: 'services', select: 'name' },
       { path: 'assignedMechanic', select: 'fullName' },
       { path: 'lastProcessedBy', select: 'fullName' },
       { path: 'assignedServiceBay', select: 'name' }]).lean();

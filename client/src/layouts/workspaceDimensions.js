@@ -5,3 +5,7 @@ export const fullWorkspaceWidth = {
   width: '100%', maxWidth: 'none', minWidth: 0, boxSizing: 'border-box',
 }
 export const workspaceCardWidth = { ...fullWorkspaceWidth, maxWidth: '100%' }
+export const formWorkspaceGrid = {
+  display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' },
+  gap: 2, minWidth: 0,
+}

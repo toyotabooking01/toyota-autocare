@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { pagination, listPage, listResponse } = require('../utils/pagination');
 const master = require('../services/masterDataService');
@@ -7,6 +7,10 @@ const schedules = require('../services/scheduleService');
 const bookings = require('../services/bookingService');
 const jobs = require('../services/jobOrderService');
 const engagement = require('../services/engagementService');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
+before(() => { holds.releaseExpired = async () => {}; });
+after(() => { holds.releaseExpired = originalReleaseExpired; });
 const models = Object.fromEntries(['Service', 'ServiceBay', 'User', 'Schedule', 'Booking', 'JobOrder', 'MaintenanceReminder'].map(name => [name, require(`../models/${name}`)]));
 
 test('pagination is opt-in, defaults missing arguments, and bounds page size', () => {

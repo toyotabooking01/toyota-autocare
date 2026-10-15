@@ -50,9 +50,9 @@ export function DetailGrid({ children }) {
   return <Box className="detail-grid" sx={{ ...fullWidth, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, '& > :only-child': { gridColumn: '1 / -1' } }}>{children}</Box>
 }
 
-export function DetailSection({ title, children, summary = false }) {
+export function DetailSection({ title, children, summary = false, section }) {
   const id = useId()
-  return <Box component="section" aria-labelledby={id} className="detail-section" sx={{ ...fullWidth, border: '1px solid var(--line)',
+  return <Box component="section" aria-labelledby={id} data-section={section} className="detail-section" sx={{ ...fullWidth, border: '1px solid var(--line)',
     borderRadius: '10px', p: 2, bgcolor: summary ? 'var(--surface-soft)' : 'transparent' }}>
     <Typography component="h3" id={id} sx={{ fontSize: 14, fontWeight: 700, mb: 1.5 }}>{title}</Typography>
     {children}

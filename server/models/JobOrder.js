@@ -44,4 +44,6 @@ jobOrderSchema.pre('validate', function () {
   else if (hasStart && this.reservedEndAt <= this.reservedStartAt) this.invalidate('reservedEndAt', 'Reservation end must follow its start.');
 });
 
+jobOrderSchema.index({ completedAt: 1, mechanic: 1 });
+
 module.exports = mongoose.model('JobOrder', jobOrderSchema);

@@ -133,7 +133,10 @@ async function availabilityForPeriods(periods, { session, excludeBookingId, allo
   if (!periods.length) return [];
   const fromDate = manilaDate(periods.reduce((earliest, item) => item.startAt < earliest ? item.startAt : earliest, periods[0].startAt));
   const toDate = manilaDate(periods.reduce((latest, item) => item.startAt > latest ? item.startAt : latest, periods[0].startAt));
-  const bookingQuery = Booking.find({ status: { $in: activeBookingStatuses }, bookingDate: { $gte: fromDate, $lte: toDate },
+  const bookingQuery = Booking.find({ $or: [{ status: { $in: activeBookingStatuses } },
+    { status: 'awaiting_downpayment', $or: [{ holdStatus: 'payment_submitted' },
+      { holdStatus: 'active', holdExpiresAt: { $gt: new Date() } }] }],
+    bookingDate: { $gte: fromDate, $lte: toDate },
     ...(excludeBookingId ? { _id: { $ne: excludeBookingId } } : {}) })
     .select('_id bookingDate bookingTime services reservedStartAt reservedEndAt assignedMechanic assignedServiceBay status')
     .populate({ path: 'services', select: 'estimatedDuration' });

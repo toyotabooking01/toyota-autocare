@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
@@ -9,6 +9,11 @@ const ServiceBay = require('../models/ServiceBay');
 const payments = require('../services/paymentService');
 const jobs = require('../services/jobOrderService');
 const engagement = require('../services/engagementService');
+const cloudinaryService = require('../services/cloudinaryService');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
+before(() => { holds.releaseExpired = async () => {}; });
+after(() => { holds.releaseExpired = originalReleaseExpired; });
 
 const id = () => String(new mongoose.Types.ObjectId());
 const bookingId = id(); const clientId = id(); const staffId = id(); const adminId = id();
@@ -69,24 +74,28 @@ test('final payment submission is stage-bound, unverified and rejects client-sup
   t.mock.method(Booking, 'updateOne', async () => { bookingWrites++; return { modifiedCount: 1 }; });
   t.mock.method(engagement, 'recordNotification', async () => {});
   t.mock.method(User, 'find', () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) }));
+  t.mock.method(cloudinaryService, 'uploadImage', async () => ({ secureUrl: 'https://example.invalid/proof',
+    publicId: 'toyota-autocare/payments/final-payments/test', width: 1, height: 1, format: 'png', bytes: 3 }));
   const body = { stage: 'final', amount: 1000, method: 'gcash', reference: 'G123' };
-  await assert.rejects(payments.submit(bookingId, client, body), { status: 409 });
+  const file = { buffer: Buffer.from('img'), mimetype: 'image/png' };
+  await assert.rejects(payments.submit(bookingId, client, body, file), { status: 409 });
   await assert.rejects(payments.submit(bookingId, client, { ...body, paymentStatus: 'paid' }), { status: 400 });
   assert.equal(records.length, 0);
   status = 'ready_for_release';
-  const result = await payments.submit(bookingId, client, body);
+  const result = await payments.submit(bookingId, client, body, file);
   assert.equal(created.status, 'submitted');
   assert.equal(created.client, clientId);
   assert.equal(result.paymentStatus, 'pending_verification');
   assert.equal(bookingWrites, 1);
   assert.equal(status, 'ready_for_release');
-  await assert.rejects(payments.submit(bookingId, client, body), { status: 409 });
+  await assert.rejects(payments.submit(bookingId, client, body, file), { status: 409 });
 });
 
 test('client cannot verify; Staff and Admin verification records actor and never completes booking', async t => {
   const paymentId = id();
   const record = { _id: paymentId, booking: bookingId, stage: 'final', status: 'submitted', amountCents: 100000,
-    method: 'gcash', reference: 'G123', createdAt: new Date() };
+    method: 'gcash', reference: 'G123', proofImage: { secureUrl: 'https://example.invalid/proof',
+      publicId: 'toyota-autocare/payments/final-payments/test', width: 1, height: 1, format: 'png', bytes: 3 }, createdAt: new Date() };
   let bookingStatus = 'ready_for_release'; let decision; let bookingUpdates = 0;
   t.mock.method(mongoose.connection, 'transaction', callback => callback({}));
   t.mock.method(Booking, 'findById', () => ({ select: () => {
@@ -110,6 +119,7 @@ test('client cannot verify; Staff and Admin verification records actor and never
   assert.equal(decision.verifiedByRole, 'staff');
   assert.ok(decision.verifiedAt instanceof Date);
   assert.equal(result.paymentStatus, 'paid');
+  assert.equal(result.payments[0].proofImage.secureUrl, 'https://example.invalid/proof');
   assert.equal(bookingStatus, 'ready_for_release');
   assert.equal(bookingUpdates, 1);
   await assert.rejects(payments.decide(bookingId, paymentId, admin, 'verify'), { status: 409 });

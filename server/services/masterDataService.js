@@ -9,7 +9,7 @@ const HttpError = require('../utils/HttpError');
 const { normalizeServiceBayName, SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.mjs');
 
 const settings = {
-  service: { Model: Service, fields: ['name', 'description', 'estimatedDuration', 'estimatedPrice', 'maintenanceReminderInterval', 'isActive', 'checklistTemplate'] },
+  service: { Model: Service, fields: ['name', 'description', 'estimatedDuration', 'estimatedPrice', 'maintenanceReminderInterval', 'maintenanceIntervalKm', 'isActive', 'checklistTemplate'] },
   bay: { Model: ServiceBay, fields: ['name', 'operationalStatus'] },
 };
 const bayStatuses = ['operational', 'maintenance', 'out_of_service'];
@@ -52,6 +52,7 @@ function input(kind, raw, create = false) {
       data.estimatedPrice = body.estimatedPrice;
     } else if (create) throw new HttpError(400, 'Estimated price is required.');
     if ('maintenanceReminderInterval' in body) data.maintenanceReminderInterval = body.maintenanceReminderInterval === null ? null : positiveInteger(body.maintenanceReminderInterval, 'Reminder interval');
+    if ('maintenanceIntervalKm' in body) data.maintenanceIntervalKm = body.maintenanceIntervalKm === null ? null : positiveInteger(body.maintenanceIntervalKm, 'Mileage interval');
     if ('isActive' in body) {
       if (typeof body.isActive !== 'boolean') throw new HttpError(400, 'Active must be true or false.');
       data.isActive = body.isActive;
@@ -160,7 +161,8 @@ async function update(kind, rawId, body) {
   }
   return item.save();
 }
-async function setArchive(kind, rawId, archived) {
+async function setArchive(kind, rawId, archived, actor, body = {}) {
+  if (kind === 'service') return require('./archiveService').service(rawId, archived, actor, body);
   const recordId = id(rawId);
   const { Model } = config(kind);
   const item = await Model.findById(recordId);

@@ -29,4 +29,6 @@ const vehicleSchema = new mongoose.Schema({
   ...archive,
 }, { timestamps: true });
 
+vehicleSchema.index({ owner: 1, isArchived: 1 });
+
 module.exports = mongoose.model('Vehicle', vehicleSchema);

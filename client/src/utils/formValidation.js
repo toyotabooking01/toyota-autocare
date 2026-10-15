@@ -4,7 +4,6 @@ import { futureSlot, remaining } from '../pages/bookingDisplay.js'
 // Additional checks for browser input and loaded UI options.
 export function validateClientForm(kind, values, options = {}) {
   const errors = validateForm(kind, values, { ...options, browser: true })
-  if (options.requireVariant && !String(values.variant || '').trim()) errors.variant = 'Variant is required.'
   for (const [field, rule] of Object.entries(schemas[kind])) {
     if (options.skip?.includes(field)) continue
     const value = values[field]

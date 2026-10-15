@@ -30,21 +30,18 @@ export function catalogHasVariants(items, vehicle) {
 }
 
 export function catalogVehicleImages(items, vehicle, models = []) {
-  if (!vehicle?.model || !vehicle?.year || String(vehicle.make || 'Toyota').trim().toLowerCase() !== 'toyota') return []
+  if (!vehicle?.model || String(vehicle.make || 'Toyota').trim().toLowerCase() !== 'toyota') return []
   const model = normalizedToyotaModel(vehicle.model)
   if (models.length && !models.some(entry => normalizedToyotaModel(entry.model) === model)) return []
   const modelEntries = items.filter(entry => String(entry.make || '').trim().toLowerCase() === 'toyota'
     && normalizedToyotaModel(entry.model) === model)
-  const yearEntries = modelEntries.filter(entry => Number(entry.year) === Number(vehicle.year))
-  const variant = String(vehicle.variant || '').trim().toLowerCase()
-  const exactEntries = variant ? yearEntries.filter(entry => String(entry.variant || '').trim().toLowerCase() === variant) : []
+  const yearEntries = vehicle.year ? modelEntries.filter(entry => Number(entry.year) === Number(vehicle.year)) : []
   const modelInfo = models.find(entry => normalizedToyotaModel(entry.model) === model)
   const urls = [
-    // Verified transparent preview asset; catalog photos remain fallbacks.
-    model === 'fortuner' ? '/toyota/fortuner-cutout.png' : undefined,
-    ...exactEntries.map(entry => entry.imageUrl),
     ...yearEntries.map(entry => entry.imageUrl),
     ...yearEntries.map(entry => entry.generationImageUrl),
+    // Verified transparent preview asset; catalog photos remain fallbacks.
+    model === 'fortuner' ? '/toyota/fortuner-cutout.png' : undefined,
     modelInfo?.modelImageUrl || modelInfo?.imageUrl,
     ...modelEntries.map(entry => entry.modelImageUrl),
     // Older catalog rows may only have imageUrl. Treat one as a model fallback.

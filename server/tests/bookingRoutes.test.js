@@ -1,10 +1,14 @@
-const { test } = require('node:test');
+const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Schedule = require('../models/Schedule');
 const app = require('../app');
 const { signAccessToken } = require('../services/tokenService');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
+before(() => { holds.releaseExpired = async () => {}; });
+after(() => { holds.releaseExpired = originalReleaseExpired; });
 
 test('Admin can reach Staff booking operations while Client and Mechanic remain restricted', async () => {
   const oldSecret = process.env.JWT_SECRET;

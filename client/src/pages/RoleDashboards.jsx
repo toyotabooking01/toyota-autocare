@@ -49,7 +49,8 @@ export function ClientDashboard() {
   const upcoming = live.filter(item => item.bookingDate >= today).sort((a, b) => `${a.bookingDate}${a.bookingTime}`.localeCompare(`${b.bookingDate}${b.bookingTime}`))[0]
   const current = inProgress || upcoming
   const latest = bookings.filter(item => item.status === 'completed').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
-  const nextReminder = reminders.find(item => item.status === 'pending')
+  const activeReminders = reminders.filter(item => item.vehicle && !item.vehicle.isArchived)
+  const nextReminder = activeReminders.find(item => item.displayStatus === 'due') || activeReminders.find(item => ['pending', 'sent'].includes(item.status))
   const unread = notifications.filter(item => !item.isRead).length
   return <ClientDashboardView heading={heading} current={current} nextReminder={nextReminder} vehicles={vehicles} notifications={notifications} latest={latest} unread={unread} />
 }
@@ -102,7 +103,7 @@ export function StaffDashboard() {
     { label: 'Confirmed', value: count('confirmed'), detail: 'Awaiting arrival', tone: 'blue' },
     { label: 'Checked in', value: count('checked_in'), detail: 'Awaiting assignment', tone: 'purple' },
     { label: 'In service', value: count('in_service'), detail: 'Mechanic working', tone: 'purple' },
-    { label: 'Ready for release', value: count('ready_for_release'), detail: 'Awaiting completion', tone: 'green' },
+    { label: 'Ready for release', value: count('ready_for_release'), detail: 'Awaiting payment or release', tone: 'green' },
     { label: 'Completed', value: count('completed'), detail: 'Scheduled today', tone: 'green' },
   ]
   return <>{heading}<MetricCards items={metrics} /><Panel title={`Today's queue · ${bookings.length}`} to="/staff/bookings" action="Process bookings"><JobPreviewList jobs={bookings.slice(0, 6).map(bookingPreview)} /></Panel><Box sx={{ mt: 2.5 }}><Panel title={`Open job orders · ${jobs.filter(item => item.status !== 'completed').length}`} to="/staff/job-orders" action="Coordinate jobs"><JobPreviewList jobs={jobs.filter(item => item.status !== 'completed').slice(0, 5).map(jobPreview)} /></Panel></Box></>

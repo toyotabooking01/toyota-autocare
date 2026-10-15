@@ -45,7 +45,7 @@ function configuration() {
 
 function ensureConfigured() { configuration(); }
 
-async function sendEmail({ to, subject, text, html }) {
+async function sendEmail({ to, subject, text, html, attachments }) {
   emailDiagnostic('emailServiceCalled');
   const config = configuration();
   const transport = nodemailer.createTransport({
@@ -58,7 +58,8 @@ async function sendEmail({ to, subject, text, html }) {
   try {
     reportTransport(transport, config);
     emailDiagnostic('sendMailStarted');
-    const result = await transport.sendMail({ from: config.from, to: { address: to }, subject, text, html });
+    const result = await transport.sendMail({ from: config.from, to: { address: to }, subject, text, html,
+      ...(attachments ? { attachments } : {}) });
     const response = typeof result.response === 'string' ? result.response : '';
     emailDiagnostic(result.accepted?.length ? 'smtpAccepted' : 'smtpNotAccepted', null, {
       messageId: result.messageId, acceptedCount: result.accepted?.length || 0,

@@ -9,9 +9,11 @@ const bookings = require('../services/bookingService');
 const schedules = require('../services/scheduleService');
 const engagement = require('../services/engagementService');
 const resourceAvailability = require('../services/resourceAvailabilityService');
+const holds = require('../services/bookingHoldService');
+const originalReleaseExpired = holds.releaseExpired;
 const originalRecordEvent = engagement.recordBookingEvent;
-before(() => { engagement.recordBookingEvent = async () => {}; });
-after(() => { engagement.recordBookingEvent = originalRecordEvent; });
+before(() => { engagement.recordBookingEvent = async () => {}; holds.releaseExpired = async () => {}; });
+after(() => { engagement.recordBookingEvent = originalRecordEvent; holds.releaseExpired = originalReleaseExpired; });
 
 test('Staff can mark a past confirmed booking No Show once and notify the client', async t => {
   const bookingId = id(); const client = id(); const schedule = id();
@@ -74,7 +76,7 @@ test('capacity reduction is conditional on the current reserved count', async ()
   Schedule.findOneAndUpdate = async query => { filter = query; return null; };
   try {
     await assert.rejects(schedules.update(String(id()), { maximumCapacity: 1 }), { status: 409 });
-    assert.deepEqual(filter.currentBookingCount, { $lte: 1 });
+    assert.deepEqual(filter.$expr, holds.capacityWithin(1));
     await assert.rejects(schedules.update(String(id()), { date: '2035-05-13' }), { status: 409 });
   } finally { Schedule.findById = oldFind; Schedule.findOneAndUpdate = oldUpdate; }
 });
@@ -100,7 +102,7 @@ test('booking admission validates ownership, services and atomic capacity before
   Vehicle.updateOne = async () => ({ matchedCount: 1 });
   Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => existingActiveServices.length ? [{ services: existingActiveServices }] : [] }) }) });
   Service.find = filter => ({ select: () => ({ session: () => ({ lean: async () => filter._id.$in.slice(0, activeServices).map(serviceId => ({
-    _id: serviceId, estimatedDuration: String(serviceId) === String(requestedServiceIds[1]) ? 120 : 60,
+    _id: serviceId, estimatedDuration: String(serviceId) === String(requestedServiceIds[1]) ? 120 : 60, estimatedPrice: 1000,
     isOtherService: otherSelected && String(serviceId) === String(requestedServiceIds[0]),
   })) }) }) });
   resourceAvailability.canFitBooking = async () => ({ available: true });
@@ -134,8 +136,11 @@ test('booking admission validates ownership, services and atomic capacity before
     assert.equal(inserts, 0);
     resourceAvailability.canFitBooking = async () => ({ available: true });
     await bookings.create(client, body);
-    assert.equal(reserveFilter.$expr.$lt[0], '$currentBookingCount');
+    assert.deepEqual(reserveFilter.$expr, holds.capacityAvailable);
     assert.equal(inserts, 1);
+    assert.equal(createdRecord.status, 'awaiting_downpayment');
+    assert.equal(createdRecord.estimatedTotalCents, 200000);
+    assert.equal(createdRecord.downpaymentRequiredCents, 100000);
     assert.equal(createdRecord.estimatedDurationMinutes, 180);
     assert.equal(createdRecord.concern, body.concern);
     assert.equal(createdRecord.reservedStartAt.toISOString(), '2035-05-12T01:00:00.000Z');
@@ -166,7 +171,7 @@ test('failed booking insert aborts the capacity reservation transaction', async 
   Vehicle.exists = () => ({ session: async () => ({ _id: body.vehicle }) });
   Vehicle.updateOne = async () => ({ matchedCount: 1 });
   Booking.find = () => ({ select: () => ({ session: () => ({ lean: async () => [] }) }) });
-  Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60 })) }) }) });
+  Service.find = () => ({ select: () => ({ session: () => ({ lean: async () => body.services.map((serviceId, index) => ({ _id: serviceId, estimatedDuration: index ? 120 : 60, estimatedPrice: 1000 })) }) }) });
   resourceAvailability.canFitBooking = async () => ({ available: true });
   Schedule.findById = () => ({ session: () => ({ lean: async () => ({ ...future }) }) });
   Schedule.findOneAndUpdate = async () => { reserved++; return future; };
@@ -191,6 +196,7 @@ test('cancellation releases capacity once and blocks repeated requests', async (
   let status = 'pending'; let count = 1;
   mongoose.connection.transaction = async fn => fn({});
   Booking.findOneAndUpdate = async filter => {
+    if (filter.status === 'awaiting_downpayment') return null;
     if (status !== 'pending' && status !== 'confirmed') return null;
     assert.equal(String(filter.client), String(owner));
     status = 'cancelled'; return { schedule: slotId };
