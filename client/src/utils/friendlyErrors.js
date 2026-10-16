@@ -6,6 +6,7 @@ export function friendlyText(value, alternate = fallback) {
 export function friendlyError(error) {
   if (!error?.response) return 'Unable to reach AutoCare. Check your connection and try again.'
   if (error.response.status === 429) return 'Too many attempts. Please wait a few minutes before trying again.'
+  if (error.response.status === 503 && error.response.data?.message === 'Authentication is temporarily unavailable.') return error.response.data.message
   if (error.response.status >= 500) return fallback
   return friendlyText(error.response.data?.message)
 }

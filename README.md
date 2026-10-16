@@ -71,6 +71,14 @@ Do not put secrets in any `VITE_*` variable. Use independent random values of at
 
 Deploy `server/` as a persistent Node service with `npm ci` and `npm start`, a production MongoDB URI, independent auth secrets, and an exact HTTPS `CLIENT_ORIGIN`. Set the Cloudinary and SMTP variables for their respective functions. Production startup validates required database, origin, and auth configuration; it does not seed data. Run catalog seed or first Admin bootstrap separately when needed.
 
+For a Vercel Express deployment, use root directory `server/`. Vercel may load `app.js` directly, so API middleware also awaits the shared database initialization before dispatching requests. Concurrent requests share a connection attempt; failures can retry. `/` and `/api/health` are process liveness checks, not database readiness checks. A successful health response alone does not prove login is ready.
+
+Verify Production-scoped `NODE_ENV=production`, `MONGO_URI`, exact HTTPS `CLIENT_ORIGIN`, independent `JWT_SECRET` and `OTP_HASH_SECRET` values of at least 32 bytes (no placeholder prefixes), and optional `JWT_EXPIRES_IN` such as `1h` (maximum `1d`). Optional `OTP_EXPIRY_MINUTES` must be an integer from 1 to 15. Redeploy after changing Vercel environment variables. Login does not require SMTP or Cloudinary; production initialization validates both JWT and OTP configuration.
+
+Run `node server/scripts/check-auth.js --email mech@toyota.com` for a read-only configuration and account check. It uses shell-provided environment variables first, then local `server/.env` as fallback, and prints no secrets or password hashes. To check production, supply the actual deployment environment securely; a local result does not establish that the account exists in the deployment database. Never paste environment values into logs or commit them.
+
+If a production mechanic is missing, create it through the existing Admin Mechanics page, which generates and emails a temporary credential and requires password setup. If there is no production Admin, supply the production database and `BOOTSTRAP_ADMIN_*` values securely and run `npm run bootstrap:admin --prefix server` once, then create the mechanic as that Admin. Do not run development/demo seeds against production or reuse development passwords. No account is created by login or API startup.
+
 Deploy `client/` as a Vite build, for example on Vercel with root directory `client/`, build command `npm run build`, and output directory `dist`. Set the public `VITE_API_URL` to the deployed backend's HTTPS `/api` URL at build time. `client/vercel.json` rewrites SPA routes to `index.html`. Keep the backend origin and the client API URL aligned, then check `/api/health`, login, a deep link, uploads, and email in the deployed environment.
 
 ## Security and release checks

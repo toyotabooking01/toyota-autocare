@@ -41,7 +41,7 @@ export function Login() {
       navigate(accountHome(user), { replace: true })
     } catch (err) { validation.receive(err);
       setError(err.response?.data?.errors ? '' : errorMessage(err))
-      setUnverified(err.response?.status === 403)
+      setUnverified(err.response?.status === 403 && err.response?.data?.message === 'Verify your email before logging in.')
     } finally { requestInFlight.current = false; setBusy(false) }
   }
   return <div className="form-card"><Heading title="Welcome back." text="Sign in to your Toyota AutoCare account." />

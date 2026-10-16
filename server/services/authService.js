@@ -41,7 +41,7 @@ async function login(body) {
   if (!user || !valid || user.isWalkInCustomer) {
     throw new HttpError(401, 'Invalid email or password.');
   }
-  if (user.isArchived || user.status !== 'active') throw new HttpError(401, 'This account is inactive.');
+  if (user.isArchived || user.status !== 'active') throw new HttpError(403, 'This account is inactive.');
   if (!require('../config/roles').roles.includes(user.role)) {
     throw new HttpError(401, 'Your account session could not be verified. Please contact support.');
   }

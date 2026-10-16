@@ -26,6 +26,9 @@ app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
 app.disable('x-powered-by');
 app.use(express.json({ limit: '16kb' }));
 app.use(healthRoutes);
+// Vercel can select app.js directly, bypassing the local index.js startup.
+// CORS preflight and liveness remain available without a database connection.
+if (process.env.VERCEL) app.use('/api', require('./middleware/initializeServerless'));
 app.use('/api/auth', authRoutes);
 app.use('/api/services', masterDataRoutes('service'));
 app.use('/api/service-bays', masterDataRoutes('bay'));

@@ -8,23 +8,7 @@ require('dotenv').config({
 const app = require('./app');
 require('./models');
 
-const connectDatabase = require('./config/db');
-const validateProductionConfig = require('./config/production');
-
-let databasePromise = null;
-
-async function initializeApp() {
-  validateProductionConfig();
-
-  if (!databasePromise) {
-    databasePromise = connectDatabase().catch((error) => {
-      databasePromise = null;
-      throw error;
-    });
-  }
-
-  await databasePromise;
-}
+const initializeApp = require('./config/initializeApp');
 
 async function handler(req, res) {
   try {
@@ -33,8 +17,8 @@ async function handler(req, res) {
   } catch (error) {
     console.error('API initialization failed.');
 
-    return res.status(500).json({
-      message: 'API initialization failed.',
+    return res.status(503).json({
+      message: 'Authentication is temporarily unavailable.',
     });
   }
 }
