@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const ServiceBay = require('../models/ServiceBay');
 const User = require('../models/User');
 const master = require('../services/masterDataService');
-const { SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.mjs');
+const { SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.cjs');
 const id = () => String(new mongoose.Types.ObjectId());
 const duplicate = error => error.status === 409 && error.message === SERVICE_BAY_DUPLICATE && error.errors.name === SERVICE_BAY_DUPLICATE;
 

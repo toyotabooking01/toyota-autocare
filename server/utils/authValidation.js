@@ -1,6 +1,6 @@
 const HttpError = require('./HttpError');
 const validate = require('./validateForm');
-const { normalizeMobile, registrationNames } = require('../../shared/accountValidation.mjs');
+const { normalizeMobile, registrationNames } = require('../../shared/accountValidation.cjs');
 
 function body(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'A JSON object is required.');

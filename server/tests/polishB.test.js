@@ -16,7 +16,7 @@ const toyotaCatalog = require('../services/toyotaCatalogService');
 const auth = require('../services/authService');
 const holds = require('../services/bookingHoldService');
 const { signAccessToken, verifyAccessToken } = require('../services/tokenService');
-const { validateForm } = require('../utils/formValidation.mjs');
+const { validateForm } = require('../utils/formValidation.cjs');
 const id = () => String(new mongoose.Types.ObjectId());
 const walkInStaffId = id();
 const sentPassword = () => email.sendEmail.mock.calls.at(-1).arguments[0].text.split('Temporary Password\n')[1].split('\n')[0];
@@ -108,7 +108,7 @@ test('new emailed Walk-In atomically creates a forced-setup Client, vehicle, and
   assert.equal(result.credentials, undefined);
   assert.equal(JSON.stringify(result).includes(secret), false, 'Staff response never contains the plaintext credential');
   assert.equal(result.account.email, user.email); assert.ok(result.deliveryToken);
-  assert.equal(require('../../shared/accountValidation.mjs').passwordError(secret), '');
+  assert.equal(require('../../shared/accountValidation.cjs').passwordError(secret), '');
   assert.ok(await bcrypt.compare(secret, user.password)); assert.equal(bcrypt.getRounds(user.password), 12);
   assert.notEqual(user.password, secret); assert.equal(result.item.password, undefined);
   assert.equal(email.sendEmail.mock.calls.length, 1, 'transaction retries never email rolled-back credentials');

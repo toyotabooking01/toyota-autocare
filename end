@@ -1,0 +1,19 @@
+ server/models/ServiceBay.js                   | 2 [32m+[m[31m-[m
+ server/models/Vehicle.js                      | 2 [32m+[m[31m-[m
+ server/services/authService.js                | 2 [32m+[m[31m-[m
+ server/services/masterDataService.js          | 2 [32m+[m[31m-[m
+ server/services/newWalkInService.js           | 2 [32m+[m[31m-[m
+ server/services/passwordChangeService.js      | 2 [32m+[m[31m-[m
+ server/services/peopleVehiclesService.js      | 6 [32m+++[m[31m---[m
+ server/services/staffAccountService.js        | 2 [32m+[m[31m-[m
+ server/services/toyotaCatalogService.js       | 2 [32m+[m[31m-[m
+ server/tests/clientCredentialDelivery.test.js | 2 [32m+[m[31m-[m
+ server/tests/formValidation.test.js           | 2 [32m+[m[31m-[m
+ server/tests/plateNumbers.test.js             | 2 [32m+[m[31m-[m
+ server/tests/polishA.test.js                  | 4 [32m++[m[31m--[m
+ server/tests/polishB.test.js                  | 4 [32m++[m[31m--[m
+ server/tests/serviceBayDuplicate.test.js      | 2 [32m+[m[31m-[m
+ server/utils/authValidation.js                | 2 [32m+[m[31m-[m
+ server/utils/plateNumbers.js                  | 2 [32m+[m[31m-[m
+ server/utils/validateForm.js                  | 2 [32m+[m[31m-[m
+ 18 files changed, 22 insertions(+), 22 deletions(-)

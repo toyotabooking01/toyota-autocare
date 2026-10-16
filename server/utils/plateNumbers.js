@@ -1,4 +1,4 @@
-const { canonicalPlateNumber } = require('../../shared/accountValidation.mjs');
+const { canonicalPlateNumber } = require('../../shared/accountValidation.cjs');
 const HttpError = require('./HttpError');
 
 const duplicateMessage = 'This plate number is already registered.';

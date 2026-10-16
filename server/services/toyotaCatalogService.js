@@ -2,7 +2,7 @@ const ToyotaCatalog = require('../models/ToyotaCatalog');
 const seedEntries = require('../data/toyotaPhilippinesCatalog');
 const modelRules = require('../data/toyotaPhilippinesModels');
 const HttpError = require('../utils/HttpError');
-const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.mjs');
+const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.cjs');
 const canonicalModels = new Map(modelRules.map(entry => [entry.model.toLowerCase(), entry.model]));
 canonicalModels.set('supra', 'GR Supra');
 for (const [alias, parent] of Object.entries({

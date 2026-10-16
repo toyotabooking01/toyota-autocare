@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { archive, reference, nonNegativeInteger } = require('./fields');
-const { canonicalPlateNumber } = require('../../shared/accountValidation.mjs');
+const { canonicalPlateNumber } = require('../../shared/accountValidation.cjs');
 
 const vehicleSchema = new mongoose.Schema({
   owner: reference('User'),

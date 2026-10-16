@@ -6,7 +6,7 @@ const bayOccupancy = require('./bayOccupancyService');
 const JobOrder = require('../models/JobOrder');
 const Booking = require('../models/Booking');
 const HttpError = require('../utils/HttpError');
-const { normalizeServiceBayName, SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.mjs');
+const { normalizeServiceBayName, SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.cjs');
 
 const settings = {
   service: { Model: Service, fields: ['name', 'description', 'estimatedDuration', 'estimatedPrice', 'maintenanceReminderInterval', 'maintenanceIntervalKm', 'isActive', 'checklistTemplate'] },

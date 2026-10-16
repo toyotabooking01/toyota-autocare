@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { archive } = require('./fields');
-const { normalizeServiceBayName } = require('../../shared/serviceBayName.mjs');
+const { normalizeServiceBayName } = require('../../shared/serviceBayName.cjs');
 
 const serviceBaySchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, uppercase: true, set: value => typeof value === 'string' ? normalizeServiceBayName(value) : value, unique: true, maxlength: 80 },

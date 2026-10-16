@@ -33,7 +33,7 @@ test('resend emails a fresh secure password to the registered email, rotates the
   const result = await delivery.resend(user._id, staff, { deliveryToken: grant.token });
   assert.equal(result.emailSent, true); assert.equal(result.resendAfter, 60);
   assert.equal(messages[0].email, user.email); assert.equal(messages[0].accountType, 'client');
-  assert.equal(require('../../shared/accountValidation.mjs').passwordError(messages[0].password), '');
+  assert.equal(require('../../shared/accountValidation.cjs').passwordError(messages[0].password), '');
   assert.ok(await bcrypt.compare(messages[0].password, user.password)); assert.equal(bcrypt.getRounds(user.password), 12);
   assert.notEqual(user.password, oldHash); assert.equal(user.authVersion, 1); assert.equal(user.mustChangePassword, true);
   assert.equal(JSON.stringify(result).includes(messages[0].password), false);

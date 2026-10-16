@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomBytes } = require('node:crypto');
-const { validateForm } = require('../utils/formValidation.mjs');
-const policy = require('../../shared/accountValidation.mjs');
+const { validateForm } = require('../utils/formValidation.cjs');
+const policy = require('../../shared/accountValidation.cjs');
 const auth = require('../utils/authValidation');
 const people = require('../services/peopleVehiclesService');
 const User = require('../models/User');

@@ -8,10 +8,10 @@ const Vehicle = require('../models/Vehicle');
 const authValidation = require('../utils/authValidation');
 const emailService = require('./emailService');
 const toyotaCatalog = require('./toyotaCatalogService');
-const { normalizeMobile } = require('../../shared/accountValidation.mjs');
+const { normalizeMobile } = require('../../shared/accountValidation.cjs');
 const HttpError = require('../utils/HttpError');
-const { canonicalPlateNumber } = require('../../shared/accountValidation.mjs');
-const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.mjs');
+const { canonicalPlateNumber } = require('../../shared/accountValidation.cjs');
+const { VEHICLE_YEAR_FLOOR, latestVehicleYear } = require('../../shared/vehicleYearRules.cjs');
 const { duplicatePlateFilter, duplicatePlateError } = require('../utils/plateNumbers');
 
 const mechanicFields = ['fullName', 'firstName', 'lastName', 'email', 'phone', 'specialization', 'status', 'availability'];

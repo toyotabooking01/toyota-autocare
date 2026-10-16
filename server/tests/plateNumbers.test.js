@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { canonicalPlateNumber, normalizePlateInput, hasUnsupportedPlateSymbols } = require('../../shared/accountValidation.mjs');
+const { canonicalPlateNumber, normalizePlateInput, hasUnsupportedPlateSymbols } = require('../../shared/accountValidation.cjs');
 const { duplicatePlateFilter } = require('../utils/plateNumbers');
 const people = require('../services/peopleVehiclesService');
 const Vehicle = require('../models/Vehicle');

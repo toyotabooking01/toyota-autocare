@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validateForm } = require('../utils/formValidation.mjs');
+const { validateForm } = require('../utils/formValidation.cjs');
 const auth = require('../utils/authValidation');
 const people = require('../services/peopleVehiclesService');
 const master = require('../services/masterDataService');

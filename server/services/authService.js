@@ -123,7 +123,7 @@ async function updateProfile(actor, body) {
   const values = {
     firstName: input.firstName.trim().replace(/\s+/g, ' '),
     lastName: input.lastName.trim().replace(/\s+/g, ' '),
-    phone: require('../../shared/accountValidation.mjs').normalizeMobile(input.phone),
+    phone: require('../../shared/accountValidation.cjs').normalizeMobile(input.phone),
     ...(actor.role === 'client' ? { address: (input.address || '').trim() } : {}),
   };
   values.fullName = [values.firstName, actor.middleName, values.lastName, actor.suffix].filter(Boolean).join(' ');

@@ -6,7 +6,7 @@ const temporaryPassword = require('../utils/temporaryPassword');
 const emailService = require('./emailService');
 const authValidation = require('../utils/authValidation');
 const validate = require('../utils/validateForm');
-const { normalizeMobile } = require('../../shared/accountValidation.mjs');
+const { normalizeMobile } = require('../../shared/accountValidation.cjs');
 
 const fields = ['firstName', 'lastName', 'email', 'phone'];
 const projection = 'firstName lastName fullName staffId email phone status isArchived createdAt updatedAt';

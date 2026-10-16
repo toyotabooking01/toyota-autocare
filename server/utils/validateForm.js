@@ -1,4 +1,4 @@
-const { validateForm } = require('./formValidation.mjs');
+const { validateForm } = require('./formValidation.cjs');
 const HttpError = require('./HttpError');
 
 module.exports = function validate(kind, values, options) {
