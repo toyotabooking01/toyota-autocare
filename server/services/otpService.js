@@ -14,7 +14,7 @@ function digest(email, purpose, value) {
 function eligible(purpose) {
   const filter = { isArchived: false, status: 'active' };
   if (purpose === 'email_verification') return { ...filter, role: 'client', emailVerified: false };
-  return { ...filter, $or: [{ role: { $in: ['admin', 'mechanic'] } }, { role: 'client', emailVerified: true }] };
+  return { ...filter, $or: [{ role: { $in: ['admin', 'staff', 'mechanic'] } }, { role: 'client', emailVerified: true }] };
 }
 async function lockUser(email, purpose, session) {
   // Every issue/verify/reset transaction writes the same User, so concurrent operations conflict and retry.
