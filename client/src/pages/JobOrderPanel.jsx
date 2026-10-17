@@ -185,7 +185,7 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
       bookingStatus={status} role={role} onSummary={setPaymentSummary} />}
     {job.booking?._id && ['in_service', 'final_inspection', 'ready_for_release', 'completed'].includes(status)
       && <AdditionalWorkPanel bookingId={job.booking._id} jobId={job._id} bookingStatus={status}
-        role={role} mechanicName={job.mechanic?.fullName} onUnresolvedChange={setAdditionalUnresolved} />}
+        role={role} mechanicName={job.mechanic?.fullName} onUnresolvedChange={setAdditionalUnresolved} compact={compact && role === 'mechanic'} />}
     <DetailSection title="Service notes & checklist">
       <Box sx={compact ? { display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(180px, .72fr) minmax(0, 1.28fr)' }, gap: { xs: 1.5, md: 2 }, alignItems: 'start' } : { display: 'grid', gap: 1.5 }}>
         <Box sx={{ minWidth: 0 }}>

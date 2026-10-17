@@ -1,10 +1,10 @@
-import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
-import { StatusBadge } from '../components/StatusChip'
+import { MoreActionsMenu, QuietDetailsButton } from '../components/RowActions'
+import { MinimalStatus } from '../components/StatusChip'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Alert, Box, Button, CircularProgress, DialogActions, DialogContent, DialogTitle, MenuItem, Select, Stack, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, DialogActions, DialogContent, DialogTitle, InputAdornment, MenuItem, Stack, TextField, Typography } from '@mui/material'
 import AddRounded from '@mui/icons-material/AddRounded'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
@@ -14,11 +14,12 @@ import ToyotaVehiclePicker from '../components/ToyotaVehiclePicker'
 import ToyotaVehicleImage from '../components/ToyotaVehicleImage'
 import useToyotaCatalog from '../hooks/useToyotaCatalog'
 import MileageInput from '../components/MileageInput'
-import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
+import RecordList, { RecordPanel } from '../components/RecordList'
 import { FormWorkspaceDialog } from '../components/FormWorkspace'
 import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import { catalogVehicleImages, needsToyotaModelCorrection, normalizedToyotaModel } from '../utils/toyotaCatalog'
 import { DetailDialog, DetailGrid, DetailInfo, DetailSection, DetailVehicle } from '../components/RecordDetails'
+import { Search } from 'iconoir-react'
 
 const empty = { make: 'Toyota', model: '', year: '', variant: '', plateNumber: '', transmission: '', currentMileage: '' }
 
@@ -36,6 +37,8 @@ export default function ClientVehicles() {
   const confirm = useConfirmation()
   const [archive, setArchive] = useState('active')
   const { items, loading, error, setError, reload } = useCatalog('/vehicles', { archive })
+  const [search, setSearch] = useState('')
+  const [order, setOrder] = useState('newest')
   const [notice, setNotice] = useState('')
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(empty)
@@ -47,6 +50,8 @@ export default function ClientVehicles() {
   const validation = useFormValidation('clientVehicle', form,
     { skip: legacy ? ['variant'] : [], existingPlate: editing?._id ? editing.plateNumber : undefined })
   const [saving, setSaving] = useState(false)
+  const filteredItems = useMemo(() => items.filter(item => `${item.make} ${item.model} ${item.year} ${item.plateNumber}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => order === 'oldest' ? Number(a.year) - Number(b.year) : Number(b.year) - Number(a.year)), [items, search, order])
   function openForm(item = {}) {
     validation.reset()
     setEditing(item)
@@ -71,53 +76,30 @@ export default function ClientVehicles() {
     })
   }
   return <>
-    <PageHeading title="My vehicles" subtitle="Keep your Toyota vehicle details up to date." preview={false} />
+    <PageHeading title="My Vehicle" subtitle="Manage your Toyota vehicles." preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <RecordPanel>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 2.5 }}>
-        <Select variant="standard" disableUnderline value={archive} onChange={event => setArchive(event.target.value)}
-          inputProps={{ 'aria-label': 'Registered vehicle records filter' }}
-          sx={theme => ({ width: 190, maxWidth: '100%', height: 38, borderRadius: '8px', fontSize: 13,
-            color: theme.palette.mode === 'dark' ? '#f8fafc' : '#111827',
-            backgroundColor: theme.palette.mode === 'dark' ? '#1d2833' : '#ffffff',
-            border: `1px solid ${theme.palette.mode === 'dark' ? '#344452' : '#dde3e8'}`,
-            '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#263442' : '#f6f8fa' },
-            '& .MuiSelect-select': { boxSizing: 'border-box', height: '100%', display: 'flex', alignItems: 'center',
-              padding: '0 30px 0 12px !important' },
-            '& .MuiSelect-icon': { color: 'inherit', right: 7 },
-            '&.Mui-focused': { outline: '2px solid', outlineColor: theme.palette.mode === 'dark' ? '#9eadba' : '#52606d', outlineOffset: 2 },
-          })}
-          MenuProps={{ PaperProps: { sx: theme => ({ mt: 0.5, minWidth: 190, borderRadius: '8px',
-            backgroundColor: theme.palette.mode === 'dark' ? '#18232d' : '#ffffff',
-            border: `1px solid ${theme.palette.mode === 'dark' ? '#344452' : '#dde3e8'}`,
-            '& .MuiMenuItem-root': { fontSize: 13, minHeight: 36,
-              '&:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#263442' : '#e9eef2' },
-              '&.Mui-selected, &.Mui-selected:hover': { backgroundColor: theme.palette.mode === 'dark' ? '#33414e' : '#e9eef2' },
-            },
-          }) } }}>
-          <MenuItem value="active">Current vehicles</MenuItem>
-          <MenuItem value="archived">Archived vehicles</MenuItem>
-          <MenuItem value="all">All registered vehicles</MenuItem>
-        </Select>
-        <Button variant="contained" startIcon={<AddRounded />} onClick={() => openForm()}>Add vehicle</Button>
-      </Stack>
-      <RecordList items={items} selectionKey={archive}
+    <RecordPanel className="client-vehicle-workspace admin-list-surface">
+      <Box className="admin-list-toolbar client-list-toolbar">
+        <TextField className="client-list-search" size="small" placeholder="Search model, plate number, or year..." value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { 'aria-label': 'Search model, plate number, or year' }, input: { startAdornment: <InputAdornment position="start"><Search width={17} height={17} strokeWidth={1.7} /></InputAdornment> } }} />
+        <TextField select size="small" label="Vehicle status" value={archive} onChange={event => setArchive(event.target.value)}><MenuItem value="active">Current vehicles</MenuItem><MenuItem value="archived">Archived vehicles</MenuItem><MenuItem value="all">All vehicles</MenuItem></TextField>
+        <TextField select size="small" label="Year order" value={order} onChange={event => setOrder(event.target.value)}><MenuItem value="newest">Newest first</MenuItem><MenuItem value="oldest">Oldest first</MenuItem></TextField>
+        <Button className="client-list-add" variant="contained" startIcon={<AddRounded />} onClick={() => openForm()}>Add Vehicle</Button>
+      </Box>
+      <Box className="client-vehicle-header admin-list-header" aria-hidden="true"><span>Vehicle</span><span>Year</span><span>Plate Number</span><span>Transmission</span><span>Mileage</span><span>Status</span><span>Action</span></Box>
+      <RecordList className="client-vehicle-list" items={filteredItems} selectionKey={`${archive}/${search}/${order}`}
         loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading vehicles…</Typography></Stack>}
-        empty="No vehicles in this view.">
-        {item => <RecordCard key={item._id} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}
-          avatar={<ToyotaVehicleImage sources={catalogVehicleImages(catalog.items, item, catalog.models)} vehicle={item} allowExternal={catalog.loading || catalog.error || !needsToyotaModelCorrection(catalog.items, item, catalog.models)} alt={`${item.make} ${item.model}`} />}>
-          <Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{item.make} {item.model}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.year} · {item.variant || 'Variant not recorded'} · {item.plateNumber}</Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.transmission.toUpperCase()} · {Number(item.currentMileage).toLocaleString()} km</Typography>
-          </Box><RecordActions statuses={<>{!catalog.loading && !catalog.error && needsToyotaModelCorrection(catalog.items, item, catalog.models) && <StatusBadge color="warning" label="Model needs correction" />}<StatusBadge label={item.isArchived ? 'Archived' : 'Current'} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--green-soft)' }} /></>}>
-            <DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>
-            {!item.isArchived && <MoreActionsMenu label={`${item.make} ${item.model} ${item.plateNumber}`} disabled={saving} items={[{ label: 'Edit', onClick: () => openForm(item) }]} />}
-          </RecordActions>
-        </RecordCard>}
+        empty="No vehicles found.">
+        {item => <Box component="article" key={item._id} className="client-vehicle-row admin-list-row">
+          <Box className="client-vehicle-identity"><ToyotaVehicleImage sources={catalogVehicleImages(catalog.items, item, catalog.models)} vehicle={item} allowExternal={catalog.loading || catalog.error || !needsToyotaModelCorrection(catalog.items, item, catalog.models)} alt={`${item.make} ${item.model}`} /><span>{item.make} {item.model}</span></Box>
+          <Typography>{item.year}</Typography><Typography>{item.plateNumber}</Typography><Typography>{item.transmission?.toUpperCase() || 'Not recorded'}</Typography><Typography>{Number(item.currentMileage).toLocaleString()} km</Typography>
+          <MinimalStatus label={item.isArchived ? 'Archived' : 'Current'} status={item.isArchived ? 'archived' : 'active'} />
+          <Box className="client-vehicle-actions"><QuietDetailsButton onClick={() => setSelected(item)} />{!item.isArchived && <MoreActionsMenu label={`${item.make} ${item.model} ${item.plateNumber}`} disabled={saving} items={[{ label: 'Edit', onClick: () => openForm(item) }]} />}</Box>
+        </Box>}
       </RecordList>
     </RecordPanel>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Vehicle details" reference={selected?.plateNumber}
-      status={selected && <StatusBadge size="small" label={selected.isArchived ? 'Archived' : 'Current'} sx={{ bgcolor: selected.isArchived ? 'var(--surface-soft)' : 'var(--green-soft)' }} />}
+    <DetailDialog className="client-vehicle-details-dialog" open={Boolean(selected)} onClose={() => setSelected(null)} title="Vehicle Details" reference={selected?.plateNumber}
+      status={selected && <MinimalStatus label={selected.isArchived ? 'Archived' : 'Current'} status={selected.isArchived ? 'archived' : 'active'} />}
       actions={selected && !selected.isArchived && <Button variant="contained" onClick={() => { openForm(selected); setSelected(null) }}>Edit</Button>}>
       {selected && <DetailGrid>
         <DetailSection title="Vehicle"><DetailVehicle vehicle={selected} /></DetailSection>
@@ -131,7 +113,7 @@ export default function ClientVehicles() {
       </DetailGrid>}
     </DetailDialog>
     <FormWorkspaceDialog open={editing !== null} onClose={() => { if (!saving) setEditing(null) }} aria-labelledby="vehicle-form-title"><Box component="form" noValidate onSubmit={save}>
-      <DialogTitle id="vehicle-form-title">{editing?._id ? 'Edit vehicle' : 'Add vehicle'}</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+      <DialogTitle id="vehicle-form-title">{editing?._id ? 'Edit Vehicle' : 'Add Vehicle'}</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
         {formError && <Alert severity="error">{formError}</Alert>}
         <ToyotaVehiclePicker value={form} onChange={changes => setForm(current => ({ ...current, ...changes }))}
           validation={validation} catalog={catalog} busy={saving} legacy={readonlyIdentity}>

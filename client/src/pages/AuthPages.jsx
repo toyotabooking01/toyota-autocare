@@ -10,7 +10,7 @@ import api from '../services/api'
 import { useAuth } from '../auth/AuthContext'
 import { accountHome, errorMessage, FLOW_KEY, readFlow, store } from '../auth/session'
 import { Field, OtpInput, Steps, Submit, Success } from '../components/AuthForm'
-import RegistrationConsent from '../components/RegistrationConsent'
+import RegistrationConsent, { PolicyDialog } from '../components/RegistrationConsent'
 import { PASSWORD_HINT, MOBILE_PATTERN, REGISTRATION_MOBILE_HINT, NAME_SUFFIXES, normalizeMobile, restrictMobileInput } from '../../../shared/accountValidation.mjs'
 import PasswordRequirements from '../components/PasswordRequirements'
 
@@ -31,6 +31,7 @@ export function Login() {
   const [busy, setBusy] = useState(false)
   const validation = useFormValidation('login', { email, password })
   const [unverified, setUnverified] = useState(false)
+  const [policyOpen, setPolicyOpen] = useState(false)
   async function submit(event) {
     event.preventDefault()
     if (requestInFlight.current || busy || !validation.validate()) return
@@ -51,7 +52,11 @@ export function Login() {
       <Link className="forgot-link" to="/forgot-password">Forgot password?</Link>
       <Submit busy={busy}>Sign in</Submit>
       {unverified && <Button onClick={() => { saveFlow(email, 'verify', false); navigate('/verify-email') }}>Verify your email</Button>}
-    </form><p className="form-bottom">New to AutoCare? <Link to="/register">Create an account</Link></p></div>
+    </form><p className="login-legal">By signing in, you agree to our{' '}
+      <a href="#terms" onClick={event => { event.preventDefault(); setPolicyOpen(true) }}>Terms</a> and{' '}
+      <a href="#privacy" onClick={event => { event.preventDefault(); setPolicyOpen(true) }}>Privacy Policy</a>.
+    </p><p className="form-bottom">New to AutoCare? <Link to="/register">Create an account</Link></p>
+    <PolicyDialog open={policyOpen} onClose={() => setPolicyOpen(false)} /></div>
 }
 export function Register() {
   const confirm = useConfirmation()
@@ -129,10 +134,10 @@ export function ForgotPassword() {
       } catch (err) { validation.receive(err); setError(err.response?.data?.errors ? '' : errorMessage(err)) } finally { setBusy(false) }
     })
   }
-  return <div className="form-card"><Heading title="Forgot your password?" text="Enter your email and we’ll help you get back on the road." />
-    <form noValidate onSubmit={submit}><Notice error={error} /><Field label="Email address" type="email" autoComplete="email" value={email} {...validation.field('email')} onChange={e => setEmail(e.target.value)} disabled={busy} />
-      <Submit busy={busy}>Send verification code</Submit></form>
-    <p className="form-bottom"><Link to="/login">Back to sign in</Link></p></div>
+  return <div className="form-card"><Heading title="Forgot Your Password?" text="Enter your email and we’ll help you get back on the road." />
+    <form noValidate onSubmit={submit}><Notice error={error} /><Field label="Email Address" type="email" autoComplete="email" value={email} {...validation.field('email')} onChange={e => setEmail(e.target.value)} disabled={busy} />
+      <Submit busy={busy}>Send Verification Code</Submit></form>
+    <p className="form-bottom"><Link to="/login">Back to Sign In</Link></p></div>
 }
 export function VerifyCode({ reset = false, onResetGrant }) {
   const [flow] = useState(readFlow)

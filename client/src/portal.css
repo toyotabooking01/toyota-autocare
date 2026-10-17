@@ -239,6 +239,408 @@ a:focus-visible, button:focus-visible { outline-color: #9ca3af; }
 @media (prefers-reduced-motion: reduce) {
   .account-directory-row, .account-directory-details .MuiButton-endIcon { transition: none; }
 }
+
+/* Staff workspace follows the shared Admin shell and table tokens. */
+.workspace-shell--staff {
+  --canvas: #f6f7f9;
+  --surface: #ffffff;
+  --surface-soft: #f7f8fa;
+  --ink: #1b2430;
+  --muted: #697586;
+  --line: #dfe4eb;
+  --line-strong: #b9c2ce;
+  --toyota-red: #eb0a1e;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+  --nav-active-ink: var(--toyota-red);
+  --admin-list-radius: 12px;
+  --admin-toolbar-height: 42px;
+  --admin-header-height: 48px;
+  --admin-list-padding-x: 18px;
+  --admin-list-padding-y: 10px;
+  --admin-row-min-height: 72px;
+  --admin-action-width: 76px;
+  --admin-list-header-size: 11px;
+  --admin-list-header-weight: 550;
+  --admin-list-primary-size: 13px;
+  --admin-list-primary-weight: 600;
+  --admin-list-primary-line-height: 1.4;
+  --admin-list-secondary-size: 12px;
+  --admin-list-secondary-line-height: 1.45;
+  --admin-list-meta-size: 11px;
+  --admin-list-meta-line-height: 1.4;
+  --admin-list-status-size: 12px;
+  --admin-list-status-weight: 500;
+  --admin-list-action-size: 12px;
+  --admin-list-action-weight: 550;
+  background-color: var(--canvas);
+  background-image: none;
+  background-attachment: initial;
+}
+:root[data-color-mode="dark"] .workspace-shell--staff {
+  --canvas: #0b1220;
+  --surface: #131d2b;
+  --surface-soft: #192536;
+  --ink: #e8edf4;
+  --muted: #96a3b5;
+  --line: #243144;
+  --line-strong: #45566c;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+  background-color: var(--canvas);
+  background-image: none;
+}
+.workspace-shell--staff .workspace-content { padding: 28px 32px 36px; }
+.workspace-shell--staff .MuiDrawer-paper.workspace-sidebar { background: var(--surface); }
+.workspace-shell--staff .MuiAppBar-root { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.workspace-shell--staff .MuiAutocomplete-root .MuiOutlinedInput-root { background: var(--surface); }
+.workspace-shell--staff .MuiListItemButton-root { min-height: 44px; margin-bottom: 3px; border-radius: 11px; }
+.workspace-shell--staff .MuiListItemButton-root .MuiListItemIcon-root,
+.workspace-shell--staff .MuiListItemButton-root .MuiListItemText-primary { transition: color .2s ease, transform .2s ease; }
+.workspace-shell--staff .MuiListItemButton-root:hover .MuiListItemIcon-root { transform: translateX(1px); }
+.workspace-shell--staff .MuiListItemButton-root.active { color: var(--toyota-red); background: var(--nav-active); }
+.workspace-shell--staff .MuiListItemButton-root.active .MuiListItemIcon-root,
+.workspace-shell--staff .MuiListItemButton-root.active .MuiListItemText-primary { color: var(--toyota-red); }
+.workspace-shell--staff .MuiListItemButton-root.active::before { display: none; }
+.workspace-shell--staff .MuiListItemText-primary { font-size: 13px; }
+.workspace-shell--staff .admin-theme-toggle svg { animation: admin-theme-icon-in .22s ease both; transition: transform .22s ease, opacity .22s ease; }
+.workspace-shell--staff .admin-theme-toggle:hover svg { transform: rotate(12deg); }
+.workspace-shell--staff .admin-list-surface {
+  container-type: inline-size;
+  overflow: hidden;
+  padding: 0 !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 12px !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+.workspace-shell--staff .admin-list-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 0 !important; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.workspace-shell--staff .admin-list-toolbar .MuiOutlinedInput-root { height: 42px; min-height: 42px; border-radius: 9px; background: var(--surface); }
+.workspace-shell--staff .admin-list-toolbar .MuiInputLabel-root { font-size: 12px; }
+.workspace-shell--staff .admin-list-toolbar .MuiTextField-root { min-width: 0; }
+.workspace-shell--staff .admin-list-surface .record-list { width: 100%; max-width: none; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workspace-shell--staff .admin-list-surface .record-list-rows { gap: 0 !important; }
+.workspace-shell--staff .admin-list-header,
+.workspace-shell--staff .admin-list-row { min-width: 0; padding-inline: 18px; }
+.workspace-shell--staff .admin-list-header { min-height: 48px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 550; }
+.workspace-shell--staff .admin-list-row { min-height: 72px; padding-block: 10px; border-bottom: 1px solid var(--line); transition: background-color .18s ease; }
+.workspace-shell--staff .admin-list-row:hover { background: color-mix(in srgb, var(--surface-soft) 72%, transparent); }
+.workspace-shell--staff .admin-list-row:last-child { border-bottom: 0; }
+.workspace-shell--staff .admin-list-surface .list-pagination { min-height: 54px; margin-top: 0; padding: 8px 18px; border-top: 1px solid var(--line); background: var(--surface); }
+.workspace-shell--staff .admin-list-details,
+.workspace-shell--staff .service-history-details { display: inline-flex; align-items: center; justify-content: flex-start; justify-self: start; width: 100%; min-width: 0; min-height: 34px; height: auto; gap: 3px; padding: 4px 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-size: 12px; font-weight: 550; text-align: left; white-space: nowrap; }
+.workspace-shell--staff .admin-list-details:hover,
+.workspace-shell--staff .service-history-details:hover { background: transparent; color: var(--ink); }
+.workspace-shell--staff .admin-list-details .MuiButton-endIcon,
+.workspace-shell--staff .service-history-details .MuiButton-endIcon { transition: transform .18s ease; }
+.workspace-shell--staff .admin-list-details:hover .MuiButton-endIcon,
+.workspace-shell--staff .service-history-details:hover .MuiButton-endIcon { transform: translateX(2px); }
+.workspace-shell--staff .staff-open-job-order-list { display: grid; gap: 0; min-width: 0; container-type: inline-size; }
+.workspace-shell--staff .staff-open-job-order-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(125px, auto) 76px; align-items: center; column-gap: 16px; min-width: 0; }
+.workspace-shell--staff .staff-open-job-order-row:last-child { border-bottom: 0; }
+.workspace-shell--staff .staff-open-job-order-copy { display: grid; gap: 2px; min-width: 0; }
+.workspace-shell--staff .staff-open-job-order-copy .MuiTypography-root { overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .staff-open-job-order-copy .MuiTypography-root:first-child { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.workspace-shell--staff .staff-open-job-order-row .admin-status-minimal { min-width: 0; }
+.workspace-shell--staff .staff-open-job-order-row .admin-list-details { text-decoration: none !important; }
+.workspace-shell--staff .staff-open-job-order-row .admin-list-details:hover { text-decoration: none !important; }
+.workspace-shell--staff .staff-open-job-order-row .admin-list-details:focus-visible { outline: 2px solid var(--toyota-red); outline-offset: 2px; }
+.workspace-shell--staff .dashboard-metric-card--linked,
+.workspace-shell--staff .dashboard-metric-card--linked:hover,
+.workspace-shell--staff .dashboard-metric-card--linked:focus,
+.workspace-shell--staff .dashboard-metric-card--linked:focus-visible,
+.workspace-shell--staff .dashboard-metric-card--linked:active,
+.workspace-shell--staff .dashboard-metric-card--linked:visited { color: inherit !important; text-decoration: none !important; }
+.workspace-shell--staff .dashboard-metric-card--linked { cursor: pointer; transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
+.workspace-shell--staff .dashboard-metric-card--linked:hover { transform: translateY(-1px); border-color: var(--line-strong); background-color: color-mix(in srgb, var(--surface-soft) 38%, var(--surface)); }
+.workspace-shell--staff .dashboard-metric-card--linked:focus-visible { outline: 2px solid var(--toyota-red); outline-offset: 3px; }
+.workspace-shell--staff .staff-bookings-header,
+.workspace-shell--staff .staff-booking-row { display: grid; grid-template-columns: minmax(190px, 1.45fr) minmax(115px, .9fr) minmax(150px, 1fr) minmax(70px, .5fr) minmax(110px, .8fr) 72px; align-items: center; column-gap: 12px; }
+.workspace-shell--staff .staff-booking-row > *,
+.workspace-shell--staff .staff-booking-identity { min-width: 0; }
+.workspace-shell--staff .staff-booking-identity,
+.workspace-shell--staff .staff-job-identity { display: grid; gap: 2px; }
+.workspace-shell--staff .staff-booking-identity .MuiTypography-root:first-child,
+.workspace-shell--staff .staff-job-identity .MuiTypography-root:first-child { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .staff-booking-identity .MuiTypography-root:last-child,
+.workspace-shell--staff .staff-job-identity .MuiTypography-root:last-child { overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .staff-booking-customer,
+.workspace-shell--staff .staff-booking-schedule,
+.workspace-shell--staff .staff-booking-source,
+.workspace-shell--staff .staff-job-customer,
+.workspace-shell--staff .staff-job-service,
+.workspace-shell--staff .staff-job-bay,
+.workspace-shell--staff .staff-job-amount,
+.workspace-shell--staff .staff-job-type,
+.workspace-shell--staff .staff-job-reference { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .staff-booking-source,
+.workspace-shell--staff .staff-job-type { font-size: 11px; }
+.workspace-shell--staff .staff-jobs-toolbar .MuiTextField-root:first-child { flex: 1 1 320px; }
+.workspace-shell--staff .staff-jobs-toolbar .MuiTextField-root:not(:first-child) { flex: 0 1 180px; }
+.workspace-shell--staff .staff-job-header,
+.workspace-shell--staff .staff-job-row { display: grid; grid-template-columns: minmax(200px, 1.25fr) minmax(130px, .9fr) minmax(160px, 1fr) minmax(95px, .65fr) minmax(120px, .8fr) 72px; align-items: center; column-gap: 12px; }
+.workspace-shell--staff .staff-job-row > * { min-width: 0; }
+.workspace-shell--staff .staff-transaction-header,
+.workspace-shell--staff .staff-transaction-row { grid-template-columns: minmax(120px, .9fr) minmax(145px, 1fr) minmax(120px, .9fr) minmax(90px, .65fr) minmax(85px, .6fr) minmax(120px, .8fr) 72px; }
+.workspace-shell--staff .customer-directory-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 160px 160px; }
+.workspace-shell--staff .service-history-search { flex: 1 1 320px; }
+.workspace-shell--staff .service-history-toolbar > :not(.service-history-search) { flex: 0 1 180px; }
+.workspace-shell--staff .staff-customer-directory-row { grid-template-columns: var(--customer-row-columns); column-gap: 12px; padding-inline: 18px; }
+.workspace-shell--staff .staff-customer-directory-row .customer-directory-type,
+.workspace-shell--staff .customer-directory-contact,
+.workspace-shell--staff .customer-directory-vehicles { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .customer-directory-contact { display: grid; gap: 2px; font-size: 11px; }
+.workspace-shell--staff .customer-directory-contact .MuiTypography-root { overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--staff .customer-directory-vehicles { color: var(--ink); text-align: center; }
+.workspace-shell--staff .staff-customer-directory-panel .customer-directory-list { padding-inline: 0; }
+.workspace-shell--staff .service-history-header,
+.workspace-shell--staff .service-history-row { grid-template-columns: minmax(190px, 1.2fr) minmax(120px, .85fr) minmax(170px, 1.2fr) minmax(135px, .85fr) 72px; column-gap: 12px; padding-inline: 18px; }
+
+@container (max-width: 980px) {
+  .workspace-shell--staff .staff-bookings-header,
+  .workspace-shell--staff .staff-job-header,
+  .workspace-shell--staff .staff-customer-directory-row.customer-directory-header,
+  .workspace-shell--staff .service-history-header { display: none; }
+  .workspace-shell--staff .staff-booking-row,
+  .workspace-shell--staff .staff-job-row,
+  .workspace-shell--staff .staff-customer-directory-row,
+  .workspace-shell--staff .service-history-row { grid-template-columns: minmax(0, 1fr) minmax(110px, auto); gap: 8px 12px; padding: 12px; }
+  .workspace-shell--staff .staff-booking-identity,
+  .workspace-shell--staff .staff-job-identity,
+  .workspace-shell--staff .customer-directory-identity,
+  .workspace-shell--staff .service-history-vehicle { grid-column: 1 / -1; }
+  .workspace-shell--staff .staff-booking-customer,
+  .workspace-shell--staff .staff-job-customer,
+  .workspace-shell--staff .customer-directory-type,
+  .workspace-shell--staff .service-history-customer { grid-column: 1; }
+  .workspace-shell--staff .staff-booking-schedule,
+  .workspace-shell--staff .staff-job-service,
+  .workspace-shell--staff .service-history-services { grid-column: 1; }
+  .workspace-shell--staff .staff-booking-source,
+  .workspace-shell--staff .staff-job-bay,
+  .workspace-shell--staff .customer-directory-contact,
+  .workspace-shell--staff .customer-directory-vehicles,
+  .workspace-shell--staff .service-history-date { grid-column: 1; }
+  .workspace-shell--staff .staff-booking-row > .admin-status-minimal,
+  .workspace-shell--staff .staff-job-row > .admin-status-minimal { grid-column: 2; grid-row: 2 / span 2; justify-self: end; }
+  .workspace-shell--staff .customer-directory-state { grid-column: 2; grid-row: 2; justify-self: end; }
+  .workspace-shell--staff .staff-booking-row > .admin-list-details,
+  .workspace-shell--staff .staff-job-row > .admin-list-details,
+  .workspace-shell--staff .service-history-details { grid-column: 2; justify-self: end; }
+  .workspace-shell--staff .customer-directory-details { grid-column: 2; grid-row: 3; justify-self: end; }
+  .workspace-shell--staff .staff-transaction-row { grid-template-columns: minmax(0, 1fr) minmax(100px, auto); }
+  .workspace-shell--staff .staff-transaction-row > * { grid-column: 1; }
+  .workspace-shell--staff .staff-transaction-row > .admin-status-minimal,
+  .workspace-shell--staff .staff-transaction-row > .admin-list-details { grid-column: 2; }
+}
+@container (max-width: 560px) {
+  .workspace-shell--staff .staff-open-job-order-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .workspace-shell--staff .staff-open-job-order-copy { grid-column: 1 / -1; }
+  .workspace-shell--staff .staff-open-job-order-row .admin-list-details { grid-column: 2; justify-self: end; }
+}
+@media (max-width: 900px) {
+  .workspace-shell--staff .workspace-content { padding: 22px 16px 28px; }
+}
+@container (max-width: 720px) {
+  .workspace-shell--staff .admin-list-toolbar { flex-wrap: wrap; padding: 12px; }
+  .workspace-shell--staff .staff-bookings-list .list-pagination,
+  .workspace-shell--staff .staff-jobs-list .list-pagination { padding-inline: 12px; }
+}
+@media (max-width: 600px) {
+  .workspace-shell--staff .customer-directory-toolbar { grid-template-columns: 1fr 1fr; }
+  .workspace-shell--staff .customer-directory-search { grid-column: 1 / -1; }
+  .workspace-shell--staff .staff-jobs-toolbar .MuiTextField-root:first-child { flex-basis: 100%; }
+  .workspace-shell--staff .staff-jobs-toolbar .MuiTextField-root:not(:first-child) { flex: 1 1 calc(50% - 6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell--staff .MuiListItemButton-root .MuiListItemIcon-root,
+  .workspace-shell--staff .MuiListItemButton-root .MuiListItemText-primary,
+  .workspace-shell--staff .admin-theme-toggle svg,
+  .workspace-shell--staff .admin-list-row,
+  .workspace-shell--staff .admin-list-details .MuiButton-endIcon,
+  .workspace-shell--staff .service-history-details .MuiButton-endIcon,
+  .workspace-shell--staff .dashboard-metric-card--linked { transition: none; animation: none; }
+  .workspace-shell--staff .MuiListItemButton-root:hover .MuiListItemIcon-root,
+  .workspace-shell--staff .dashboard-metric-card--linked:hover { transform: none; }
+}
+
+/* Client workspace follows the approved Admin shell and list tokens. */
+.workspace-shell--client {
+  --canvas: #f6f7f9;
+  --surface: #fff;
+  --surface-soft: #f7f8fa;
+  --ink: #1b2430;
+  --muted: #697586;
+  --line: #dfe4eb;
+  --line-strong: #b9c2ce;
+  --toyota-red: #eb0a1e;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+  --nav-active-ink: var(--toyota-red);
+  --admin-list-radius: 12px;
+  --admin-list-border: var(--line);
+  --admin-toolbar-height: 42px;
+  --admin-header-height: 48px;
+  --admin-list-padding-x: 18px;
+  --admin-list-padding-y: 10px;
+  --admin-row-min-height: 72px;
+  --admin-action-width: 80px;
+  --admin-list-header-size: 11px;
+  --admin-list-header-weight: 550;
+  --admin-list-primary-size: 13px;
+  --admin-list-primary-weight: 600;
+  --admin-list-primary-line-height: 1.4;
+  --admin-list-secondary-size: 12px;
+  --admin-list-secondary-line-height: 1.45;
+  --admin-list-meta-size: 11px;
+  --admin-list-meta-line-height: 1.4;
+  --admin-list-status-size: 12px;
+  --admin-list-status-weight: 500;
+  --admin-list-action-size: 12px;
+  --admin-list-action-weight: 550;
+  background: var(--canvas);
+  background-image: none;
+}
+:root[data-color-mode="dark"] .workspace-shell--client {
+  --canvas: #0b1220;
+  --surface: #131d2b;
+  --surface-soft: #192536;
+  --ink: #e8edf4;
+  --muted: #96a3b5;
+  --line: #243144;
+  --line-strong: #45566c;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+}
+.workspace-shell--client .workspace-content { padding: 28px 32px 36px; }
+.workspace-shell--client .MuiDrawer-paper.workspace-sidebar { background: var(--surface); }
+.workspace-shell--client .MuiAppBar-root { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.workspace-shell--client .MuiAutocomplete-root .MuiOutlinedInput-root { background: var(--surface); }
+.workspace-shell--client .MuiListItemButton-root { min-height: 44px; margin-bottom: 3px; border-radius: 11px; }
+.workspace-shell--client .MuiListItemButton-root .MuiListItemIcon-root,
+.workspace-shell--client .MuiListItemButton-root .MuiListItemText-primary { transition: color .2s ease, transform .2s ease; }
+.workspace-shell--client .MuiListItemButton-root:hover .MuiListItemIcon-root { transform: translateX(1px); }
+.workspace-shell--client .MuiListItemButton-root.active { color: var(--toyota-red); background: var(--nav-active); }
+.workspace-shell--client .MuiListItemButton-root.active .MuiListItemIcon-root,
+.workspace-shell--client .MuiListItemButton-root.active .MuiListItemText-primary { color: var(--toyota-red); }
+.workspace-shell--client .MuiListItemButton-root.active::before { display: none; }
+.workspace-shell--client .admin-theme-toggle svg { transition: transform .22s ease, opacity .22s ease; }
+.workspace-shell--client .admin-theme-toggle:hover svg { transform: rotate(10deg); }
+.workspace-shell--client .admin-list-surface { container-type: inline-size; overflow: hidden; border: 1px solid var(--line) !important; border-radius: 12px !important; background: var(--surface) !important; box-shadow: none !important; }
+.workspace-shell--client .client-list-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.workspace-shell--client .client-list-toolbar .MuiOutlinedInput-root { height: 42px; min-height: 42px; border-radius: 9px; background: var(--surface); }
+.workspace-shell--client .client-list-toolbar .MuiInputLabel-root { font-size: 12px; }
+.workspace-shell--client .client-list-search { flex: 1 1 300px; min-width: 220px; }
+.workspace-shell--client .client-list-toolbar > .MuiTextField-root:not(.client-list-search) { flex: 0 1 170px; min-width: 140px; }
+.workspace-shell--client .client-list-add { min-height: 40px; white-space: nowrap; }
+.workspace-shell--client .client-vehicle-header,
+.workspace-shell--client .client-vehicle-row { display: grid; grid-template-columns: minmax(190px, 1.45fr) 54px minmax(90px, .8fr) minmax(110px, .9fr) minmax(90px, .8fr) minmax(88px, .7fr) 140px; align-items: center; column-gap: 12px; min-width: 0; padding-inline: 18px; }
+.workspace-shell--client .client-vehicle-header,
+.workspace-shell--client .client-bookings-header,
+.workspace-shell--client .client-reminder-header { min-height: 48px; border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); font-size: 11px; font-weight: 550; }
+.workspace-shell--client .client-vehicle-row { min-height: 72px; padding-block: 9px; border-bottom: 1px solid var(--line); transition: background-color .18s ease; }
+.workspace-shell--client .client-vehicle-row:last-child,
+.workspace-shell--client .client-booking-row:last-child,
+.workspace-shell--client .client-reminder-row:last-child { border-bottom: 0; }
+.workspace-shell--client .client-vehicle-row:hover,
+.workspace-shell--client .client-booking-row:hover,
+.workspace-shell--client .client-reminder-row:hover { background: color-mix(in srgb, var(--surface-soft) 65%, transparent); }
+.workspace-shell--client .client-vehicle-row > *,
+.workspace-shell--client .client-booking-row > *,
+.workspace-shell--client .client-reminder-row > * { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; }
+.workspace-shell--client .client-vehicle-identity { display: flex; align-items: center; gap: 10px; color: var(--ink) !important; font-size: 13px !important; font-weight: 600; }
+.workspace-shell--client .client-vehicle-identity img { width: 48px; height: 34px; flex: 0 0 48px; object-fit: contain; }
+.workspace-shell--client .client-vehicle-actions { display: flex; align-items: center; gap: 12px; overflow: visible; }
+.workspace-shell--client .client-vehicle-actions .MuiButton-root,
+.workspace-shell--client .client-booking-details,
+.workspace-shell--client .client-reminder-row .MuiButton-root { min-height: 34px; padding: 4px 6px; color: var(--ink); font-size: 12px; white-space: nowrap; }
+.workspace-shell--client .client-vehicle-list.record-list,
+.workspace-shell--client .booking-monitoring-list.record-list,
+.workspace-shell--client .reminder-list.record-list { width: 100%; max-width: none; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workspace-shell--client .client-vehicle-list .record-list-rows,
+.workspace-shell--client .booking-monitoring-list .record-list-rows,
+.workspace-shell--client .reminder-list .record-list-rows { gap: 0 !important; }
+.workspace-shell--client .client-vehicle-list .list-pagination,
+.workspace-shell--client .booking-monitoring-list .list-pagination,
+.workspace-shell--client .reminder-list .list-pagination { min-height: 54px; margin-top: 0; padding: 9px 18px; border-top: 1px solid var(--line); background: var(--surface); }
+.workspace-shell--client .client-bookings-header,
+.workspace-shell--client .client-booking-row { display: grid; grid-template-columns: minmax(180px, 1.35fr) minmax(140px, 1.1fr) minmax(145px, 1fr) minmax(70px, .55fr) minmax(118px, .8fr) 72px; align-items: center; column-gap: 14px; min-width: 0; padding-inline: 18px; }
+.workspace-shell--client .client-booking-row { min-height: 72px; padding-block: 9px; border-bottom: 1px solid var(--line); }
+.workspace-shell--client .client-booking-identity { display: grid; gap: 3px; }
+.workspace-shell--client .client-booking-identity > :first-child,
+.workspace-shell--client .client-reminder-vehicle { color: var(--ink); font-size: 13px; font-weight: 600; }
+.workspace-shell--client .client-booking-identity > :last-child,
+.workspace-shell--client .client-reminder-meta { color: var(--muted); font-size: 11px; }
+.workspace-shell--client .client-booking-schedule { white-space: normal; }
+.workspace-shell--client .client-booking-source { color: var(--muted); }
+.workspace-shell--client .client-reminder-header,
+.workspace-shell--client .client-reminder-row { display: grid; grid-template-columns: minmax(170px, 1.2fr) minmax(120px, .9fr) minmax(180px, 1.25fr) minmax(100px, .75fr) 100px; align-items: center; column-gap: 14px; min-width: 0; padding-inline: 18px; }
+.workspace-shell--client .client-reminder-row { min-height: 72px; padding-block: 9px; border-bottom: 1px solid var(--line); }
+.workspace-shell--client .service-history-details:focus-visible { outline: 2px solid var(--toyota-red); outline-offset: 2px; }
+.workspace-shell--client .client-dashboard-record .admin-status-minimal { flex: 0 0 auto; }
+.workspace-shell--client .client-dashboard-record .service-history-details { flex: 0 0 auto; }
+.workspace-shell--client .service-history-workspace--client .service-history-header,
+.workspace-shell--client .service-history-workspace--client .service-history-row { grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1.25fr) minmax(150px, .9fr) 80px; }
+.workspace-shell--client .service-history-workspace--client .service-history-toolbar > :not(.service-history-search) { flex: 0 1 170px; min-width: 140px; }
+.workspace-shell--client .service-history-workspace--client .service-history-search { flex: 1 1 300px; min-width: 220px; }
+.workspace-shell--client .dashboard-metric-card--linked,
+.workspace-shell--client .dashboard-metric-card--linked:hover,
+.workspace-shell--client .dashboard-metric-card--linked:focus,
+.workspace-shell--client .dashboard-metric-card--linked:focus-visible,
+.workspace-shell--client .dashboard-metric-card--linked:active,
+.workspace-shell--client .dashboard-metric-card--linked:visited { color: inherit !important; text-decoration: none !important; }
+.workspace-shell--client .dashboard-metric-card--linked { cursor: pointer; transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
+.workspace-shell--client .dashboard-metric-card--linked:hover { transform: translateY(-1px); border-color: var(--line-strong); background-color: color-mix(in srgb, var(--surface-soft) 40%, var(--surface)); }
+.workspace-shell--client .dashboard-metric-card--linked:focus-visible { outline: 2px solid var(--toyota-red); outline-offset: 3px; }
+.client-dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.workspace-shell--client .client-dashboard-card { min-width: 0; }
+.client-dashboard-record { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.client-dashboard-record > :first-child { flex: 1; min-width: 0; }
+.client-dashboard-primary { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.client-dashboard-secondary { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.client-dashboard-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; color: var(--muted); font-size: 12px; }
+.client-dashboard-actions { gap: 10px; }
+.client-dashboard-latest { margin-top: 14px !important; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px !important; }
+.workspace-shell--client .client-vehicle-details-dialog .detail-grid { gap: 12px; }
+.workspace-shell--client .client-vehicle-details-dialog .detail-section { padding: 14px 16px !important; }
+.workspace-shell--client .admin-list-toolbar .MuiOutlinedInput-root { background: var(--surface); }
+@container (max-width: 980px) {
+  .workspace-shell--client .client-vehicle-header, .workspace-shell--client .client-bookings-header, .workspace-shell--client .client-reminder-header { display: none; }
+  .workspace-shell--client .client-vehicle-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "vehicle actions" "year year" "plate plate" "trans transmission" "mileage status"; gap: 6px 12px; padding: 12px; }
+  .workspace-shell--client .client-vehicle-identity { grid-area: vehicle; }
+  .workspace-shell--client .client-vehicle-actions { grid-area: actions; }
+  .workspace-shell--client .client-vehicle-row > :nth-child(2) { grid-area: year; }
+  .workspace-shell--client .client-vehicle-row > :nth-child(3) { grid-area: plate; }
+  .workspace-shell--client .client-vehicle-row > :nth-child(4) { grid-area: transmission; }
+  .workspace-shell--client .client-vehicle-row > :nth-child(5) { grid-area: mileage; }
+  .workspace-shell--client .client-vehicle-row > :nth-child(6) { grid-area: status; justify-self: end; }
+  .workspace-shell--client .client-booking-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "vehicle status" "service service" "schedule source" "details details"; gap: 7px 12px; padding: 12px; }
+  .workspace-shell--client .client-booking-identity { grid-area: vehicle; }
+  .workspace-shell--client .client-booking-service { grid-area: service; }
+  .workspace-shell--client .client-booking-schedule { grid-area: schedule; }
+  .workspace-shell--client .client-booking-source { grid-area: source; justify-self: end; }
+  .workspace-shell--client .client-booking-row > .admin-status-minimal { grid-area: status; justify-self: end; }
+  .workspace-shell--client .client-booking-details { grid-area: details; justify-self: start; }
+  .workspace-shell--client .client-reminder-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "vehicle status" "service service" "recommend recommend" "details details"; gap: 7px 12px; padding: 12px; }
+  .workspace-shell--client .client-reminder-row > :first-child { grid-area: vehicle; }
+  .workspace-shell--client .client-reminder-row > :nth-child(2) { grid-area: service; }
+  .workspace-shell--client .client-reminder-row > :nth-child(3) { grid-area: recommend; }
+  .workspace-shell--client .client-reminder-row > .admin-status-minimal { grid-area: status; justify-self: end; }
+  .workspace-shell--client .client-reminder-row > .service-history-details { grid-area: details; justify-self: start; }
+  .workspace-shell--client .client-dashboard-record { flex-wrap: wrap; gap: 8px 12px; }
+  .workspace-shell--client .client-dashboard-record > :first-child { flex: 1 1 100%; }
+}
+@media (max-width: 900px) { .workspace-shell--client .workspace-content { padding: 22px 16px 28px; } }
+@media (max-width: 700px) {
+  .workspace-shell--client .service-history-workspace--client .service-history-header { display: none; }
+  .workspace-shell--client .service-history-workspace--client .service-history-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .client-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell--client .MuiListItemButton-root .MuiListItemIcon-root,
+  .workspace-shell--client .MuiListItemButton-root .MuiListItemText-primary,
+  .workspace-shell--client .admin-theme-toggle svg,
+  .workspace-shell--client .client-vehicle-row,
+  .workspace-shell--client .dashboard-metric-card--linked { transition: none; animation: none; }
+  .workspace-shell--client .MuiListItemButton-root:hover .MuiListItemIcon-root,
+  .workspace-shell--client .dashboard-metric-card--linked:hover { transform: none; }
+}
 .MuiDrawer-paper.workspace-sidebar {
   background: var(--workspace-sidebar-surface);
   border-color: var(--line);
@@ -949,4 +1351,177 @@ a:focus-visible, button:focus-visible { outline-color: #9ca3af; }
 @media (prefers-reduced-motion: reduce) {
   .workspace-shell--admin .admin-list-row, .workspace-shell--admin .admin-list-details svg, .workspace-shell--admin .admin-list-details .MuiButton-endIcon, .workspace-shell--admin .admin-list-surface .row-more-actions { transition: none; }
   .workspace-shell--admin .admin-list-details:hover svg, .workspace-shell--admin .admin-list-details:hover .MuiButton-endIcon { transform: none; }
+}
+
+/* Mechanic workspace shares the Admin surfaces, navigation and list rhythm. */
+.workspace-shell--mechanic {
+  --canvas: #f6f7f9;
+  --surface: #ffffff;
+  --surface-soft: #f7f8fa;
+  --ink: #1b2430;
+  --muted: #697586;
+  --line: #dfe4eb;
+  --line-strong: #b9c2ce;
+  --toyota-red: #eb0a1e;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+  --nav-active-ink: var(--toyota-red);
+  --admin-list-radius: 12px;
+  --admin-list-border: var(--line);
+  --admin-toolbar-height: 42px;
+  --admin-header-height: 52px;
+  --admin-list-padding-x: 18px;
+  --admin-list-padding-y: 10px;
+  --admin-row-min-height: 76px;
+  --admin-list-header-size: 11px;
+  --admin-list-header-weight: 550;
+  --admin-list-primary-size: 13px;
+  --admin-list-primary-weight: 600;
+  --admin-list-primary-line-height: 1.4;
+  --admin-list-secondary-size: 12px;
+  --admin-list-secondary-line-height: 1.45;
+  --admin-list-meta-size: 11px;
+  --admin-list-meta-line-height: 1.4;
+  --admin-list-status-size: 12px;
+  --admin-list-status-weight: 500;
+  --admin-list-action-size: 12px;
+  --admin-list-action-weight: 550;
+  background-color: var(--canvas);
+  background-image: none;
+  background-attachment: initial;
+}
+:root[data-color-mode="dark"] .workspace-shell--mechanic {
+  --canvas: #0b1220;
+  --surface: #131d2b;
+  --surface-soft: #192536;
+  --ink: #e8edf4;
+  --muted: #96a3b5;
+  --line: #243144;
+  --line-strong: #45566c;
+  --nav-active: color-mix(in srgb, var(--toyota-red) 8%, var(--surface));
+  background-color: var(--canvas);
+  background-image: none;
+}
+.workspace-shell--mechanic .workspace-content { padding: 28px 32px 36px; }
+.workspace-shell--mechanic .MuiDrawer-paper.workspace-sidebar { background: var(--surface); }
+.workspace-shell--mechanic .MuiAppBar-root { background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.workspace-shell--mechanic .MuiAutocomplete-root .MuiOutlinedInput-root { background: var(--surface); }
+.workspace-shell--mechanic .MuiListItemButton-root { min-height: 44px; margin-bottom: 3px; border-radius: 11px; }
+.workspace-shell--mechanic .MuiListItemButton-root .MuiListItemIcon-root,
+.workspace-shell--mechanic .MuiListItemButton-root .MuiListItemText-primary { transition: color .2s ease, transform .2s ease; }
+.workspace-shell--mechanic .MuiListItemButton-root:hover .MuiListItemIcon-root { transform: translateX(1px); }
+.workspace-shell--mechanic .MuiListItemButton-root.active { color: var(--toyota-red); background: var(--nav-active); }
+.workspace-shell--mechanic .MuiListItemButton-root.active .MuiListItemIcon-root,
+.workspace-shell--mechanic .MuiListItemButton-root.active .MuiListItemText-primary { color: var(--toyota-red); }
+.workspace-shell--mechanic .MuiListItemButton-root.active::before { display: none; }
+.workspace-shell--mechanic .MuiListItemText-primary { font-size: 14px; }
+.workspace-shell--mechanic .admin-theme-toggle svg { animation: admin-theme-icon-in .22s ease both; transition: transform .22s ease, opacity .22s ease; }
+.workspace-shell--mechanic .admin-theme-toggle:hover svg { transform: rotate(12deg); }
+.workspace-shell--mechanic .admin-list-surface {
+  container-type: inline-size;
+  overflow: hidden;
+  border: 1px solid var(--admin-list-border) !important;
+  border-radius: var(--admin-list-radius) !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+.workspace-shell--mechanic .admin-list-toolbar { display: flex; align-items: center; gap: 12px; padding: 14px var(--admin-list-padding-x); border-bottom: 1px solid var(--line); }
+.workspace-shell--mechanic .admin-list-toolbar .MuiOutlinedInput-root { height: var(--admin-toolbar-height); min-height: var(--admin-toolbar-height); border-radius: 9px; background: var(--surface); }
+.workspace-shell--mechanic .admin-list-toolbar .MuiInputLabel-root { font-size: 12px; }
+.workspace-shell--mechanic .mechanic-jobs-search { flex: 1 1 300px; min-width: 220px; }
+.workspace-shell--mechanic .mechanic-jobs-status, .workspace-shell--mechanic .mechanic-jobs-order { flex: 0 1 180px; min-width: 145px; }
+.workspace-shell--mechanic .mechanic-job-header,
+.workspace-shell--mechanic .mechanic-job-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.25fr) minmax(140px, 1fr) minmax(165px, 1fr) minmax(128px, .8fr) 76px;
+  align-items: center;
+  column-gap: 16px;
+  min-width: 0;
+  padding-inline: var(--admin-list-padding-x);
+}
+.workspace-shell--mechanic .mechanic-job-header { min-height: var(--admin-header-height); border-bottom: 1px solid var(--line); background: var(--surface-soft); color: var(--muted); font-size: var(--admin-list-header-size); font-weight: var(--admin-list-header-weight); }
+.workspace-shell--mechanic .mechanic-job-row { min-height: var(--admin-row-min-height); padding-block: var(--admin-list-padding-y); border-bottom: 1px solid var(--line); transition: background-color .2s ease; }
+.workspace-shell--mechanic .mechanic-job-row:last-child { border-bottom: 0; }
+.workspace-shell--mechanic .mechanic-job-row:hover { background: color-mix(in srgb, var(--surface-soft) 70%, transparent); }
+.workspace-shell--mechanic .mechanic-job-row > *,
+.workspace-shell--mechanic .mechanic-job-vehicle,
+.workspace-shell--mechanic .mechanic-job-schedule { min-width: 0; }
+.workspace-shell--mechanic .mechanic-job-vehicle,
+.workspace-shell--mechanic .mechanic-job-schedule { display: grid; gap: 2px; }
+.workspace-shell--mechanic .mechanic-job-vehicle .MuiTypography-root,
+.workspace-shell--mechanic .mechanic-job-schedule .MuiTypography-root,
+.workspace-shell--mechanic .mechanic-job-service { overflow: hidden; color: var(--muted); font-size: var(--admin-list-secondary-size); line-height: var(--admin-list-secondary-line-height); text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--mechanic .mechanic-job-vehicle .mechanic-job-primary { color: var(--ink); font-size: var(--admin-list-primary-size); font-weight: var(--admin-list-primary-weight); line-height: var(--admin-list-primary-line-height); }
+.workspace-shell--mechanic .mechanic-job-vehicle .mechanic-job-reference { font-size: var(--admin-list-meta-size); line-height: var(--admin-list-meta-line-height); }
+.workspace-shell--mechanic .mechanic-job-status { min-width: 0; overflow: hidden; }
+.workspace-shell--mechanic .mechanic-job-status .admin-status-minimal { max-width: 100%; overflow: hidden; }
+.workspace-shell--mechanic .mechanic-job-status .admin-status-minimal > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.workspace-shell--mechanic .mechanic-job-details { grid-column: 5; justify-self: start; width: 100%; min-height: 34px; padding: 4px 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-size: var(--admin-list-action-size); font-weight: var(--admin-list-action-weight); text-align: left; white-space: nowrap; }
+.workspace-shell--mechanic .mechanic-job-details:hover { background: transparent; color: var(--ink); }
+.workspace-shell--mechanic .mechanic-job-details .MuiButton-endIcon { transition: transform .2s ease; }
+.workspace-shell--mechanic .mechanic-job-details:hover .MuiButton-endIcon { transform: translateX(2px); }
+.workspace-shell--mechanic .mechanic-jobs-list.record-list { width: 100%; max-width: none; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workspace-shell--mechanic .mechanic-jobs-list .record-list-rows { gap: 0 !important; }
+.workspace-shell--mechanic .mechanic-jobs-list .list-pagination { min-height: 56px; margin-top: 0; padding: 10px var(--admin-list-padding-x); border-top: 1px solid var(--line); background: var(--surface); }
+.workspace-shell--mechanic .dashboard-metric-card--linked,
+.workspace-shell--mechanic .dashboard-metric-card--linked:hover,
+.workspace-shell--mechanic .dashboard-metric-card--linked:focus,
+.workspace-shell--mechanic .dashboard-metric-card--linked:focus-visible,
+.workspace-shell--mechanic .dashboard-metric-card--linked:active,
+.workspace-shell--mechanic .dashboard-metric-card--linked:visited {
+  display: block;
+  color: inherit !important;
+  text-decoration: none !important;
+}
+.workspace-shell--mechanic .dashboard-metric-card--linked { cursor: pointer; transition: transform .18s ease, border-color .18s ease, background-color .18s ease; }
+.workspace-shell--mechanic .dashboard-metric-card--linked:hover { transform: translateY(-1px); border-color: var(--line-strong); background-color: color-mix(in srgb, var(--surface-soft) 38%, var(--surface)); }
+.workspace-shell--mechanic .dashboard-metric-card--linked:focus-visible { outline: 2px solid var(--toyota-red); outline-offset: 3px; }
+.workspace-shell--mechanic .mechanic-active-preview.record-card { min-height: 88px; height: auto; padding: 16px; border-radius: 12px; column-gap: 14px; }
+.workspace-shell--mechanic .mechanic-active-preview .record-entity-avatar { width: 40px; height: 40px; border-radius: 10px; background: var(--surface-soft); color: var(--muted); }
+.workspace-shell--mechanic .mechanic-active-preview .record-card-controls { gap: 12px; }
+.workspace-shell--mechanic .mechanic-queue-empty { display: grid; min-height: 88px; place-content: center; gap: 4px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); text-align: center; }
+.workspace-shell--mechanic .mechanic-queue-empty .MuiTypography-root { color: var(--muted); font-size: 12px; }
+.workspace-shell--mechanic .mechanic-queue-empty .MuiTypography-root:first-child { color: var(--ink); font-weight: 550; }
+.workspace-shell--mechanic .mechanic-queue-list { display: grid; min-width: 0; }
+.workspace-shell--mechanic .mechanic-queue-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; padding: 12px 2px; border-bottom: 1px solid var(--line); text-decoration: none; }
+.workspace-shell--mechanic .mechanic-queue-row:last-child { border-bottom: 0; }
+.workspace-shell--mechanic .mechanic-queue-row:hover { color: var(--ink); }
+.workspace-shell--mechanic .mechanic-queue-row > .MuiBox-root { display: grid; gap: 3px; }
+.workspace-shell--mechanic .mechanic-queue-row .MuiTypography-root { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-shell--mechanic .mechanic-queue-row .MuiTypography-root:first-child { color: var(--ink); font-size: 13px; font-weight: 600; }
+.workspace-shell--mechanic .active-job-workspace .detail-section { padding: 14px 16px !important; }
+.workspace-shell--mechanic .active-job-workspace .detail-section > h3 { font-size: 13px; }
+.workspace-shell--mechanic .active-job-workspace .detail-grid { gap: 12px; }
+.workspace-shell--mechanic .active-job-workspace .detail-grid > .detail-section { height: 100%; }
+
+@container (max-width: 980px) {
+  .workspace-shell--mechanic .mechanic-job-header { display: none; }
+  .workspace-shell--mechanic .mechanic-job-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px; grid-template-areas: "vehicle vehicle vehicle" "service schedule status" "details details details"; gap: 8px 12px; padding: 12px; }
+  .workspace-shell--mechanic .mechanic-job-vehicle { grid-area: vehicle; }
+  .workspace-shell--mechanic .mechanic-job-service { grid-area: service; }
+  .workspace-shell--mechanic .mechanic-job-schedule { grid-area: schedule; }
+  .workspace-shell--mechanic .mechanic-job-status { grid-area: status; justify-self: end; }
+  .workspace-shell--mechanic .mechanic-job-details { grid-area: details; }
+}
+@media (max-width: 900px) {
+  .workspace-shell--mechanic .workspace-content { padding: 22px 16px 28px; }
+}
+@container (max-width: 720px) {
+  .workspace-shell--mechanic .admin-list-toolbar { flex-wrap: wrap; padding: 12px; }
+  .workspace-shell--mechanic .mechanic-job-row { padding-inline: 12px; }
+  .workspace-shell--mechanic .mechanic-jobs-list .list-pagination { padding-inline: 12px; }
+}
+@media (max-width: 600px) {
+  .workspace-shell--mechanic .mechanic-jobs-search { flex-basis: 100%; min-width: 0; }
+  .workspace-shell--mechanic .mechanic-jobs-status, .workspace-shell--mechanic .mechanic-jobs-order { flex: 1 1 calc(50% - 6px); min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell--mechanic .MuiListItemButton-root .MuiListItemIcon-root,
+  .workspace-shell--mechanic .MuiListItemButton-root .MuiListItemText-primary,
+  .workspace-shell--mechanic .admin-theme-toggle svg,
+  .workspace-shell--mechanic .mechanic-job-row,
+  .workspace-shell--mechanic .mechanic-job-details .MuiButton-endIcon,
+  .workspace-shell--mechanic .dashboard-metric-card--linked { transition: none; animation: none; }
+  .workspace-shell--mechanic .MuiListItemButton-root:hover .MuiListItemIcon-root,
+  .workspace-shell--mechanic .mechanic-job-details:hover .MuiButton-endIcon,
+  .workspace-shell--mechanic .dashboard-metric-card--linked:hover { transform: none; }
 }

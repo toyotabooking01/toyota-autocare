@@ -211,21 +211,32 @@ async function list(query, clientId) {
   const filter = queryFilters(query, clientId);
   if (clientId) await holds.releaseExpired({ client: clientId });
   if (query.search !== undefined) {
-    if (clientId) throw new HttpError(400, 'Search is available to staff and Admin only.');
     if (typeof query.search !== 'string' || query.search.length > 100) throw new HttpError(400, 'Invalid search.');
     const search = query.search.trim();
     if (search) {
       const regex = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-      const [clients, vehicles] = await Promise.all([
-        User.find({ role: 'client', $or: [{ fullName: regex }, { email: regex }, { contactEmail: regex }, { phone: regex }] }).select('_id').lean(),
-        Vehicle.find({ $or: [{ plateNumber: regex }, { make: regex }, { model: regex }] }).select('_id').lean(),
-      ]);
-      filter.$or = [{ client: { $in: clients.map(item => item._id) } }, { vehicle: { $in: vehicles.map(item => item._id) } }, { concern: regex }];
-      if (mongoose.isObjectIdOrHexString(search)) filter.$or.push({ _id: search });
+      if (clientId) {
+        const [vehicles, services] = await Promise.all([
+          Vehicle.find({ owner: clientId, $or: [{ plateNumber: regex }, { make: regex }, { model: regex }] }).select('_id').lean(),
+          Service.find({ name: regex }).select('_id').lean(),
+        ]);
+        const criteria = [{ vehicle: { $in: vehicles.map(item => item._id) } }, { services: { $in: services.map(item => item._id) } }, { concern: regex }];
+        if (mongoose.isObjectIdOrHexString(search)) criteria.push({ _id: search });
+        filter.$and = [...(filter.$and || []), { $or: criteria }];
+      } else {
+        const [clients, vehicles] = await Promise.all([
+          User.find({ role: 'client', $or: [{ fullName: regex }, { email: regex }, { contactEmail: regex }, { phone: regex }] }).select('_id').lean(),
+          Vehicle.find({ $or: [{ plateNumber: regex }, { make: regex }, { model: regex }] }).select('_id').lean(),
+        ]);
+        filter.$or = [{ client: { $in: clients.map(item => item._id) } }, { vehicle: { $in: vehicles.map(item => item._id) } }, { concern: regex }];
+        if (mongoose.isObjectIdOrHexString(search)) filter.$or.push({ _id: search });
+      }
     }
   }
-  const result = await require('../utils/pagination').listPage(Booking, filter, clientId ? {} : query,
-    () => Booking.find(filter).sort({ bookingDate: -1, bookingTime: -1, createdAt: -1, _id: -1 }).populate(populate));
+  if (query.order !== undefined && !['newest', 'oldest'].includes(query.order)) throw new HttpError(400, 'Invalid booking date order.');
+  const direction = query.order === 'oldest' ? 1 : -1;
+  const result = await require('../utils/pagination').listPage(Booking, filter, query,
+    () => Booking.find(filter).sort({ bookingDate: direction, bookingTime: direction, createdAt: direction, _id: direction }).populate(populate));
   return Array.isArray(result) ? result.map(publicBooking) : { ...result, items: result.items.map(publicBooking) };
 }
 async function get(rawId, clientId) {

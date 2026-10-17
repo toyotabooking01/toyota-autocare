@@ -84,13 +84,21 @@ test('booking search count and data use the same resolved client/vehicle filters
   assert.deepEqual(seen.countFilter, seen.filter);
 });
 
-test('client/mechanic lists preserve ownership and existing unpaginated responses', async t => {
-  for (const [Model, run, ownerField] of [[models.Booking, () => bookings.list({ page: '2' }, 'owner'), 'client'],
-    [models.JobOrder, () => jobs.list('owner', { page: '2' }), 'mechanic'],
-    [models.MaintenanceReminder, () => engagement.reminders('owner', { page: '2' }), 'client']]) {
+test('client booking and reminder lists preserve ownership while honoring pagination', async t => {
+  for (const [Model, run] of [[models.Booking, () => bookings.list({ page: '2', limit: '10' }, 'owner')],
+    [models.MaintenanceReminder, () => engagement.reminders('owner', { page: '2', limit: '10' })]]) {
     const { seen } = fixture(t, Model);
-    assert.equal((await run()).length, 42); assert.equal(seen.filter[ownerField], 'owner'); assert.equal(seen.countFilter, undefined);
+    const result = await run();
+    assert.equal(result.items.length, 10); assert.equal(result.page, 2); assert.equal(result.limit, 10);
+    assert.equal(seen.filter.client, 'owner'); assert.equal(seen.countFilter.client, 'owner');
+    assert.equal(seen.skip, 10); assert.equal(seen.limit, 10);
   }
+})
+
+test('client mechanic jobs remain ownership-scoped and retain legacy unpaginated response', async t => {
+  const { seen } = fixture(t, models.JobOrder);
+  const result = await jobs.list('owner', { page: '2' });
+  assert.equal(result.length, 42); assert.equal(seen.filter.mechanic, 'owner'); assert.equal(seen.countFilter, undefined);
 });
 
 test('legacy query executes without pagination operations', async () => {

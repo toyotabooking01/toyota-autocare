@@ -21,7 +21,8 @@ export function CustomersDirectory({ role }) {
   const [search, setSearch] = useState('')
   const [customerType, setCustomerType] = useState('all')
   const [status, setStatus] = useState('all')
-  const { items, loading, error, pagination } = useCatalog('/people/customers', { search, customerType, status }, role === 'admin')
+  const staff = role === 'staff'
+  const { items, loading, error, pagination } = useCatalog('/people/customers', { search, customerType, status }, role === 'admin' || staff)
   const [selected, setSelected] = useState(null)
   const [detailError, setDetailError] = useState('')
   async function inspect(id) {
@@ -30,7 +31,7 @@ export function CustomersDirectory({ role }) {
   }
   return <>
     <PageHeading title={role === 'admin' ? 'Customer Vehicle Monitoring' : 'Customers'} subtitle="View customer vehicles and booking history." preview={false} />
-    <RecordPanel className="customer-directory-panel admin-list-surface">
+    <RecordPanel className={`customer-directory-panel admin-list-surface${staff ? ' staff-customer-directory-panel' : ''}`}>
       <Box className="customer-directory-toolbar admin-list-toolbar">
         <TextField className="customer-directory-search" fullWidth size="small" label="Search customer name, email, or phone" value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
         <TextField select className="customer-directory-type-filter" label="Customer type" size="small" value={customerType} onChange={event => setCustomerType(event.target.value)}>
@@ -41,12 +42,12 @@ export function CustomersDirectory({ role }) {
         </TextField>
       </Box>
       {(error || detailError) && <Alert severity="error" sx={{ mx: 2, mt: 2 }}>{error || detailError}</Alert>}
-      <CustomerDirectoryHeader />
+      <CustomerDirectoryHeader staff={staff} />
       <RecordList className="customer-directory-list" items={items} pagination={pagination} selectionKey={`${search}|${customerType}|${status}`} loading={loading && <Typography sx={{ p: 2, fontSize: 13 }}>Loading customers...</Typography>} empty="No customers found.">
-        {item => <CustomerDirectoryRow key={item._id} customer={item} onDetails={() => inspect(item._id)} />}
+        {item => <CustomerDirectoryRow key={item._id} customer={item} staff={staff} onDetails={() => inspect(item._id)} />}
       </RecordList>
     </RecordPanel>
-    <DetailDialog className="account-management-dialog customer-details-dialog" paperSx={{ width: 'min(680px, calc(100vw - 32px))', maxWidth: 680, borderRadius: '14px' }} open={Boolean(selected)} onClose={() => setSelected(null)} title="Customer details"
+    <DetailDialog className="account-management-dialog customer-details-dialog" paperSx={{ width: 'min(680px, calc(100vw - 32px))', maxWidth: 680, borderRadius: '14px' }} open={Boolean(selected)} onClose={() => setSelected(null)} title={staff ? 'Customer Details' : 'Customer details'}
       reference={selected?.customer?.fullName} status={selected && <AccountStatus account={selected.customer} minimal />}>
       {selected && <>
         <AccountRecordDetails account={selected.customer} kind="customer" />

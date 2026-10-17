@@ -21,6 +21,9 @@ export default function ApplicationLayout({ role }) {
   const [open, setOpen] = useState(false)
   const { mode, toggle } = useColorMode()
   const adminWorkspace = role === 'admin'
+  const mechanicWorkspace = role === 'mechanic'
+  const clientWorkspace = role === 'client'
+  const staffWorkspace = role === 'staff'
   const adminDashboard = adminWorkspace && pathname === '/admin/dashboard'
   const desktop = useMediaQuery(theme => theme.breakpoints.up('lg'))
   const menu = roleNavigation[role]
@@ -40,12 +43,12 @@ export default function ApplicationLayout({ role }) {
         key={path} component={NavLink} to={`/${role}/${path}`} end onClick={() => setOpen(false)}
         sx={{ borderRadius: 1.5, mb: .4, minHeight: 46, py: .5,
           '&:hover': { textDecoration: 'none', bgcolor: 'var(--nav-hover)' } }}>
-        <ListItemIcon sx={{ minWidth: 34, color: 'var(--muted)' }}><Icon {...(role === 'admin' ? { width: 20, height: 20, strokeWidth: 1.6 } : { sx: { fontSize: 20 } })} /></ListItemIcon>
+        <ListItemIcon sx={{ minWidth: 34, color: 'var(--muted)' }}><Icon {...(role === 'admin' || role === 'client' || role === 'staff' ? { width: 20, height: 20, strokeWidth: 1.6 } : { sx: { fontSize: 20 } })} /></ListItemIcon>
         <ListItemText primary={label} slotProps={{ primary: { fontSize: 13, fontWeight: 550 } }} />
       </ListItemButton>)}</List>
     </Box>
   </Box>
-  return <Box className={`workspace-shell${adminWorkspace ? ' workspace-shell--admin' : ''}${adminDashboard ? ' workspace-shell--admin-dashboard' : ''}`} sx={{ minHeight: '100dvh', display: 'flex', width: '100%' }}>
+  return <Box className={`workspace-shell${adminWorkspace ? ' workspace-shell--admin' : ''}${mechanicWorkspace ? ' workspace-shell--mechanic' : ''}${clientWorkspace ? ' workspace-shell--client' : ''}${staffWorkspace ? ' workspace-shell--staff' : ''}${adminDashboard ? ' workspace-shell--admin-dashboard' : ''}`} sx={{ minHeight: '100dvh', display: 'flex', width: '100%' }}>
     <Box component="a" href="#workspace-content" sx={{ position: 'fixed', left: 16, top: -80, zIndex: 1500, p: 1.5, bgcolor: 'var(--surface)', '&:focus': { top: 10 } }}>Skip to content</Box>
     <Drawer variant={desktop ? 'permanent' : 'temporary'} open={desktop || open} onClose={() => setOpen(false)} slotProps={{ paper: { className: 'workspace-sidebar' } }}
       sx={{ width: desktop ? sidebarWidth : 0, flexShrink: 0, '& .MuiDrawer-paper': { width: desktop ? sidebarWidth : 260, maxWidth: '90vw', boxSizing: 'border-box', borderRight: '1px solid var(--line)' } }}>
@@ -61,7 +64,7 @@ export default function ApplicationLayout({ role }) {
               slotProps={{ input: { ...params.InputProps, startAdornment: <InputAdornment position="start">{role === 'admin' ? <SearchIcon width={18} height={18} strokeWidth={1.6} /> : <SearchRounded fontSize="small" />}</InputAdornment> }, htmlInput: { ...params.inputProps, 'aria-label': 'Find a workspace page' } }} />} />
           <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1, minWidth: 0, overflowWrap: 'anywhere', display: { sm: 'none' } }}>{current}</Typography>
           <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
-          {adminWorkspace && <IconButton className="admin-theme-toggle" onClick={toggle} aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} sx={{ border: '1px solid var(--line)', borderRadius: 2 }}>
+          {(adminWorkspace || mechanicWorkspace || clientWorkspace || staffWorkspace) && <IconButton className="admin-theme-toggle" onClick={toggle} aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} sx={{ border: '1px solid var(--line)', borderRadius: 2 }}>
             {mode === 'dark' ? <SunLight width={18} height={18} strokeWidth={1.6} /> : <HalfMoon width={18} height={18} strokeWidth={1.6} />}
           </IconButton>}
           <NotificationBell role={role} />

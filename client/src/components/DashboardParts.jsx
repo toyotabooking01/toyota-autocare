@@ -30,9 +30,11 @@ export function PageHeading({ title, subtitle }) {
 export function MetricCards({ items }) {
   return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' }, gap: { xs: 1.5, md: 2 }, mb: 2.5 }}>
     {items.map(item => { const Icon = metricIcons[item.tone]
-      return <Paper key={item.label} variant="outlined" sx={{ p: { xs: 1.5, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2 }}>
+      return <Paper key={item.label} component={item.to ? Link : 'div'} {...(item.to ? { to: item.to } : {})} variant="outlined"
+        className={item.to ? 'dashboard-metric-card dashboard-metric-card--linked' : 'dashboard-metric-card'}
+        sx={{ p: { xs: 1.5, md: 2.5 }, borderColor: 'var(--line)', borderRadius: 2, color: 'inherit', textDecoration: 'none' }}>
         <Stack direction="row" spacing={1.5} alignItems="flex-start">
-          <Box className="dashboard-metric-icon" data-tone={item.tone}><Icon /></Box>
+          <Box className="dashboard-metric-icon" data-tone={item.tone}>{item.icon || <Icon />}</Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontSize: 11, fontWeight: 650 }}>{item.label}</Typography>
             <Typography sx={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2, mt: .35 }}>{item.value}</Typography>

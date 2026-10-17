@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Button, IconButton, Menu, MenuItem, Tooltip } from '@mui/material'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
-import { MoreHoriz } from 'iconoir-react'
+import { MoreHoriz, NavArrowRight } from 'iconoir-react'
 
 const compactAction = { height: 36, minHeight: 36, px: 1.5, py: .5, fontSize: 12, borderRadius: '8px', whiteSpace: 'nowrap', flexShrink: 0 }
 
@@ -11,6 +11,14 @@ export function CompactActionButton({ sx, variant = 'outlined', children, ...pro
 
 export function DetailsButton(props) {
   return <CompactActionButton endIcon={<ChevronRightRounded sx={{ fontSize: 17 }} />} {...props}>Details</CompactActionButton>
+}
+
+export function QuietDetailsButton({ className = '', ...props }) {
+  return <Button variant="text" className={`service-history-details ${className}`.trim()} endIcon={<NavArrowRight width={16} height={16} strokeWidth={1.7} aria-hidden="true" />} {...props}>Details</Button>
+}
+
+export function QuietTextActionButton({ className = '', children, ...props }) {
+  return <Button variant="text" className={`service-history-details ${className}`.trim()} {...props}>{children}</Button>
 }
 
 export function MoreActionsMenu({ items, label, disabled = false }) {

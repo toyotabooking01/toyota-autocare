@@ -18,8 +18,8 @@ import { formatPaymentMethod } from '../utils/paymentMethod'
 
 const steps = ['Vehicle', 'Services', 'Date & Time', 'Review', 'Downpayment', 'Confirmation']
 const card = { p: 2, border: '1px solid var(--line)', borderRadius: 2, cursor: 'pointer', minWidth: 0 }
-const bookingStepperSx = { mb: 4, display: { xs: 'none', sm: 'flex' },
-  '& .MuiStepIcon-root': { color: 'text.disabled' },
+const bookingStepperSx = { mb: 2.5, display: { xs: 'none', sm: 'flex' },
+  '& .MuiStepIcon-root': { color: 'text.disabled', fontSize: 23 },
   '& .MuiStepIcon-root.Mui-completed': { color: 'var(--blue-done)' },
   '& .MuiStepIcon-root.Mui-active': { color: 'var(--blue-active)' },
   '& .MuiStepLabel-label': { color: 'text.secondary' },
@@ -162,17 +162,17 @@ export default function ClientBookService() {
     } finally { setSaving(false) }
   }
   return <>
-    <PageHeading title="Book a service" subtitle="Select your Toyota, services, and a time that works for you." preview={false} />
+    <PageHeading title="Book a Service" subtitle="Select your Toyota, services, and a time that works for you." preview={false} />
     {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
-    <FormWorkspace>
+    <FormWorkspace className="client-book-service">
       {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading booking options…</Typography></Stack>
         : optionsError ? <Stack alignItems="flex-start" spacing={2} sx={{ py: 5 }}><Typography sx={{ color: 'text.secondary', fontSize: 13 }}>Booking options could not be loaded.</Typography><Button variant="outlined" onClick={() => { setError(''); setOptionsError(false); setLoading(true); setRefresh(value => value + 1) }}>Retry loading</Button></Stack>
         : <>
             <Stepper activeStep={step} alternativeLabel sx={bookingStepperSx}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
             <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 6 · {steps[step]}</Typography>
             {step === 0 && <>{validation.errors.vehicle && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.vehicle}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Choose your vehicle</Typography>
-              {!vehicles.length ? <Alert severity="info">Add a vehicle in My Vehicles before booking.</Alert> : <Box sx={formWorkspaceGrid}>{vehicles.map(item => <Paper key={item._id} component="button" type="button" onClick={() => { setVehicleId(item._id); setSlot(null); setSelectedDate(''); setDuplicateNotice('') }} aria-pressed={vehicleId === item._id} variant="outlined" sx={{ ...card, textAlign: 'left', borderColor: vehicleId === item._id ? 'var(--blue-ink)' : 'var(--line)', bgcolor: vehicleId === item._id ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }}><Typography sx={{ fontWeight: 650 }}>{item.make} {item.model} {item.year}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.plateNumber}</Typography></Paper>)}</Box>}
+              {!vehicles.length ? <Alert severity="info">Add a vehicle in My Vehicle before booking.</Alert> : <Box sx={formWorkspaceGrid}>{vehicles.map(item => <Paper key={item._id} component="button" type="button" onClick={() => { setVehicleId(item._id); setSlot(null); setSelectedDate(''); setDuplicateNotice('') }} aria-pressed={vehicleId === item._id} variant="outlined" sx={{ ...card, textAlign: 'left', borderColor: vehicleId === item._id ? 'var(--blue-ink)' : 'var(--line)', bgcolor: vehicleId === item._id ? 'var(--blue-soft)' : 'var(--surface)', '&:hover': { borderColor: 'var(--blue-ink)', bgcolor: 'var(--blue-soft)' } }}><Typography sx={{ fontWeight: 650 }}>{item.make} {item.model} {item.year}</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{item.plateNumber}</Typography></Paper>)}</Box>}
             </>}
             {step === 1 && <>{validation.errors.services && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.services}</Alert>}{duplicateNotice && <Alert severity="warning" onClose={() => setDuplicateNotice('')} sx={{ mb: 2 }}>{duplicateNotice}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: .5 }}>Choose services</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>Select up to 20 services.</Typography><Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>You can select more than one.</Typography>
               {!vehicleId && <Alert severity="info" sx={{ mb: 2 }}>Choose a vehicle first to check its active bookings.</Alert>}

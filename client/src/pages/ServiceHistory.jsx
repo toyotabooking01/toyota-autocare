@@ -9,6 +9,7 @@ import { financialDocumentButtonLabel, openFinancialPdf } from '../utils/openFin
 import useCatalog from './useCatalog'
 import { MinimalStatus } from '../components/StatusChip'
 import { NavArrowRight, Wrench } from 'iconoir-react'
+import { QuietDetailsButton } from '../components/RowActions'
 
 const date = value => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' }) : 'Date unavailable'
 const money = cents => Number.isSafeInteger(cents) ? `₱${(cents / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Unavailable'
@@ -42,9 +43,9 @@ export default function ServiceHistory({ role = 'client' }) {
   return <>
     <PageHeading title="Service History" subtitle={role === 'client' ? 'Completed service records for your vehicles.' : 'Completed customer service records.'} preview={false} />
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <RecordPanel className="service-history-workspace admin-list-surface">
+    <RecordPanel className={`service-history-workspace admin-list-surface${role === 'client' ? ' service-history-workspace--client' : ''}`}>
       <Box className="service-history-toolbar admin-list-toolbar">
-        <TextField className="service-history-search" size="small" label="Search plate, vehicle, customer or service" value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
+        <TextField className="service-history-search" size="small" label={role === 'client' ? 'Search vehicle, plate, or service' : 'Search plate, vehicle, customer or service'} value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
         {role === 'client' && <TextField select size="small" label="Vehicle" value={vehicle} onChange={event => setVehicle(event.target.value)}>
           <MenuItem value="">All vehicles</MenuItem>{vehicles.map(item => <MenuItem key={item._id} value={item._id}>{vehicleName(item)} · {item.plateNumber}</MenuItem>)}
         </TextField>}
@@ -52,15 +53,15 @@ export default function ServiceHistory({ role = 'client' }) {
           <MenuItem value="newest">Newest first</MenuItem><MenuItem value="oldest">Oldest first</MenuItem>
         </TextField>
       </Box>
-      <Box className="service-history-header admin-list-header" aria-hidden="true"><span>Vehicle</span><span>Customer</span><span>Service</span><span>Completed</span><span>Details</span></Box>
+      <Box className="service-history-header admin-list-header" aria-hidden="true"><span>Vehicle</span>{role !== 'client' && <span>Customer</span>}<span>Service</span><span>Completed</span><span>{role === 'admin' ? 'Details' : 'Action'}</span></Box>
       <RecordList className="service-history-list" items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress size={28} /></Stack>}
         empty="No completed services yet.">
         {item => <Box component="article" className="service-history-row admin-list-row" key={item._id}>
           <Box className="service-history-vehicle"><span className="service-history-icon" aria-hidden="true"><Wrench width={18} height={18} strokeWidth={1.7} /></span><Box><Typography>{vehicleName(item.vehicle)}</Typography><small>{item.vehicle?.plateNumber || 'Plate unavailable'}</small></Box></Box>
-          <Typography className="service-history-customer">{item.client?.fullName || 'Client unavailable'}</Typography>
+          {role !== 'client' && <Typography className="service-history-customer">{item.client?.fullName || 'Client unavailable'}</Typography>}
           <Typography className="service-history-services" title={[...item.originalServices, ...item.additionalWork].map(itemName).join(', ')}>{[...item.originalServices, ...item.additionalWork].map(itemName).join(', ') || 'Service details unavailable'}</Typography>
           <Typography className="service-history-date">{date(item.completedAt)}</Typography>
-          <Button className="service-history-details admin-list-details" endIcon={<NavArrowRight width={16} height={16} strokeWidth={1.7} />} onClick={() => setSelectedId(String(item._id))}>Details</Button>
+          <QuietDetailsButton className="admin-list-details" onClick={() => setSelectedId(String(item._id))} />
         </Box>}
       </RecordList>
     </RecordPanel>

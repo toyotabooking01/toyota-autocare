@@ -222,26 +222,24 @@ async function markAllRead(userId) {
 }
 async function reminders(clientId, query = {}) {
   const filter = clientId ? { client: clientId } : {};
-  if (!clientId) {
-    if (query.search !== undefined && (typeof query.search !== 'string' || query.search.length > 100)) throw new HttpError(400, 'Invalid reminder search.')
-    const search = query.search?.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    if (search) {
-      const pattern = { $regex: search, $options: 'i' }
-      const [vehicles, clients, services] = await Promise.all([
-        Vehicle.find({ $or: [{ make: pattern }, { model: pattern }, { plateNumber: pattern }] }).select('_id').lean(),
-        User.find({ role: 'client', fullName: pattern }).select('_id').lean(),
-        Service.find({ name: pattern }).select('_id').lean(),
-      ])
-      filter.$or = [
-        { vehicle: { $in: vehicles.map(item => item._id) } },
-        { client: { $in: clients.map(item => item._id) } },
-        { service: { $in: services.map(item => item._id) } },
-      ]
-    }
-    const status = query.status || ''
-    if (status && !['upcoming', 'due', 'completed', 'dismissed'].includes(status)) throw new HttpError(400, 'Invalid reminder status filter.')
-    if (status === 'completed' || status === 'dismissed') filter.status = status
-    if (status === 'upcoming' || status === 'due') {
+  if (query.search !== undefined && (typeof query.search !== 'string' || query.search.length > 100)) throw new HttpError(400, 'Invalid reminder search.')
+  const search = query.search?.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  if (search) {
+    const pattern = { $regex: search, $options: 'i' }
+    const [vehicles, clients, services] = await Promise.all([
+      Vehicle.find({ ...(clientId ? { owner: clientId } : {}), $or: [{ make: pattern }, { model: pattern }, { plateNumber: pattern }] }).select('_id').lean(),
+      clientId ? [] : User.find({ role: 'client', fullName: pattern }).select('_id').lean(),
+      Service.find({ name: pattern }).select('_id').lean(),
+    ])
+    const criteria = [{ vehicle: { $in: vehicles.map(item => item._id) } }, { service: { $in: services.map(item => item._id) } }]
+    if (!clientId) criteria.push({ client: { $in: clients.map(item => item._id) } })
+    filter.$and = [...(filter.$and || []), { $or: criteria }]
+  }
+  const status = query.status || ''
+  if (status && !['upcoming', 'due', 'completed', 'dismissed'].includes(status)) throw new HttpError(400, 'Invalid reminder status filter.')
+  if (query.order !== undefined && !['newest', 'oldest'].includes(query.order)) throw new HttpError(400, 'Invalid reminder date order.')
+  if (status === 'completed' || status === 'dismissed') filter.status = status
+  if (status === 'upcoming' || status === 'due') {
       const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const dueReminderIds = await MaintenanceReminder.aggregate([
         { $match: { ...filter, status: { $in: ['pending', 'sent'] } } },
@@ -264,10 +262,10 @@ async function reminders(clientId, query = {}) {
       const dueIds = dueReminderIds.map(item => item._id)
       filter._id = status === 'due' ? { $in: dueIds } : { $nin: dueIds }
       filter.status = { $in: ['pending', 'sent'] }
-    }
   }
-  const result = await require('../utils/pagination').listPage(MaintenanceReminder, filter, clientId ? {} : query, () => MaintenanceReminder.find(filter)
-    .sort({ nextRecommendedServiceDate: 1, _id: 1 })
+  const direction = query.order === 'newest' ? -1 : 1
+  const result = await require('../utils/pagination').listPage(MaintenanceReminder, filter, query, () => MaintenanceReminder.find(filter)
+    .sort({ nextRecommendedServiceDate: direction, _id: direction })
     .populate([{ path: 'vehicle', select: 'make model year plateNumber currentMileage isArchived' },
       { path: 'service', select: 'name maintenanceReminderInterval maintenanceIntervalKm isActive isArchived' },
       { path: 'client', select: 'fullName' }]));

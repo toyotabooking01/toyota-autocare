@@ -1,4 +1,4 @@
-import { DetailsButton } from '../components/RowActions'
+import { DetailsButton, QuietDetailsButton } from '../components/RowActions'
 import { DetailDialog } from '../components/RecordDetails'
 import BookingRecordDetails from '../components/BookingRecordDetails'
 import ConfirmationDialog from '../components/ConfirmationDialog'
@@ -7,7 +7,7 @@ import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogCont
 import { Calendar, Car, Clock, CreditCard, NavArrowRight, Plus, Search as SearchIcon, Xmark } from 'iconoir-react'
 import api from '../services/api'
 import { statusStyles } from '../app/statuses'
-import StatusChip, { StatusBadge } from '../components/StatusChip'
+import StatusChip, { MinimalStatus, StatusBadge } from '../components/StatusChip'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
 import RecordList, { RecordCard, RecordActions, RecordPanel } from '../components/RecordList'
@@ -26,12 +26,15 @@ export default function BookingList({ role }) {
   const openId = searchParams.get('open')
   const section = searchParams.get('section')
   const admin = role === 'admin'
+  const client = role === 'client'
   const operator = role === 'staff' || role === 'admin'
   const business = admin || operator
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
+  const [status, setStatus] = useState(() => searchParams.get('status') || 'all')
   const [date, setDate] = useState('')
-  const { items, loading, error, setError, fieldErrors, reload, pagination } = useCatalog('/bookings', { status, search: business ? search : undefined, date: business ? date : undefined }, business)
+  const [order, setOrder] = useState('newest')
+  const endpoint = client ? `/bookings?order=${order}` : '/bookings'
+  const { items, loading, error, setError, fieldErrors, reload, pagination } = useCatalog(endpoint, { status, search: business || client ? search : undefined, date: business ? date : undefined }, business || client)
   const [notice, setNotice] = useState('')
   const [details, setDetails] = useState(null)
   const [bookingDetailsTab, setBookingDetailsTab] = useState('overview')
@@ -115,19 +118,22 @@ export default function BookingList({ role }) {
     setWalkInOpen(false)
     setWalkInAction(null)
   }
-  return <Box className={admin ? 'booking-monitoring-page' : 'booking-list-page'}>
-    <PageHeading title={admin ? 'Booking Monitoring' : operator ? 'Bookings' : 'My bookings'} subtitle={admin ? 'Monitor appointments and service status.' : operator ? 'Process appointments and coordinate arrivals.' : 'Follow your service appointments and view their details.'} preview={false} />
+  const staff = role === 'staff'
+  return <Box className={`${admin ? 'booking-monitoring-page' : 'booking-list-page'}${client ? ' client-bookings-workspace' : ''}${staff ? ' staff-bookings-workspace' : ''}`}>
+    <PageHeading title={admin ? 'Booking Monitoring' : operator ? 'Bookings' : 'My Bookings'} subtitle={admin ? 'Monitor appointments and service status.' : operator ? 'Process appointments and coordinate arrivals.' : 'Follow and manage your scheduled services.'} preview={false} />
     {notice && <Alert severity="success" onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <RecordPanel className={admin ? 'booking-monitoring-surface admin-list-surface' : undefined}>
-      <Stack className={admin ? 'booking-monitoring-toolbar admin-list-toolbar' : undefined} direction={{ xs: 'column', md: 'row' }} spacing={admin ? 0 : 1.5} sx={{ mb: 2.5 }}>
-        {business && <TextField className={admin ? 'booking-monitoring-search' : undefined} size="small" label={admin ? 'Search bookings' : 'Search reference, customer, vehicle'} placeholder={admin ? 'Search reference, customer, vehicle' : undefined} value={search} slotProps={{ htmlInput: { maxLength: 100, 'aria-label': 'Search reference, customer, vehicle' }, input: admin ? { startAdornment: <InputAdornment position="start"><SearchIcon width={17} height={17} strokeWidth={1.7} /></InputAdornment> } : undefined }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />}
+    <RecordPanel className={admin || client || staff ? 'booking-monitoring-surface admin-list-surface' : undefined}>
+      <Stack className={admin || client || staff ? `booking-monitoring-toolbar admin-list-toolbar${client ? ' client-list-toolbar' : ''}${staff ? ' staff-list-toolbar' : ''}` : undefined} direction={{ xs: 'column', md: 'row' }} spacing={admin || client || staff ? 0 : 1.5} sx={{ mb: 2.5 }}>
+        {(business || client) && <TextField className={admin ? 'booking-monitoring-search' : client ? 'client-list-search' : undefined} size="small" label={admin ? 'Search bookings' : client ? undefined : 'Search reference, customer, vehicle'} placeholder={client ? 'Search vehicle, plate, booking, or service...' : admin ? 'Search reference, customer, vehicle' : undefined} value={search} slotProps={{ htmlInput: { maxLength: 100, 'aria-label': client ? 'Search vehicle, plate, booking, or service' : 'Search reference, customer, vehicle' }, input: { startAdornment: <InputAdornment position="start"><SearchIcon width={17} height={17} strokeWidth={1.7} /></InputAdornment> } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />}
         <TextField className={admin ? 'booking-monitoring-status-filter' : undefined} size="small" select label="Status" value={status} onChange={event => setStatus(event.target.value)} sx={{ minWidth: 175, ...(!admin ? { flex: 1 } : {}) }}><MenuItem value="all">All statuses</MenuItem>{Object.entries(statusStyles).map(([key, item]) => <MenuItem key={key} value={key}>{item.label}</MenuItem>)}</TextField>
         {business && <TextField className={admin ? 'booking-monitoring-date-filter' : undefined} size="small" label="Filter date" type="date" value={date} error={Boolean(fieldErrors.date)} helperText={fieldErrors.date} onChange={event => setDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ minWidth: 160 }} />}
+        {client && <TextField select size="small" label="Date order" value={order} onChange={event => setOrder(event.target.value)} sx={{ minWidth: 150 }}><MenuItem value="newest">Newest first</MenuItem><MenuItem value="oldest">Oldest first</MenuItem></TextField>}
         {admin && <Button className="booking-walk-in" variant="contained" aria-label="Walk In" onClick={() => setWalkInOpen(true)} startIcon={<Plus width={17} height={17} strokeWidth={1.8} aria-hidden="true" />}>Walk In</Button>}
       </Stack>
       {admin && <Box className="booking-monitoring-header admin-list-header" aria-hidden="true"><span>Vehicle</span><span>Schedule</span><span>Service</span><span>Customer</span><span>Source</span><span>Status</span><span>Details</span></Box>}
-      <RecordList className={admin ? 'booking-monitoring-list' : ''} items={items} pagination={pagination} selectionKey={`${status}/${search}/${date}`}
+      {(client || staff) && <Box className={`${client ? 'client-bookings-header' : 'staff-bookings-header'} admin-list-header`} aria-hidden="true"><span>Vehicle / Booking</span><span>Customer</span><span>Schedule</span><span>Source</span><span>Status</span><span>Action</span></Box>}
+      <RecordList className={admin || client || staff ? `booking-monitoring-list${staff ? ' staff-bookings-list' : ''}` : ''} items={items} pagination={pagination} selectionKey={`${status}/${search}/${date}/${order}`}
         loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading bookings…</Typography></Stack>}
         empty="No bookings match this view.">
           {booking => admin ? <Box component="article" key={booking._id} className="booking-monitoring-row admin-list-row">
@@ -145,6 +151,20 @@ export default function BookingList({ role }) {
             <Typography className="booking-monitoring-source" title={sourceLabel(booking)}>{sourceLabel(booking)}</Typography>
             <Box className="booking-monitoring-status" title={statusStyles[booking.status]?.label || 'Unknown status'}><StatusChip status={booking.status} minimal /></Box>
             <Button className="booking-monitoring-details admin-list-details" variant="text" onClick={() => openDetails(booking)} aria-label={`Details for ${booking.vehicle?.plateNumber || vehicleName(booking.vehicle)}`}>Details<NavArrowRight width={16} height={16} strokeWidth={1.7} aria-hidden="true" /></Button>
+          </Box> : client ? <Box component="article" key={booking._id} className="client-booking-row admin-list-row">
+            <Box className="client-booking-identity"><Typography>{booking.vehicle ? `${booking.vehicle.make} ${booking.vehicle.model}` : 'Vehicle unavailable'}</Typography><Typography>{booking.vehicle?.plateNumber || 'Plate unavailable'} · Ref {String(booking._id).slice(-8)}</Typography></Box>
+            <Typography className="client-booking-service">{(booking.services || []).map(service => service?.name || 'Unavailable service').join(', ') || 'Service unavailable'}</Typography>
+            <Typography className="client-booking-schedule">{dateLabel(booking.bookingDate)} · {booking.bookingTime}</Typography>
+            <Typography className="client-booking-source">{sourceLabel(booking)}</Typography>
+            <MinimalStatus label={statusStyles[booking.status]?.label || 'Unknown'} status={booking.status} />
+            <QuietDetailsButton className="client-booking-details" onClick={() => openDetails(booking)} />
+          </Box> : staff ? <Box component="article" key={booking._id} className="staff-booking-row admin-list-row">
+            <Box className="staff-booking-identity"><Typography>{booking.vehicle ? `${booking.vehicle.make} ${booking.vehicle.model} ${booking.vehicle.year || ''}` : 'Vehicle unavailable'}</Typography><Typography>{booking.vehicle?.plateNumber || 'Plate unavailable'} · Ref {String(booking._id).slice(-8)}</Typography></Box>
+            <Typography className="staff-booking-customer">{booking.client?.fullName || 'Customer unavailable'}</Typography>
+            <Typography className="staff-booking-schedule">{dateLabel(booking.bookingDate)} · {booking.bookingTime}</Typography>
+            <Typography className="staff-booking-source">{sourceLabel(booking)}</Typography>
+            <MinimalStatus label={statusStyles[booking.status]?.label || 'Unknown'} status={booking.status} />
+            <QuietDetailsButton className="admin-list-details" onClick={() => openDetails(booking)} />
           </Box> : <RecordCard key={booking._id}>
             <Box className="record-card-copy"><Typography sx={{ fontSize: 14, fontWeight: 650 }}>{vehicleName(booking.vehicle)}</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', overflowWrap: 'anywhere', mt: .5 }}>{dateLabel(booking.bookingDate)} · {booking.bookingTime} · Ref {booking._id}{business && booking.client ? ` · ${booking.client.fullName}` : ''}</Typography>
@@ -154,8 +174,8 @@ export default function BookingList({ role }) {
           </RecordCard>}
       </RecordList>
     </RecordPanel>
-    <DetailDialog id="booking-details-title" className={admin ? 'booking-record-detail-dialog' : undefined} open={Boolean(details)} onClose={() => setDetails(null)} title="Booking details"
-      reference={details && `Reference ${admin && String(details._id).length > 16 ? `${String(details._id).slice(0, 8)}…${String(details._id).slice(-4)}` : details._id}`} status={details && <StatusChip status={details.status} minimal={admin} />}
+    <DetailDialog id="booking-details-title" className={admin ? 'booking-record-detail-dialog' : client ? 'client-booking-detail-dialog' : undefined} open={Boolean(details)} onClose={() => setDetails(null)} title={client || staff ? 'Booking Details' : 'Booking details'}
+      reference={details && `Reference ${admin && String(details._id).length > 16 ? `${String(details._id).slice(0, 8)}…${String(details._id).slice(-4)}` : details._id}`} status={details && <StatusChip status={details.status} minimal={admin || client} />}
       navigation={admin && <Tabs className="booking-details-tabs" value={bookingDetailsTab} onChange={(_, value) => setBookingDetailsTab(value)} variant="scrollable" allowScrollButtonsMobile aria-label="Booking detail sections">
         <Tab value="overview" label="Overview" icon={<Calendar width={18} height={18} strokeWidth={1.7} />} iconPosition="start" />
         <Tab value="billing" label="Billing" icon={<CreditCard width={18} height={18} strokeWidth={1.7} />} iconPosition="start" />

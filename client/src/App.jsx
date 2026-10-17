@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { Alert, Button, CircularProgress } from '@mui/material'
 import { useAuth } from './auth/AuthContext'
 import { dashboards, accountHome } from './auth/session'
@@ -26,6 +26,7 @@ import { CustomersDirectory, StaffDirectory } from './pages/PeopleDirectory'
 import { roleNavigation } from './app/navigation'
 import { AccountSettings, HelpSupport, MyProfile } from './pages/AccountPages'
 import { ForgotPassword, Login, Register, ResetPassword, VerifyCode } from './pages/AuthPages'
+import LandingPage from './pages/LandingPage'
 import './App.css'
 import './redesign.css'
 import './login.css'
@@ -33,12 +34,14 @@ import './portal.css'
 
 export default function App() {
   const { user, loading, restoreError, retryRestore, logout } = useAuth()
+  const { pathname } = useLocation()
   const [resetGrant, setResetGrant] = useState(null)
   const home = accountHome(user)
   let content
-  if (loading) content = <div className="session-state" role="status"><CircularProgress size={28} /><p>Restoring your session…</p></div>
-  else if (restoreError) content = <div className="form-card"><Alert severity="warning">We couldn’t check your session. Please try again.</Alert><Button onClick={retryRestore}>Retry</Button><Button onClick={logout}>Back to sign in</Button></div>
+  if (loading && pathname !== '/') content = <div className="session-state" role="status"><CircularProgress size={28} /><p>Restoring your session…</p></div>
+  else if (restoreError && pathname !== '/') content = <div className="form-card"><Alert severity="warning">We couldn’t check your session. Please try again.</Alert><Button onClick={retryRestore}>Retry</Button><Button onClick={logout}>Back to sign in</Button></div>
   else return <Routes>
+    <Route path="/" element={<LandingPage />} />
     <Route element={<AuthLayout><Outlet /></AuthLayout>}>
     <Route path="/change-password" element={!user ? <Navigate to="/login" replace /> : user.mustChangePassword ? <ForcedPasswordChange /> : <Navigate to={home} replace />} />
     <Route path="/login" element={user ? <Navigate to={home} replace /> : <Login />} />

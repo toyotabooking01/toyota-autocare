@@ -16,12 +16,23 @@ const documents = {
   ] },
 }
 
+export function PolicyDialog({ open, onClose }) {
+  return <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="registration-document-title">
+    <DialogTitle id="registration-document-title">Terms of Service &amp; Privacy Policy</DialogTitle>
+    <DialogContent dividers>{Object.entries(documents).map(([key, content]) => <Box component="section" key={key} aria-labelledby={`policy-${key}`} sx={{ '& + section': { borderTop: '1px solid', borderColor: 'divider', pt: 3, mt: 3 } }}>
+      <Typography component="h2" id={`policy-${key}`} sx={{ fontWeight: 700, fontSize: 19, mb: 2 }}>{content.title}</Typography>
+      {content.sections.map(([title, text]) => <Box key={title} sx={{ mb: 2 }}><Typography component="h3" sx={{ fontWeight: 700, fontSize: 15, mb: .5 }}>{title}</Typography><Typography sx={{ fontSize: 14, color: 'text.secondary', lineHeight: 1.7 }}>{text}</Typography></Box>)}
+    </Box>)}</DialogContent>
+    <DialogActions><Button type="button" onClick={onClose}>Close</Button></DialogActions>
+  </Dialog>
+}
+
 export default function RegistrationConsent({ checked, onChange, disabled, error }) {
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
   function openPolicy() { setOpen(true); setReady(true) }
   return <>
-    <FormControl error={Boolean(error)}>
+    <FormControl className="registration-consent" error={Boolean(error)}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: .5 }}>
         <Checkbox checked={checked} disabled={disabled || !ready} onChange={event => { if (ready) onChange(event.target.checked) }} name="termsAccepted"
           slotProps={{ input: { 'aria-labelledby': 'registration-consent-label', 'aria-describedby': error ? 'registration-consent-error' : undefined, 'aria-invalid': Boolean(error), required: true } }} sx={{ p: .5, mt: -.4 }} />
@@ -32,13 +43,6 @@ export default function RegistrationConsent({ checked, onChange, disabled, error
       {!ready && <FormHelperText>Open the policy to enable agreement.</FormHelperText>}
       {error && <FormHelperText id="registration-consent-error">{error}</FormHelperText>}
     </FormControl>
-    <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm" aria-labelledby="registration-document-title">
-      <DialogTitle id="registration-document-title">Terms of Service &amp; Privacy Policy</DialogTitle>
-      <DialogContent dividers>{Object.entries(documents).map(([key, content]) => <Box component="section" key={key} aria-labelledby={`policy-${key}`} sx={{ '& + section': { borderTop: '1px solid', borderColor: 'divider', pt: 3, mt: 3 } }}>
-        <Typography component="h2" id={`policy-${key}`} sx={{ fontWeight: 700, fontSize: 19, mb: 2 }}>{content.title}</Typography>
-        {content.sections.map(([title, text]) => <Box key={title} sx={{ mb: 2 }}><Typography component="h3" sx={{ fontWeight: 700, fontSize: 15, mb: .5 }}>{title}</Typography><Typography sx={{ fontSize: 14, color: 'text.secondary', lineHeight: 1.7 }}>{text}</Typography></Box>)}
-      </Box>)}</DialogContent>
-      <DialogActions><Button type="button" onClick={() => setOpen(false)}>Close</Button></DialogActions>
-    </Dialog>
+    <PolicyDialog open={open} onClose={() => setOpen(false)} />
   </>
 }
