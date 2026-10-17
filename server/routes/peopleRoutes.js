@@ -64,11 +64,20 @@ router.patch('/staff/:id/status', authorize('admin'), async (req, res) => {
 router.get('/customers', async (req, res) => {
   const search = String(req.query.search || '').trim();
   if (search.length > 100) throw new HttpError(400, 'Invalid search.');
+  const customerType = req.query.customerType || 'all';
+  if (!['all', 'online', 'walk_in'].includes(customerType)) throw new HttpError(400, 'Invalid customer type filter.');
+  const status = req.query.status || 'all';
+  if (!['all', 'active', 'inactive'].includes(status)) throw new HttpError(400, 'Invalid status filter.');
   const pattern = { $regex: search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-  const filter = { role: 'client', isArchived: false, ...(search ? { $or: [{ fullName: pattern }, { email: pattern }, { contactEmail: pattern }, { phone: pattern }] } : {}) };
-  const items = await User.find(filter).select('fullName email contactEmail phone status isArchived isWalkInCustomer').sort({ fullName: 1 }).limit(100).lean();
-  res.json({ items: items.map(item => ({ ...item, email: item.isWalkInCustomer ? item.contactEmail || '' : item.email,
-    contactEmail: undefined })) });
+  const filter = { role: 'client', isArchived: false,
+    ...(status === 'all' ? {} : { status }),
+    ...(customerType === 'all' ? {} : { isWalkInCustomer: customerType === 'walk_in' }),
+    ...(search ? { $or: [{ fullName: pattern }, { email: pattern }, { contactEmail: pattern }, { phone: pattern }] } : {}) };
+  const result = await require('../utils/pagination').listPage(User, filter, req.query,
+    () => User.find(filter).select('fullName email contactEmail phone status isArchived isWalkInCustomer').sort({ fullName: 1, _id: 1 }));
+  const items = Array.isArray(result) ? result : result.items;
+  res.json({ ...(Array.isArray(result) ? {} : result), items: items.map(item => ({ ...item,
+    email: item.isWalkInCustomer ? item.contactEmail || '' : item.email, contactEmail: undefined })) });
 });
 router.get('/customers/:id', async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(req.params.id)) throw new HttpError(400, 'Invalid customer ID.');

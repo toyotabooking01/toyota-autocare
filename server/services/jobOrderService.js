@@ -16,8 +16,10 @@ const additionalWork = require('./additionalWorkService');
 const finalBilling = require('./finalBillingService');
 const invoices = require('./invoiceService');
 const Invoice = require('../models/Invoice');
+const Vehicle = require('../models/Vehicle');
 
 const activeJobs = ['pending', 'in_progress'];
+const monitoringStatuses = ['mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release', 'completed'];
 const details = [
   { path: 'mechanic', select: 'fullName employeeId' },
   { path: 'serviceBay', select: 'name' },
@@ -115,6 +117,41 @@ async function assign(rawBookingId, raw, staffId) {
 }
 async function list(mechanicId, query = {}) {
   const filter = mechanicId ? { mechanic: mechanicId } : {};
+  if (!mechanicId) {
+    if (query.status && query.status !== 'all') {
+      if (!monitoringStatuses.includes(query.status)) throw new HttpError(400, 'Invalid Job Order status filter.');
+      const bookings = await Booking.find({ status: query.status }).select('_id').lean();
+      filter.booking = { $in: bookings.map(item => item._id) };
+    }
+    if (query.mechanic && query.mechanic !== 'all') {
+      if (!mongoose.isObjectIdOrHexString(query.mechanic)) throw new HttpError(400, 'Invalid mechanic filter.');
+      filter.mechanic = query.mechanic;
+    }
+    if (query.search !== undefined) {
+      if (typeof query.search !== 'string' || query.search.trim().length > 100) throw new HttpError(400, 'Search must be at most 100 characters.');
+      const term = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (term) {
+      const regex = new RegExp(term, 'i');
+      const [vehicles, clients, mechanics, services] = await Promise.all([
+        Vehicle.find({ $or: [{ make: regex }, { model: regex }, { plateNumber: regex }, ...(Number.isInteger(Number(term)) ? [{ year: Number(term) }] : [])] }).select('_id').lean(),
+        User.find({ role: 'client', fullName: regex }).select('_id').lean(),
+        User.find({ role: 'mechanic', fullName: regex }).select('_id').lean(),
+        Service.find({ name: regex }).select('_id').lean(),
+      ]);
+      const bookingCriteria = [];
+      if (vehicles.length) bookingCriteria.push({ vehicle: { $in: vehicles.map(item => item._id) } });
+      if (clients.length) bookingCriteria.push({ client: { $in: clients.map(item => item._id) } });
+      if (services.length) bookingCriteria.push({ services: { $in: services.map(item => item._id) } });
+      bookingCriteria.push({ 'estimatedServiceItems.name': regex });
+      if (/^[a-f\d]{24}$/i.test(term)) bookingCriteria.push({ _id: term });
+      const bookings = await Booking.find({ $or: bookingCriteria }).select('_id').lean();
+      const searchOr = [{ booking: { $in: bookings.map(item => item._id) } }];
+      if (mechanics.length) searchOr.push({ mechanic: { $in: mechanics.map(item => item._id) } });
+      if (/^[a-f\d]{24}$/i.test(term)) searchOr.push({ _id: term });
+      filter.$and = [...(filter.$and || []), { $or: searchOr }];
+      }
+    }
+  }
   return require('../utils/pagination').listPage(JobOrder, filter, mechanicId ? {} : query,
     () => JobOrder.find(filter).sort({ createdAt: -1, _id: -1 }).populate(details));
 }

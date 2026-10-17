@@ -60,9 +60,9 @@ async function ensureVehicle(client) {
 
 async function ensureServices() {
   const examples = [
-    { name: 'General PMS', description: 'Periodic maintenance service', estimatedDuration: 120, estimatedPrice: 3500, maintenanceReminderInterval: 180 },
-    { name: 'Brake Service', description: 'Brake inspection and service', estimatedDuration: 90, estimatedPrice: 2200, maintenanceReminderInterval: 180 },
-    { name: 'Aircon Check', description: 'Air-conditioning inspection', estimatedDuration: 60, estimatedPrice: 1500, maintenanceReminderInterval: 365 },
+    { name: 'General PMS', description: 'Periodic maintenance service', type: 'Maintenance', estimatedDuration: 120, estimatedPrice: 3500, maintenanceReminderInterval: 180 },
+    { name: 'Brake Service', description: 'Brake inspection and service', type: 'Maintenance', estimatedDuration: 90, estimatedPrice: 2200, maintenanceReminderInterval: 180 },
+    { name: 'Aircon Check', description: 'Air-conditioning inspection', type: 'Maintenance', estimatedDuration: 60, estimatedPrice: 1500, maintenanceReminderInterval: 365 },
   ];
   for (const example of examples) {
     const existing = await Service.findOne({ name: new RegExp(`^${example.name}$`, 'i') });

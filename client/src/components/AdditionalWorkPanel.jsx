@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
-import { DetailSection } from './RecordDetails'
+import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { MinimalStatus } from './StatusChip'
 import api from '../services/api'
 import { money } from '../pages/bookingDisplay'
 import { blocksFinalInspection, canRequestAdditionalWork, canReviewAdditionalWork,
@@ -11,18 +11,9 @@ const pesos = cents => money((cents || 0) / 100)
 const labels = { pending_staff_review: 'Awaiting Staff Review', pending_client_approval: 'Awaiting Client Approval',
   approved: 'Approved', declined: 'Declined', performed: 'Performed',
   staff_rejected: 'Rejected', cancelled: 'Cancelled' }
-const workStatusStyles = {
-  pending_staff_review: { color: 'var(--amber-ink)', background: 'var(--amber-soft)' },
-  pending_client_approval: { color: 'var(--blue-ink)', background: 'var(--blue-soft)' },
-  approved: { color: 'var(--green-ink)', background: 'var(--green-soft)' },
-  performed: { color: 'var(--green-ink)', background: 'var(--green-soft)' },
-  declined: { color: 'var(--muted)', background: 'var(--surface-soft)' },
-  staff_rejected: { color: 'var(--red-ink)', background: 'var(--accent-soft)' },
-  cancelled: { color: 'var(--muted)', background: 'var(--surface-soft)' },
-}
 const emptyItem = () => ({ kind: 'part', name: '', serviceId: '', description: '', quantity: '1' })
 
-export default function AdditionalWorkPanel({ bookingId, jobId, bookingStatus, role, mechanicName, onUnresolvedChange }) {
+export default function AdditionalWorkPanel({ bookingId, jobId, bookingStatus, role, mechanicName, onUnresolvedChange, compact = false }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -95,7 +86,10 @@ export default function AdditionalWorkPanel({ bookingId, jobId, bookingStatus, r
     finally { mutation.current = false; setBusy(false) }
   }
   const approvalTotal = confirming?.item.quoteTotalCents || 0
-  return <DetailSection title="Additional Work" section="additional-work">
+  return <Box component="section" aria-label="Additional work" data-section="additional-work" sx={compact
+    ? { minWidth: 0, py: 1.25, borderBottom: '1px solid var(--line)' }
+    : { minWidth: 0, border: '1px solid var(--line)', borderRadius: 2, p: 2 }}>
+    <Typography component="h3" sx={{ fontSize: 14, fontWeight: 650, mb: compact ? .75 : 1.5 }}>Additional work</Typography>
     {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
     {loading ? <Typography sx={{ fontSize: 13 }}>Loading additional work…</Typography>
       : items.length === 0 ? <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>No additional work requested.</Typography> : null}
@@ -106,10 +100,7 @@ export default function AdditionalWorkPanel({ bookingId, jobId, bookingStatus, r
         <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }}
           justifyContent="space-between" gap={1.5} sx={{ minWidth: 0 }}>
           <Typography sx={{ minWidth: 0, flex: '1 1 auto', fontSize: 14, fontWeight: 700, overflowWrap: 'anywhere' }}>{item.issueTitle}</Typography>
-          <Chip label={labels[item.status] || 'Status unavailable'} size="small"
-            sx={{ flexShrink: 0, maxWidth: '100%', fontSize: 11, fontWeight: 700,
-              color: workStatusStyles[item.status]?.color || 'var(--muted)',
-              bgcolor: workStatusStyles[item.status]?.background || 'var(--surface-soft)' }} />
+          <MinimalStatus label={labels[item.status] || 'Status unavailable'} status={item.status} />
         </Stack>
         <Typography sx={{ mt: .5, fontSize: 12, color: 'text.secondary', whiteSpace: 'pre-wrap' }}>{item.issueDescription}</Typography>
         {['staff', 'admin'].includes(role) && <Typography sx={{ fontSize: 12 }}>Assigned Mechanic: {mechanicName || 'Mechanic record unavailable'}</Typography>}
@@ -210,5 +201,5 @@ export default function AdditionalWorkPanel({ bookingId, jobId, bookingStatus, r
           onClick={() => act(confirming.item, confirming.action)}>{confirming?.action === 'perform' ? 'Mark as Performed' : confirming?.action === 'approve' ? 'Approve' : confirming?.action === 'decline' ? 'Decline' : 'Confirm'}</Button>
       </DialogActions>
     </Dialog>
-  </DetailSection>
+  </Box>
 }

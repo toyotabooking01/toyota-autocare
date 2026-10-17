@@ -1,38 +1,41 @@
 import { useState } from 'react'
 import { Box, Button, LinearProgress, Paper, Stack, Typography } from '@mui/material'
 import { Link } from 'react-router-dom'
-import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined'
-import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined'
-import BuildOutlined from '@mui/icons-material/BuildOutlined'
-import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined'
-import GroupsOutlined from '@mui/icons-material/GroupsOutlined'
-import GarageOutlined from '@mui/icons-material/GarageOutlined'
+import { Calendar, CheckCircle, Clock, Group, Industry, NavArrowRight, TaskList, Tools, User, Wrench } from 'iconoir-react'
 import { Panel } from './DashboardParts'
 import StatusChip from './StatusChip'
 import { DetailDialog } from './RecordDetails'
 import BookingRecordDetails from './BookingRecordDetails'
 import { manilaToday, vehicleName } from '../pages/dashboardData'
 import { dateLabel } from '../pages/bookingDisplay'
+import '../adminDashboard.css'
 
 const activeStatuses = ['pending', 'confirmed', 'checked_in', 'mechanic_assigned', 'in_service', 'final_inspection', 'ready_for_release']
-const muted = { fontSize: 11, color: 'text.secondary' }
-const panelStyle = { p: 2, minWidth: 0, '& > .MuiStack-root:first-of-type': { mb: 1 } }
+const muted = { fontSize: 12, color: 'text.secondary' }
+const panelStyle = { p: { xs: 2, md: 2.5 }, borderRadius: '16px' }
 
-function SummaryCards({ items, columns }) {
-  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', lg: `repeat(${columns}, minmax(0, 1fr))` }, gap: 1.5 }}>
-    {items.map(({ label, value, detail, icon: Icon }) => <Paper variant="outlined" key={label} sx={{ p: 1.75, minWidth: 0, borderColor: 'var(--line)', borderRadius: '14px' }}>
-      <Stack direction="row" alignItems="center" spacing={1}><Icon sx={{ fontSize: 18, color: 'text.secondary' }} /><Typography sx={{ fontSize: 12, fontWeight: 600 }}>{label}</Typography></Stack>
-      <Typography sx={{ fontSize: 26, lineHeight: 1.2, fontWeight: 700, mt: .75 }}>{value}</Typography>
-      <Typography sx={{ ...muted, mt: .4 }}>{detail}</Typography>
+function SummaryCards({ items, columns, group }) {
+  return <Box className={`admin-dashboard-kpis admin-dashboard-kpis--${group}`} sx={{ '--kpi-columns': columns }}>
+    {items.map(({ label, value, detail, icon: Icon, tone, to }) => <Paper component={Link} to={to} variant="outlined" className="admin-dashboard-kpi" key={label}>
+      <Box className={`admin-dashboard-kpi-icon admin-dashboard-kpi-icon--${tone}`} aria-hidden="true"><Icon width={23} height={23} strokeWidth={1.6} /></Box>
+      <Box sx={{ minWidth: 0 }}><Typography className="admin-dashboard-kpi-value">{value}</Typography>
+        <Typography className="admin-dashboard-kpi-label">{label}</Typography>
+        <Typography className="admin-dashboard-kpi-detail">{detail}</Typography></Box>
     </Paper>)}
   </Box>
 }
 
-function Capacity({ label, metrics, available, total, to, action }) {
-  return <Box sx={{ minWidth: 0 }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography sx={{ fontSize: 12, fontWeight: 650 }}>{label}</Typography><Button component={Link} to={to} size="small" sx={{ fontSize: 11, minHeight: 28, p: .5 }}>{action}</Button></Stack>
-    <Stack direction="row" flexWrap="wrap" gap={2} sx={{ mt: .5, mb: 1 }}>{metrics.map(([value, name]) => <Typography key={name} sx={muted}><Box component="strong" sx={{ fontSize: 15, color: 'text.primary', mr: .5 }}>{value}</Box>{name}</Typography>)}</Stack>
-    <LinearProgress variant="determinate" value={total ? available / total * 100 : 0} aria-label={`${label} available capacity`} sx={{ height: 4, borderRadius: 2, bgcolor: 'var(--surface-soft)' }} />
+function Capacity({ label, icon: Icon, detail, percent, to }) {
+  return <Box component={Link} to={to} className="admin-dashboard-capacity" aria-label={`${label}: ${detail}. View ${label.toLowerCase()}`}>
+    <Box className="admin-dashboard-capacity-icon" aria-hidden="true"><Icon width={22} height={22} strokeWidth={1.6} /></Box>
+    <Box className="admin-dashboard-capacity-content">
+      <Box className="admin-dashboard-capacity-heading"><Typography sx={{ fontSize: 14, fontWeight: 600 }}>{label}</Typography><NavArrowRight className="admin-dashboard-capacity-arrow" width={18} height={18} strokeWidth={1.6} aria-hidden="true" /></Box>
+      <Typography className="admin-dashboard-capacity-detail">{detail}</Typography>
+      {percent !== undefined && <Box className="admin-dashboard-capacity-progress-row">
+        <LinearProgress variant="determinate" value={percent} aria-label={`${label}: ${percent}% available capacity`} sx={{ flex: 1, height: 6, borderRadius: 4, bgcolor: 'var(--surface-soft)', '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: 'var(--capacity-fill)' } }} />
+        <Typography className="admin-dashboard-capacity-percent">{percent}%</Typography>
+      </Box>}
+    </Box>
   </Box>
 }
 
@@ -47,13 +50,16 @@ function BookingTrend({ report }) {
   const max = Math.max(1, ...days.map(day => day.value))
   const change = days.slice(4).reduce((sum, day) => sum + day.value, 0) - days.slice(1, 4).reduce((sum, day) => sum + day.value, 0)
   return <>
-    <Stack direction="row" justifyContent="space-between" gap={1}><Typography sx={muted}>Last 7 days</Typography><Typography sx={muted}>{change > 0 ? 'Increasing' : change < 0 ? 'Decreasing' : 'Steady'} · latest 3 vs prior 3 days</Typography></Stack>
-    <Box component="svg" viewBox="0 0 420 130" role="img" aria-label={`Daily bookings for the last seven days: ${days.map(day => `${day.date}: ${day.value}`).join(', ')}`} sx={{ display: 'block', width: '100%', height: 130, mt: 1 }}>
-      <line x1="8" y1="104" x2="412" y2="104" stroke="var(--line)" />
+    <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 1.5 }}><Typography sx={muted}>Last 7 days</Typography><Typography className="admin-dashboard-trend-change">{change > 0 ? '↗ Increasing' : change < 0 ? '↘ Decreasing' : '→ Steady'} · latest 3 vs prior 3 days</Typography></Stack>
+    <Box component="svg" viewBox="0 0 420 150" role="img" aria-label={`Daily bookings for the last seven days: ${days.map(day => `${day.date}: ${day.value}`).join(', ')}`} sx={{ display: 'block', width: '100%', height: { xs: 145, md: 170 } }}>
+      {[36, 82, 128].map(y => <line key={y} x1="16" y1={y} x2="410" y2={y} stroke="var(--chart-grid)" strokeWidth="1" />)}
       {days.map((day, index) => {
-        const x = 14 + index * 59
-        const height = day.value / max * 75
-        return <g key={day.date}><title>{day.date}: {day.value} bookings</title><rect x={x} y={104 - height} width="32" height={height} rx="4" fill="currentColor" opacity={index === 6 ? '.85' : '.4'} /><text x={x + 16} y={Math.max(14, 96 - height)} textAnchor="middle" fill="currentColor" fontSize="11">{day.value}</text><text x={x + 16} y="124" textAnchor="middle" fill="currentColor" fontSize="10">{day.label}</text></g>
+        const x = 21 + index * 56
+        const height = day.value / max * 100
+        const latest = index === days.length - 1
+        return <g key={day.date}><title>{day.date}: {day.value} bookings</title><rect x={x} y={128 - height} width="34" height={height} rx="5" fill={latest ? 'var(--toyota-red)' : 'var(--chart-bar)'} />
+          <text x={x + 17} y={Math.max(21, 118 - height)} textAnchor="middle" fill="var(--ink)" fontSize="11">{day.value}</text>
+          <text x={x + 17} y="146" textAnchor="middle" fill="var(--muted)" fontSize="10">{day.label}</text></g>
       })}
     </Box>
   </>
@@ -63,7 +69,6 @@ export default function AdminDashboardOverview({ data }) {
   const [selected, setSelected] = useState(null)
   const [bookings, mechanics, bays, staff, report] = data
   const queue = bookings.filter(item => activeStatuses.includes(item.status)).sort((a, b) => {
-    // Surface visits already on site first, then the earliest scheduled arrivals.
     const onSite = item => !['pending', 'confirmed'].includes(item.status)
     return Number(onSite(b)) - Number(onSite(a)) || a.bookingTime.localeCompare(b.bookingTime)
   })
@@ -76,36 +81,36 @@ export default function AdminDashboardOverview({ data }) {
   const availableBays = currentBays.filter(item => item.operationalStatus === 'operational' && item.availability === 'available').length
   const occupiedBays = currentBays.filter(item => item.operationalStatus === 'operational' && item.availability === 'occupied').length
   const unavailableBays = currentBays.filter(item => item.operationalStatus !== 'operational').length
-  return <Stack spacing={1.5} sx={{ minWidth: 0 }}>
-    <SummaryCards columns={4} items={[
-      { label: "Today's Bookings", value: bookings.length, detail: 'Scheduled today', icon: CalendarMonthOutlined },
-      { label: 'Pending', value: bookings.filter(item => item.status === 'pending').length, detail: 'Awaiting confirmation', icon: ScheduleOutlined },
-      { label: 'In Service', value: bookings.filter(item => item.status === 'in_service').length, detail: 'Being serviced today', icon: BuildOutlined },
-      { label: 'Completed', value: bookings.filter(item => item.status === 'completed').length, detail: 'Scheduled today', icon: TaskAltOutlined },
+  return <Stack className="admin-dashboard" spacing={{ xs: 2, md: 2.25 }} sx={{ minWidth: 0 }}>
+    <SummaryCards group="primary" columns={4} items={[
+      { label: "Today's Bookings", value: bookings.length, detail: 'Scheduled today', icon: Calendar, tone: 'red', to: '/admin/bookings' },
+      { label: 'Pending', value: bookings.filter(item => item.status === 'pending').length, detail: 'Awaiting confirmation', icon: Clock, tone: 'amber', to: '/admin/bookings' },
+      { label: 'In Service', value: bookings.filter(item => item.status === 'in_service').length, detail: 'Being serviced today', icon: Tools, tone: 'blue', to: '/admin/job-orders' },
+      { label: 'Completed', value: bookings.filter(item => item.status === 'completed').length, detail: 'Scheduled today', icon: CheckCircle, tone: 'green', to: '/admin/service-history' },
     ]} />
-    <SummaryCards columns={3} items={[
-      { label: 'Active Staff', value: activeStaff, detail: 'Active accounts', icon: GroupsOutlined },
-      { label: 'Active Mechanics', value: activeMechanics.length, detail: 'Service team accounts', icon: BuildOutlined },
-      { label: 'Available Service Bays', value: `${availableBays} / ${currentBays.length}`, detail: 'Ready for service', icon: GarageOutlined },
+    <SummaryCards group="secondary" columns={3} items={[
+      { label: 'Active Staff', value: activeStaff, detail: 'Active accounts', icon: Group, tone: 'neutral', to: '/admin/staff' },
+      { label: 'Active Mechanics', value: activeMechanics.length, detail: 'Service team accounts', icon: Wrench, tone: 'neutral', to: '/admin/mechanics' },
+      { label: 'Available Service Bays', value: `${availableBays} / ${currentBays.length}`, detail: 'Ready for service', icon: Industry, tone: 'neutral', to: '/admin/service-bays' },
     ]} />
-    <Panel title={`Current Queue · ${queue.length}`} to="/admin/bookings" sx={panelStyle}>
-      {!queue.length ? <Typography sx={{ ...muted, py: 1 }}>No current bookings today.</Typography> : queue.slice(0, 3).map(item => <Box key={item._id} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1fr) minmax(0, .8fr) auto' }, gap: 1, alignItems: 'center', py: 1, borderTop: '1px solid var(--line)', '& > *': { minWidth: 0 } }}>
-        <Box><Typography sx={{ fontSize: 12, fontWeight: 600 }}>{vehicleName(item.vehicle)}</Typography><Typography sx={muted}>{item.vehicle?.plateNumber || 'Plate unavailable'}</Typography></Box>
-        <Typography sx={muted}>{dateLabel(item.bookingDate)} · {item.bookingTime}</Typography>
-        <Typography sx={muted}>{item.services?.map(service => service?.name).filter(Boolean).join(', ') || 'Service unavailable'}</Typography>
-        <Typography sx={muted}>{item.client?.fullName || 'Customer unavailable'}</Typography>
-        <Stack direction="row" gap={1} alignItems="center"><StatusChip status={item.status} /><Button size="small" onClick={() => setSelected(item)} aria-label={`Details for ${item.vehicle?.plateNumber || vehicleName(item.vehicle)}`} sx={{ minHeight: 28, fontSize: 11 }}>Details ›</Button></Stack>
+    <Panel title={<span>Current Queue <span className="admin-dashboard-queue-count">· {queue.length}</span></span>} to="/admin/bookings" action="View all" sx={panelStyle} className="admin-dashboard-panel admin-dashboard-queue">
+      {!queue.length ? <Typography sx={{ ...muted, py: 1 }}>No current bookings today.</Typography> : queue.slice(0, 3).map(item => <Box key={item._id} className="admin-dashboard-queue-row">
+        <Box className="admin-dashboard-queue-vehicle"><Typography sx={{ fontSize: 14, fontWeight: 600 }}>{vehicleName(item.vehicle)}</Typography><Typography sx={muted}>{item.vehicle?.plateNumber || 'Plate unavailable'}</Typography></Box>
+        <Box className="admin-dashboard-queue-date"><Calendar width={17} height={17} strokeWidth={1.6} aria-hidden="true" /><span>{dateLabel(item.bookingDate)}<br /><span>{item.bookingTime}</span></span></Box>
+        <Box className="admin-dashboard-queue-service"><TaskList width={17} height={17} strokeWidth={1.6} aria-hidden="true" /><span>{item.services?.map(service => service?.name).filter(Boolean).join(', ') || 'Service unavailable'}</span></Box>
+        <Box className="admin-dashboard-queue-client"><User width={17} height={17} strokeWidth={1.6} aria-hidden="true" /><span>{item.client?.fullName || 'Customer unavailable'}</span></Box>
+        <Stack direction="row" gap={1} alignItems="center" justifyContent="flex-end"><StatusChip status={item.status} minimal /><Button size="small" onClick={() => setSelected(item)} aria-label={`Details for ${item.vehicle?.plateNumber || vehicleName(item.vehicle)}`} sx={{ minHeight: 34, minWidth: 34, px: 1 }}>Details</Button></Stack>
       </Box>)}
     </Panel>
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1.5, alignItems: 'start' }}>
-      <Panel title="Operations Overview" sx={panelStyle}><Stack spacing={1.25}>
-        <Capacity label="Mechanics" metrics={[[activeMechanics.length, 'Active'], [availableMechanics, 'Available'], [busyMechanics, 'Busy'], ...(offDutyMechanics ? [[offDutyMechanics, 'Off duty']] : [])]} available={availableMechanics} total={activeMechanics.length} to="/admin/mechanics" action="View mechanics" />
-        <Capacity label="Service Bays" metrics={[[currentBays.length, 'Total'], [availableBays, 'Available'], [occupiedBays, 'Occupied'], ...(unavailableBays ? [[unavailableBays, 'Unavailable']] : [])]} available={availableBays} total={currentBays.length} to="/admin/service-bays" action="View service bays" />
-        <Stack direction="row" alignItems="center" justifyContent="space-between"><Typography sx={{ fontSize: 12 }}>Staff <Box component="strong" sx={{ ml: 1 }}>{activeStaff}</Box> Active</Typography><Button size="small" component={Link} to="/admin/staff" sx={{ fontSize: 11, minHeight: 28, p: .5 }}>View staff</Button></Stack>
+    <Box className="admin-dashboard-lower-grid">
+      <Panel title="Operations Overview" sx={panelStyle} className="admin-dashboard-panel"><Stack className="admin-dashboard-operations" spacing={0}>
+        <Capacity label="Mechanics" icon={Tools} detail={`${activeMechanics.length} active · ${availableMechanics} available · ${busyMechanics} busy${offDutyMechanics ? ` · ${offDutyMechanics} off duty` : ''}`} percent={activeMechanics.length ? Math.round(availableMechanics / activeMechanics.length * 100) : 0} to="/admin/mechanics" />
+        <Capacity label="Service Bays" icon={Industry} detail={`${currentBays.length} total · ${availableBays} available · ${occupiedBays} occupied${unavailableBays ? ` · ${unavailableBays} unavailable` : ''}`} percent={currentBays.length ? Math.round(availableBays / currentBays.length * 100) : 0} to="/admin/service-bays" />
+        <Capacity label="Staff" icon={Group} detail={`${activeStaff} active accounts`} to="/admin/staff" />
       </Stack></Panel>
-      <Panel title="Booking Trends" to="/admin/reports" action="View reports" sx={panelStyle}><BookingTrend report={report} /></Panel>
+      <Panel title="Booking Trends" to="/admin/reports" action="View reports" sx={panelStyle} className="admin-dashboard-panel"><BookingTrend report={report} /></Panel>
     </Box>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Booking details" reference={selected?._id} status={selected && <StatusChip status={selected.status} />}>
+    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Booking details" reference={selected?._id} status={selected && <StatusChip status={selected.status} minimal />}>
       {selected && <BookingRecordDetails booking={selected} business />}
     </DetailDialog>
   </Stack>

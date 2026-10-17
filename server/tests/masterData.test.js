@@ -6,10 +6,11 @@ const ServiceBay = require('../models/ServiceBay');
 const JobOrder = require('../models/JobOrder');
 const Booking = require('../models/Booking');
 const master = require('../services/masterDataService');
+const { backfillLegacyServiceTypes } = require('../services/serviceTypeMigration');
 
 test('service and bay payloads accept only valid master fields', () => {
-  assert.deepEqual(master.input('service', { name: '  General PMS ', estimatedDuration: 60, estimatedPrice: 0 }, true),
-    { name: 'General PMS', estimatedDuration: 60, estimatedPrice: 0 });
+  assert.deepEqual(master.input('service', { name: '  General PMS ', type: 'Maintenance', estimatedDuration: 60, estimatedPrice: 0 }, true),
+    { name: 'General PMS', type: 'Maintenance', estimatedDuration: 60, estimatedPrice: 0 });
   assert.deepEqual(master.input('service', { name: 'Brake Service', checklistTemplate: [' Inspect pads ', 'Check brake fluid'] }),
     { name: 'Brake Service', checklistTemplate: ['Inspect pads', 'Check brake fluid'] });
   for (const checklistTemplate of [[''], ['Inspect pads', ' inspect PADS '], Array.from({ length: 11 }, (_, index) => `Item ${index}`)]) {
@@ -17,6 +18,8 @@ test('service and bay payloads accept only valid master fields', () => {
   }
   assert.equal(master.input('bay', { name: ' Bay 01 ', operationalStatus: 'maintenance' }, true).name, 'Bay 01');
   for (const body of [
+    { name: 'Service', estimatedDuration: 30, estimatedPrice: 1 },
+    { name: 'Service', type: 'Other', estimatedDuration: 30, estimatedPrice: 1 },
     { name: 'Service', estimatedDuration: 0, estimatedPrice: 1 },
     { name: 'Service', estimatedDuration: 30.5, estimatedPrice: 1 },
     { name: 'Service', estimatedDuration: 30, estimatedPrice: -1 },
@@ -24,6 +27,19 @@ test('service and bay payloads accept only valid master fields', () => {
   ]) assert.throws(() => master.input('service', body, true), { status: 400 });
   assert.throws(() => master.input('bay', { name: 'Bay 01', availability: 'available' }, true), { status: 400 });
   assert.throws(() => master.input('bay', { name: 'Bay 01', operationalStatus: 'invalid' }, true), { status: 400 });
+});
+
+test('legacy service type backfill uses the existing Other workflow flag only for missing types', async () => {
+  const original = Service.updateMany;
+  const calls = [];
+  Service.updateMany = async (filter, update) => { calls.push({ filter, update }); return { modifiedCount: 1 }; };
+  try {
+    assert.deepEqual(await backfillLegacyServiceTypes(), { diagnostic: 1, maintenance: 1 });
+    assert.deepEqual(calls, [
+      { filter: { $or: [{ type: { $exists: false } }, { type: null }], isOtherService: true }, update: { $set: { type: 'Diagnostic' } } },
+      { filter: { $or: [{ type: { $exists: false } }, { type: null }], isOtherService: { $ne: true } }, update: { $set: { type: 'Maintenance' } } },
+    ]);
+  } finally { Service.updateMany = original; }
 });
 
 test('list filters archived records and escapes search text', async () => {
@@ -69,7 +85,7 @@ test('duplicate service names are rejected without loading the catalog', async (
   let filter;
   Service.exists = async query => { filter = query; return { _id: new mongoose.Types.ObjectId() }; };
   try {
-    await assert.rejects(master.create('service', { name: 'Oil.*', estimatedDuration: 30, estimatedPrice: 500 }), { status: 409 });
+    await assert.rejects(master.create('service', { name: 'Oil.*', type: 'Maintenance', estimatedDuration: 30, estimatedPrice: 500 }), { status: 409 });
     assert.equal(new RegExp(filter.name.$regex, 'i').test('oil.*'), true);
     assert.equal(new RegExp(filter.name.$regex, 'i').test('oil change'), false);
   } finally { Service.exists = original; }

@@ -1,6 +1,22 @@
 import { Chip } from '@mui/material'
 import RadioButtonChecked from '@mui/icons-material/RadioButtonChecked'
+import { Activity, CheckCircle, Clock, Prohibition, Tools, UserXmark, XmarkCircle } from 'iconoir-react'
 import { statusStyles } from '../app/statuses'
+
+const outlineStatusIcons = {
+  awaiting_downpayment: Clock,
+  pending: Clock,
+  confirmed: Activity,
+  checked_in: Activity,
+  mechanic_assigned: Tools,
+  in_service: Tools,
+  final_inspection: CheckCircle,
+  ready_for_release: CheckCircle,
+  completed: CheckCircle,
+  cancelled: XmarkCircle,
+  rejected: Prohibition,
+  no_show: UserXmark,
+}
 
 export function StatusBadge({ label, icon, variant = 'filled', color = 'default', sx }) {
   const text = typeof label === 'string' ? label.charAt(0).toUpperCase() + label.slice(1) : label
@@ -14,8 +30,13 @@ export function StatusBadge({ label, icon, variant = 'filled', color = 'default'
     }, ...(Array.isArray(sx) ? sx : [sx])]} />
 }
 
-export default function StatusChip({ status }) {
+export function MinimalStatus({ label, status = 'unknown' }) {
+  return <span className="admin-status-minimal" data-status={status || 'unknown'}><span className="admin-status-minimal-dot" aria-hidden="true" /><span>{label}</span></span>
+}
+
+export default function StatusChip({ status, iconFamily = 'material', minimal = false }) {
   const style = statusStyles[status] || { label: 'Unknown status', color: 'var(--muted)', background: 'var(--surface-soft)', icon: RadioButtonChecked }
-  const Icon = style.icon
-  return <StatusBadge icon={<Icon />} label={style.label} sx={{ color: style.color, bgcolor: style.background }} />
+  if (minimal) return <MinimalStatus label={style.label} status={status} />
+  const Icon = iconFamily === 'iconoir' ? outlineStatusIcons[status] || Activity : style.icon
+  return <StatusBadge icon={iconFamily === 'iconoir' ? <Icon width={14} height={14} strokeWidth={1.6} /> : <Icon />} label={style.label} sx={{ color: style.color, bgcolor: style.background }} />
 }

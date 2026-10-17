@@ -9,7 +9,7 @@ const HttpError = require('../utils/HttpError');
 const { normalizeServiceBayName, SERVICE_BAY_DUPLICATE } = require('../../shared/serviceBayName.cjs');
 
 const settings = {
-  service: { Model: Service, fields: ['name', 'description', 'estimatedDuration', 'estimatedPrice', 'maintenanceReminderInterval', 'maintenanceIntervalKm', 'isActive', 'checklistTemplate'] },
+  service: { Model: Service, fields: ['name', 'description', 'type', 'estimatedDuration', 'estimatedPrice', 'maintenanceReminderInterval', 'maintenanceIntervalKm', 'isActive', 'checklistTemplate'] },
   bay: { Model: ServiceBay, fields: ['name', 'operationalStatus'] },
 };
 const bayStatuses = ['operational', 'maintenance', 'out_of_service'];
@@ -44,6 +44,7 @@ function input(kind, raw, create = false) {
   if ('name' in body) data.name = text(body.name, 'Name', kind === 'service' ? 120 : 80, true);
   else if (create) throw new HttpError(400, 'Name is required.');
   if (kind === 'service') {
+    if ('type' in body) data.type = body.type;
     if ('description' in body) data.description = text(body.description, 'Description', 3000);
     if ('estimatedDuration' in body) data.estimatedDuration = positiveInteger(body.estimatedDuration, 'Estimated duration');
     else if (create) throw new HttpError(400, 'Estimated duration is required.');
@@ -146,6 +147,9 @@ async function update(kind, rawId, body) {
   if (kind === 'service' && item.isOtherService
     && ((data.name !== undefined && data.name.toLowerCase() !== 'other') || data.isActive === false)) {
     throw new HttpError(400, 'The Other diagnostic service must remain available with its standard name.');
+  }
+  if (kind === 'service' && item.isOtherService && data.type !== undefined && data.type !== 'Diagnostic') {
+    throw new HttpError(400, 'The Other diagnostic service must remain classified as Diagnostic.');
   }
   if (kind === 'service' && data.name !== undefined && data.name.toLowerCase() !== item.name.toLowerCase()) await uniqueServiceName(data.name, recordId);
   if (kind === 'bay' && data.name !== undefined) {

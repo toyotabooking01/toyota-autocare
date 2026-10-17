@@ -1,7 +1,8 @@
 import { useContext, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material'
-import { StatusBadge } from './StatusChip'
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Stack, Typography } from '@mui/material'
+import { Xmark } from 'iconoir-react'
+import { MinimalStatus, StatusBadge } from './StatusChip'
 import { DetailActionContext } from './DetailActionContext'
 import ToyotaVehicleImage from './ToyotaVehicleImage'
 import { catalogVehicleImages } from '../utils/toyotaCatalog'
@@ -11,24 +12,28 @@ const fullWidth = { width: '100%', minWidth: 0, boxSizing: 'border-box' }
 const actionStyle = { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 1,
   '& .MuiButton-root': { minHeight: 40, maxWidth: '100%' }, '& .MuiButton-contained': { order: 1 } }
 
-export function DetailHeader({ title, reference, status, id }) {
+export function DetailHeader({ title, reference, status, id, onClose }) {
   return <Stack className="detail-header" direction={{ xs: 'column', sm: 'row' }} spacing={1.5}
     sx={{ ...fullWidth, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-start' } }}>
     <Box sx={{ minWidth: 0 }}><Typography component="h2" id={id} sx={{ fontSize: 21, fontWeight: 700 }}>{title}</Typography>
       {reference && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: .5, overflowWrap: 'anywhere' }}>{reference}</Typography>}</Box>
-    {status && <Box sx={{ flexShrink: 0, maxWidth: '100%' }}>{status}</Box>}
+    {(status || onClose) && <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexShrink: 0, maxWidth: '100%' }}>
+      {status && <Box sx={{ maxWidth: '100%' }}>{status}</Box>}
+      {onClose && <IconButton aria-label="Close details" onClick={onClose} size="small"><Xmark width={19} height={19} strokeWidth={1.7} /></IconButton>}
+    </Stack>}
   </Stack>
 }
 
-export function DetailDialog({ open, onClose, title, reference, status, children, actions, id: suppliedId }) {
+export function DetailDialog({ open, onClose, title, reference, status, children, actions, id: suppliedId, className, navigation, paperSx }) {
   const generatedId = useId()
   const id = suppliedId || generatedId
   const [footer, setFooter] = useState(null)
   return <Dialog open={open} onClose={onClose} fullWidth maxWidth={false} aria-labelledby={id}
-    className="record-detail-dialog" slotProps={{ paper: { sx: { width: 'calc(100% - 32px)', maxWidth: 800, m: 2, minWidth: 0, borderRadius: '14px' } } }}>
+    className={`record-detail-dialog${className ? ` ${className}` : ''}`} slotProps={{ paper: { sx: { width: 'calc(100% - 32px)', maxWidth: 800, m: 2, minWidth: 0, borderRadius: '14px', ...paperSx } } }}>
     <DialogTitle component="div" sx={{ p: { xs: 2, sm: 3 }, borderBottom: '1px solid var(--line)' }}>
-      <DetailHeader id={id} title={title} reference={reference} status={status} />
+    <DetailHeader id={id} title={title} reference={reference} status={status} onClose={className?.includes('booking-record-detail-dialog') || className?.includes('account-management-dialog') || className?.includes('job-order-details-dialog') || className?.includes('service-record-dialog') || className?.includes('admin-archive-details-dialog') ? onClose : undefined} />
     </DialogTitle>
+    {navigation && <Box className="detail-navigation" sx={{ flex: '0 0 auto', borderBottom: '1px solid var(--line)' }}>{navigation}</Box>}
     <DetailActionContext.Provider value={footer}>
       <DialogContent sx={{ p: { xs: 2, sm: 3 }, '&&': { pt: { xs: 2, sm: 3 } }, minWidth: 0 }}>
         <Box className="record-details" sx={{ ...fullWidth, display: 'grid', gap: 2, pt: .5 }}>{children}</Box>
@@ -50,11 +55,13 @@ export function DetailGrid({ children }) {
   return <Box className="detail-grid" sx={{ ...fullWidth, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, '& > :only-child': { gridColumn: '1 / -1' } }}>{children}</Box>
 }
 
-export function DetailSection({ title, children, summary = false, section }) {
+export function DetailSection({ title, children, summary = false, section, action, actionHeaderSx, actionHeaderClassName, actionTitleClassName }) {
   const id = useId()
   return <Box component="section" aria-labelledby={id} data-section={section} className="detail-section" sx={{ ...fullWidth, border: '1px solid var(--line)',
     borderRadius: '10px', p: 2, bgcolor: summary ? 'var(--surface-soft)' : 'transparent' }}>
-    <Typography component="h3" id={id} sx={{ fontSize: 14, fontWeight: 700, mb: 1.5 }}>{title}</Typography>
+    {action ? <Stack className={`detail-section-header${actionHeaderClassName ? ` ${actionHeaderClassName}` : ''}`} direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} sx={{ width: '100%', mb: 1.5, ...actionHeaderSx }}>
+      <Typography className={actionTitleClassName} component="h3" id={id} sx={{ minWidth: 0, fontSize: 14, fontWeight: 650 }}>{title}</Typography>{action}
+    </Stack> : <Typography component="h3" id={id} sx={{ fontSize: 14, fontWeight: 700, mb: 1.5 }}>{title}</Typography>}
     {children}
   </Box>
 }
@@ -68,24 +75,36 @@ export function DetailInfo({ items }) {
   </Box>
 }
 
-export function AccountStatus({ account }) {
-  return <StatusBadge label={account?.isArchived ? 'Archived' : account?.status || 'Record unavailable'}
-    sx={{ textTransform: 'capitalize', bgcolor: account?.isArchived ? 'var(--surface-soft)' : account?.status === 'active' ? 'var(--green-soft)' : 'var(--amber-soft)' }} />
+export function AccountStatus({ account, minimal = false }) {
+  const status = account?.isArchived ? 'archived' : account?.status === 'active' ? 'active' : account?.status ? 'inactive' : 'unknown'
+  const label = minimal ? account?.isArchived ? 'Archived' : account?.status === 'active' ? 'Active' : account?.status ? 'Disabled' : 'Record unavailable'
+    : account?.isArchived ? 'Archived' : account?.status || 'Record unavailable'
+  return minimal ? <MinimalStatus label={label} status={status} />
+    : <StatusBadge label={label} sx={{ bgcolor: account?.isArchived ? 'var(--surface-soft)' : account?.status === 'active' ? 'var(--green-soft)' : 'var(--amber-soft)' }} />
 }
 
 export function AccountRecordDetails({ account, kind }) {
+  const accountStatus = account?.isArchived ? 'archived' : account?.status === 'active' ? 'active' : account?.status ? 'inactive' : 'unknown'
+  const availabilityStatus = account?.availability === 'available' ? 'available' : account?.availability === 'busy' ? 'busy' : account?.availability === 'off_duty' ? 'unavailable' : 'unknown'
   return <>
     <DetailSection title="Account information"><DetailInfo items={[
       ['Full name', account?.fullName], ['Email', account?.email], ['Phone', account?.phone],
-      ...(kind === 'staff' ? [['Staff ID', account?.staffId]] : kind === 'mechanic' ? [['Employee ID', account?.employeeId], ['Availability', account?.availability?.replaceAll('_', ' ')], ['Specialization', account?.specialization?.join(', ')]] : [['Address', account?.address], ['Customer type', account?.isWalkInCustomer ? 'Walk-In Customer' : 'Online Client']]),
+      ...(kind === 'staff' ? [['Staff ID', account?.staffId]] : kind === 'mechanic' ? [['Mechanic ID', account?.employeeId]] : [['Address', account?.address], ['Customer type', account?.isWalkInCustomer ? 'Walk-In Customer' : 'Online Client']]),
     ]} /></DetailSection>
     {kind === 'staff' && <DetailSection title="Monitoring summary" summary><DetailInfo items={[["Bookings last processed", account?.processedBookings ?? 0]]} /></DetailSection>}
+    {kind === 'mechanic' && <>
+      <DetailSection title="Status and availability"><DetailInfo items={[
+        ['Account status', <MinimalStatus label={account?.isArchived ? 'Archived' : account?.status === 'active' ? 'Active' : 'Disabled'} status={accountStatus} />],
+        ['Availability', <MinimalStatus label={account?.availability === 'off_duty' ? 'Unavailable' : account?.availability ? account.availability.replaceAll('_', ' ').replace(/^\w/, letter => letter.toUpperCase()) : 'Record unavailable'} status={availabilityStatus} />],
+      ]} /></DetailSection>
+      <DetailSection title="Specialization"><DetailInfo items={[["Specialization", account?.specialization?.length ? account.specialization.join(', ') : null]]} /></DetailSection>
+    </>}
   </>
 }
 
-export function DetailVehicle({ vehicle }) {
+export function DetailVehicle({ vehicle, showCatalogImage = true }) {
   if (!vehicle) return <DetailInfo items={[["Vehicle", null]]} />
-  const sources = [...catalogVehicleImages([], vehicle), vehicle.imageUrl].filter(Boolean)
+  const sources = [...(showCatalogImage ? catalogVehicleImages([], vehicle) : []), vehicle.imageUrl].filter(Boolean)
   return <Stack direction="row" spacing={1.5} sx={{ minWidth: 0, alignItems: 'center' }}>
     {sources.length > 0 && <Box sx={{ width: 96, height: 64, flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: 'var(--surface-soft)', borderRadius: 1.5 }}>
       <ToyotaVehicleImage vehicle={vehicle} sources={sources} allowExternal={false} alt={`${vehicle.make} ${vehicle.model}`}

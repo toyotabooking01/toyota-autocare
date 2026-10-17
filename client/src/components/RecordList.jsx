@@ -40,7 +40,7 @@ export function RecordActions({ statuses, children }) {
 }
 
 // Existing server paging is retained; unpaged endpoints use presentation-only paging.
-export default function RecordList({ items, pagination, loading, empty = 'No records to show.', selectionKey = '', children }) {
+export default function RecordList({ items, pagination, loading, empty = 'No records to show.', selectionKey = '', className = '', children }) {
   const [selection, setSelection] = useState({ key: selectionKey, page: 1, limit: DEFAULT_LIST_LIMIT })
   const current = listSelection(selection, selectionKey)
   const totalPages = Math.ceil(items.length / current.limit)
@@ -51,7 +51,7 @@ export default function RecordList({ items, pagination, loading, empty = 'No rec
     onPageChange: value => setSelection({ ...normalized, page: value }),
     onLimitChange: value => setSelection({ ...normalized, page: 1, limit: value }) }
   const visible = pagination ? items : items.slice((page - 1) * current.limit, page * current.limit)
-  return <Box className="record-list" sx={{ ...workspaceCardWidth, containerType: 'inline-size' }}>
+  return <Box className={`record-list${className ? ` ${className}` : ''}`} sx={{ ...workspaceCardWidth, containerType: 'inline-size' }}>
     {loading || (!items.length ? typeof empty === 'string' ? <Typography className="portal-empty">{empty}</Typography> : empty
       : <Box className="record-list-rows" sx={{ display: 'grid', gap: 1.25, minWidth: 0 }}>{visible.map(children)}</Box>)}
     <ListPagination pagination={pagination || local} />

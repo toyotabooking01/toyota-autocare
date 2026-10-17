@@ -2,13 +2,11 @@ import DashboardOutlined from '@mui/icons-material/DashboardOutlined'
 import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined'
 import AssignmentOutlined from '@mui/icons-material/AssignmentOutlined'
-import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
 import BuildOutlined from '@mui/icons-material/BuildOutlined'
-import GarageOutlined from '@mui/icons-material/GarageOutlined'
 import BarChartOutlined from '@mui/icons-material/BarChartOutlined'
 import AccessTimeOutlined from '@mui/icons-material/AccessTimeOutlined'
 import PlaylistAddOutlined from '@mui/icons-material/PlaylistAddOutlined'
-import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined'
+import { Activity, Archive, Bell, Calendar, Car, Clock, ClockRotateRight, GraphUp, Group, Industry, TaskList, Tools, ViewGrid } from 'iconoir-react'
 
 const item = (path, label, icon) => ({ path, label, icon })
 export const roleNavigation = {
@@ -26,19 +24,19 @@ export const roleNavigation = {
     item('active-job', 'Active Job', BuildOutlined),
   ],
   admin: [
-    item('dashboard', 'Dashboard', DashboardOutlined),
-    item('bookings', 'Booking Monitoring', CalendarMonthOutlined),
-    item('staff', 'Staff Monitoring', AssignmentOutlined),
-    item('mechanics', 'Mechanics', BuildOutlined),
-    item('customers', 'Customers & Vehicles', DirectionsCarOutlined),
-    item('services', 'Services', AssignmentOutlined),
-    item('schedules', 'Schedules', AccessTimeOutlined),
-    item('service-bays', 'Service Bays', GarageOutlined),
-    item('job-orders', 'Service Monitoring', AssignmentOutlined),
-    item('service-history', 'Service History', AssignmentOutlined),
-    item('reminders', 'Reminders', NotificationsNoneOutlined),
-    item('reports', 'Reports', BarChartOutlined),
-    item('archive', 'Archive', Inventory2Outlined),
+    item('dashboard', 'Dashboard', ViewGrid),
+    item('bookings', 'Booking Monitoring', Calendar),
+    item('staff', 'Staff Monitoring', Group),
+    item('mechanics', 'Mechanics', Tools),
+    item('customers', 'Customer Vehicle Monitoring', Car),
+    item('services', 'Services', TaskList),
+    item('schedules', 'Schedules', Clock),
+    item('service-bays', 'Service Bays', Industry),
+    item('job-orders', 'Service Monitoring', Activity),
+    item('service-history', 'Service History', ClockRotateRight),
+    item('reminders', 'Reminders', Bell),
+    item('reports', 'Reports', GraphUp),
+    item('archive', 'Archive', Archive),
   ],
   staff: [
     item('dashboard', 'Dashboard', DashboardOutlined),

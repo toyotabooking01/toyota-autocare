@@ -11,8 +11,8 @@ export default function useCatalog(endpoint, filters, paginated = false) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [revision, setRevision] = useState(0)
-  const { archive, search, status, availability, date, enabled } = filters
-  const key = JSON.stringify([endpoint, archive, search, status, availability, date, enabled, paginated])
+  const { archive, search, status, availability, date, enabled, mechanic, customerType } = filters
+  const key = JSON.stringify([endpoint, archive, search, status, availability, date, enabled, mechanic, customerType, paginated])
   const [selection, setSelection] = useState({ key, page: 1, limit: DEFAULT_LIST_LIMIT })
   const current = listSelection(selection, key)
   if (current !== selection) setSelection(current)
@@ -27,24 +27,24 @@ export default function useCatalog(endpoint, filters, paginated = false) {
       setError('')
       if (date && !validDate(date)) { setLoading(false); return }
       try {
-        const response = await api.get(endpoint, { params: { archive, search, status, availability, date, enabled,
+        const response = await api.get(endpoint, { params: { archive, search, status, availability, date, enabled, mechanic, customerType,
           ...(paginated ? { page, limit } : {}) }, signal: controller.signal })
         if (controller.signal.aborted) return
         if (paginated && response.data.page !== page) {
           setSelection({ key, page: response.data.page, limit }); return
         }
         setItems(response.data.items)
-        setMetadata({ ...response.data, key: requestKey })
+        setMetadata(response.data)
       } catch (requestError) {
-        if (!controller.signal.aborted) { setError(message(requestError)); setItems([]) }
+        if (!controller.signal.aborted) { setError(message(requestError)); setItems([]); setMetadata(null) }
       } finally { if (!controller.signal.aborted) { setLoading(false); setSettledKey(requestKey) } }
     }, search ? 250 : 0)
     return () => { clearTimeout(timer); controller.abort() }
-  }, [endpoint, archive, search, status, availability, date, enabled, revision, paginated, page, limit, key, requestKey])
+  }, [endpoint, archive, search, status, availability, date, enabled, mechanic, customerType, revision, paginated, page, limit, key, requestKey])
   const fieldErrors = date && !validDate(date) ? { date: 'Enter a valid calendar date.' } : {}
   const pending = paginated && !fieldErrors.date && settledKey !== requestKey
-  const pagination = paginated ? { page, limit, totalItems: metadata?.key === requestKey ? metadata.totalItems : 0,
-    totalPages: metadata?.key === requestKey ? metadata.totalPages : 0, busy: loading || pending,
+  const pagination = paginated ? { page, limit, totalItems: metadata?.totalItems || 0,
+    totalPages: metadata?.totalPages || 0, busy: loading || pending,
     onPageChange: value => setSelection({ key, page: value, limit }),
     onLimitChange: value => setSelection({ key, page: 1, limit: value }) } : null
   return { items, loading: loading || pending, error, setError, fieldErrors, pagination, reload: () => setRevision(value => value + 1) }

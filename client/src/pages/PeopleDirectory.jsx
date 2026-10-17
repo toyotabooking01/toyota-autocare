@@ -1,23 +1,27 @@
-import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
 import { useState } from 'react'
 import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material'
-import AddRounded from '@mui/icons-material/AddRounded'
+import { Plus } from 'iconoir-react'
 import AccountFormDialog from '../components/AccountFormDialog'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
 import useFormValidation from '../components/useFormValidation'
 import { normalizeMobile, restrictMobileInput, REGISTRATION_MOBILE_HINT } from '../../../shared/accountValidation.mjs'
 import api from '../services/api'
-import RecordList, { RecordActions, RecordPanel } from '../components/RecordList'
-import PersonRecordCard from '../components/PersonRecordCard'
-import { AccountRecordDetails, AccountStatus, DetailDialog, DetailGrid, DetailInfo, DetailSection, DetailVehicle } from '../components/RecordDetails'
-import StatusChip, { StatusBadge } from '../components/StatusChip'
+import RecordList, { RecordPanel } from '../components/RecordList'
+import { AccountDirectoryHeader } from '../components/AccountDirectoryRow'
+import AccountDirectoryRow from '../components/AccountDirectoryRow'
+import { CustomerDirectoryHeader } from '../components/CustomerDirectoryRow'
+import CustomerDirectoryRow from '../components/CustomerDirectoryRow'
+import { AccountRecordDetails, AccountStatus, DetailDialog, DetailSection } from '../components/RecordDetails'
+import StatusChip, { MinimalStatus } from '../components/StatusChip'
 import { dateLabel } from './bookingDisplay'
 import { useConfirmation } from '../components/ConfirmationContext'
 
 export function CustomersDirectory({ role }) {
   const [search, setSearch] = useState('')
-  const { items, loading, error } = useCatalog('/people/customers', { search })
+  const [customerType, setCustomerType] = useState('all')
+  const [status, setStatus] = useState('all')
+  const { items, loading, error, pagination } = useCatalog('/people/customers', { search, customerType, status }, role === 'admin')
   const [selected, setSelected] = useState(null)
   const [detailError, setDetailError] = useState('')
   async function inspect(id) {
@@ -25,27 +29,47 @@ export function CustomersDirectory({ role }) {
     catch (error) { setDetailError(message(error)) }
   }
   return <>
-    <PageHeading title={role === 'admin' ? 'Customer & vehicle monitoring' : 'Customers'} subtitle="View customer vehicles and booking history." preview={false} />
-    <RecordPanel><TextField fullWidth size="small" label="Search customer name, email, or phone" value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
-      {(error || detailError) && <Alert severity="error" sx={{ mt: 2 }}>{error || detailError}</Alert>}
-      <Box sx={{ mt: 2 }}><RecordList items={items} selectionKey={search} loading={loading && <Typography>Loading customers...</Typography>} empty="No customers match this view.">
-        {item => <PersonRecordCard key={item._id} person={item} supportingDetail={item.isWalkInCustomer ? 'Walk-In Customer' : 'Online Client'}>
-          <RecordActions statuses={<StatusBadge label={item.status} />}><DetailsButton onClick={() => inspect(item._id)}>Details</DetailsButton></RecordActions>
-        </PersonRecordCard>}
-      </RecordList></Box></RecordPanel>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Customer details"
-      reference={selected?.customer?.fullName} status={selected && <AccountStatus account={selected.customer} />}>
+    <PageHeading title={role === 'admin' ? 'Customer Vehicle Monitoring' : 'Customers'} subtitle="View customer vehicles and booking history." preview={false} />
+    <RecordPanel className="customer-directory-panel admin-list-surface">
+      <Box className="customer-directory-toolbar admin-list-toolbar">
+        <TextField className="customer-directory-search" fullWidth size="small" label="Search customer name, email, or phone" value={search} onChange={event => setSearch(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
+        <TextField select className="customer-directory-type-filter" label="Customer type" size="small" value={customerType} onChange={event => setCustomerType(event.target.value)}>
+          <MenuItem value="all">All customers</MenuItem><MenuItem value="online">Online Client</MenuItem><MenuItem value="walk_in">Walk-In Customer</MenuItem>
+        </TextField>
+        <TextField select className="customer-directory-status-filter" label="Account status" size="small" value={status} onChange={event => setStatus(event.target.value)}>
+          <MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem>
+        </TextField>
+      </Box>
+      {(error || detailError) && <Alert severity="error" sx={{ mx: 2, mt: 2 }}>{error || detailError}</Alert>}
+      <CustomerDirectoryHeader />
+      <RecordList className="customer-directory-list" items={items} pagination={pagination} selectionKey={`${search}|${customerType}|${status}`} loading={loading && <Typography sx={{ p: 2, fontSize: 13 }}>Loading customers...</Typography>} empty="No customers found.">
+        {item => <CustomerDirectoryRow key={item._id} customer={item} onDetails={() => inspect(item._id)} />}
+      </RecordList>
+    </RecordPanel>
+    <DetailDialog className="account-management-dialog customer-details-dialog" paperSx={{ width: 'min(680px, calc(100vw - 32px))', maxWidth: 680, borderRadius: '14px' }} open={Boolean(selected)} onClose={() => setSelected(null)} title="Customer details"
+      reference={selected?.customer?.fullName} status={selected && <AccountStatus account={selected.customer} minimal />}>
       {selected && <>
         <AccountRecordDetails account={selected.customer} kind="customer" />
-        <DetailSection title="Vehicles"><DetailGrid>{selected.vehicles?.length ? selected.vehicles.map(vehicle =>
-          <DetailSection key={vehicle._id} title={`${vehicle.make} ${vehicle.model}`}><DetailVehicle vehicle={vehicle} /></DetailSection>)
-          : <Typography color="text.secondary" fontSize={13}>No vehicles registered.</Typography>}</DetailGrid></DetailSection>
-        <DetailSection title="Booking and service history"><Stack spacing={1.5}>
-          {selected.bookings?.length ? selected.bookings.map(booking => <DetailSection key={booking._id} title={dateLabel(booking.bookingDate)}>
-            <Box sx={{ mb: 1.5 }}><StatusChip status={booking.status} /></Box>
-            <DetailInfo items={[["Reference", booking._id], ["Services", (booking.services || []).map(service => service?.name || 'Record unavailable').join(', ')]]} />
-          </DetailSection>) : <Typography color="text.secondary" fontSize={13}>No bookings recorded.</Typography>}
-        </Stack></DetailSection>
+        <DetailSection title={`Registered vehicles · ${selected.vehicles?.length || 0}`}>
+          {selected.vehicles?.length ? <Box component="ul" className="customer-detail-list" aria-label="Registered vehicles">
+            {selected.vehicles.map(vehicle => <Box component="li" className="customer-vehicle-row" key={vehicle._id}>
+              <Box sx={{ minWidth: 0 }}><Typography className="customer-detail-primary" title={`${vehicle.make} ${vehicle.model}`}>{vehicle.make} {vehicle.model}</Typography>
+                <Typography className="customer-detail-secondary" title={`${vehicle.plateNumber} · ${vehicle.year}`}>{vehicle.plateNumber} · {vehicle.year}</Typography></Box>
+              <MinimalStatus label={vehicle.isArchived ? 'Archived' : 'Active'} status={vehicle.isArchived ? 'archived' : 'active'} />
+            </Box>)}
+          </Box> : <Typography className="customer-detail-empty">No vehicles registered.</Typography>}
+        </DetailSection>
+        <DetailSection title={`Booking & service history · ${selected.bookings?.length || 0}`}>
+          {selected.bookings?.length ? <Box component="ul" className="customer-detail-list" aria-label="Booking and service history">
+            {selected.bookings.map(booking => <Box component="li" className="customer-booking-row" key={booking._id}>
+              <Typography className="customer-detail-primary">{dateLabel(booking.bookingDate)}</Typography>
+              <Typography className="customer-detail-secondary" title={(booking.services || []).map(service => service?.name || 'Record unavailable').join(', ')}>
+                {(booking.services || []).map(service => service?.name || 'Record unavailable').join(', ') || 'Service details unavailable'}
+              </Typography>
+              <StatusChip status={booking.status} minimal />
+            </Box>)}
+          </Box> : <Typography className="customer-detail-empty">No bookings recorded.</Typography>}
+        </DetailSection>
       </>}
     </DetailDialog>
   </>
@@ -101,24 +125,24 @@ export function StaffDirectory() {
     return item.status === 'active' ? confirm('Are you sure you want to disable this staff account?', apply) : apply()
   }
   return <>
-    <PageHeading title="Staff monitoring" subtitle="Manage staff access and review account status." preview={false} />
+    <PageHeading title="Staff Monitoring" subtitle="Manage staff access and review account status." preview={false} />
     {(error || actionError) && <Alert severity="error" sx={{ mb: 2 }}>{error || actionError}</Alert>}
     {notice && <Alert severity={noticeSeverity} sx={{ mb: 2 }}>{notice}</Alert>}
-    <RecordPanel>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
-        <TextField label="Search staff" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
-        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)} sx={{ minWidth: 130 }}><MenuItem value="active">Current</MenuItem><MenuItem value="archived">Archived</MenuItem><MenuItem value="all">All registered</MenuItem></TextField>
-        <TextField select label="Account" size="small" value={status} onChange={event => setStatus(event.target.value)} sx={{ minWidth: 125 }}><MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
-        <Button variant="contained" startIcon={<AddRounded />} onClick={openCreate}>Add staff</Button>
-      </Stack>
-      <RecordList items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading staff…</Typography></Stack>} empty="No staff records match these filters.">
-        {item => <PersonRecordCard key={item._id} person={item} idLabel="Staff ID" idValue={item.staffId} activity={`${item.processedBookings || 0} bookings processed`} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}>
-          <RecordActions statuses={<StatusBadge size="small" label={item.isArchived ? 'Archived' : item.status} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : item.status === 'active' ? 'var(--green-soft)' : 'var(--amber-soft)' }} />}><DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>{!item.isArchived && <MoreActionsMenu label={item.fullName} disabled={busy} items={[{ label: item.status === 'active' ? 'Disable' : 'Enable', destructive: item.status === 'active', onClick: () => change(item) }]} />}</RecordActions>
-        </PersonRecordCard>}
+    <RecordPanel className="account-directory-panel admin-list-surface">
+      <Box className="account-directory-toolbar admin-list-toolbar">
+        <TextField className="account-directory-search" label="Search staff" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} />
+        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)}><MenuItem value="active">Current</MenuItem><MenuItem value="archived">Archived</MenuItem><MenuItem value="all">All registered</MenuItem></TextField>
+        <TextField select label="Account" size="small" value={status} onChange={event => setStatus(event.target.value)}><MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
+        <Button className="account-directory-add" variant="contained" startIcon={<Plus width={16} height={16} strokeWidth={1.8} />} onClick={openCreate}>Add Staff</Button>
+      </Box>
+      <AccountDirectoryHeader kind="staff" />
+      <RecordList className="account-directory-list" items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading staff…</Typography></Stack>} empty="No staff records match these filters.">
+        {item => <AccountDirectoryRow key={item._id} kind="staff" person={item} metric={item.processedBookings || 0} onDetails={() => setSelected(item)} menuDisabled={busy}
+          menuItems={!item.isArchived ? [{ label: item.status === 'active' ? 'Disable' : 'Enable', destructive: item.status === 'active', onClick: () => change(item) }] : []} />}
       </RecordList>
     </RecordPanel>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Staff details" reference={selected?.staffId || selected?._id}
-      status={selected && <AccountStatus account={selected} />}>
+    <DetailDialog className="account-management-dialog" paperSx={{ width: 'min(680px, calc(100vw - 32px))', maxWidth: 680, borderRadius: '14px' }} open={Boolean(selected)} onClose={() => setSelected(null)} title="Staff details" reference={selected?.staffId || selected?._id}
+      status={selected && <AccountStatus account={selected} minimal />}>
       {selected && <AccountRecordDetails account={selected} kind="staff" />}
     </DetailDialog>
     <AccountFormDialog open={open} onClose={() => { if (!busy) setOpen(false) }} id="staff-form-title" title="Add Staff" onSubmit={create}
@@ -127,7 +151,7 @@ export function StaffDirectory() {
         <TextField size="small" required disabled={busy} label="Last Name" value={form.lastName} {...validation.field('lastName')} onChange={event => setForm({ ...form, lastName: event.target.value })} slotProps={{ htmlInput: { maxLength: 40 } }} />
         <TextField size="small" required disabled={busy} type="email" label="Email" value={form.email} {...validation.field('email')} onChange={event => setForm({ ...form, email: event.target.value })} />
         <TextField size="small" required disabled={busy} type="tel" label="Phone" value={form.phone} {...validation.field('phone', REGISTRATION_MOBILE_HINT)} onChange={event => setForm({ ...form, phone: restrictMobileInput(event.target.value) })} />
-        <TextField className="account-form-wide" size="small" name="staffId" label="Staff ID" value={previewLoading ? 'Generating...' : previewId} slotProps={{ input: { readOnly: true } }} helperText="Assigned when the account is created. This preview may change if another staff member is created first." />
+        <TextField className="account-form-wide account-id-field" size="small" name="staffId" label="Staff ID" value={previewLoading ? 'Generating...' : previewId} slotProps={{ input: { readOnly: true } }} helperText="Auto-generated; assigned when the account is created." />
         {previewError && <Alert className="account-form-wide" severity="error">Could not load the next Staff ID: {previewError}</Alert>}
     </AccountFormDialog>
   </>

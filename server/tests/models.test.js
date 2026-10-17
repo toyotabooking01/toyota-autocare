@@ -8,7 +8,7 @@ const fixtures = {
   User: { fullName: 'Test User', email: ' USER@Example.com ', password: '$2b$12$' + 'a'.repeat(53) },
   Vehicle: { owner: id(), make: 'Toyota', model: 'Vios', year: 2024, plateNumber: ' abc1234 ', transmission: 'automatic' },
   ToyotaCatalog: { make: 'Toyota', market: 'Philippines', model: 'Vios', year: 2025, variant: '1.3 XLE CVT', category: 'Sedan', fuelType: 'gasoline', transmission: 'cvt', seatingCapacity: 5 },
-  Service: { name: 'Inspection', estimatedDuration: 60, estimatedPrice: 1000 },
+  Service: { name: 'Inspection', type: 'Maintenance', estimatedDuration: 60, estimatedPrice: 1000 },
   Booking: { client: id(), vehicle: id(), services: [id()], schedule: id(), bookingDate: '2026-10-10', bookingTime: '09:00', bookingType: 'online' },
   Schedule: { date: '2026-10-10', timeSlot: '09:00', maximumCapacity: 2 },
   ServiceBay: { name: 'Bay 1' },
@@ -78,6 +78,8 @@ test('Vehicle normalization, mileage and year limits', async () => {
 });
 
 test('Service supports configurable or disabled reminders', async () => {
+  await new models.Service({ ...fixtures.Service, type: 'Diagnostic' }).validate();
+  await invalid('Service', { type: 'Other' }, 'type');
   await new models.Service({ ...fixtures.Service, maintenanceReminderInterval: 120 }).validate();
   await new models.Service({ ...fixtures.Service, checklistTemplate: ['Inspect pads', 'Check fluid'] }).validate();
   await invalid('Service', { maintenanceReminderInterval: 0 }, 'maintenanceReminderInterval');

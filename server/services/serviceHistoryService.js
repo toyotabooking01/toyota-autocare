@@ -6,6 +6,7 @@ const Invoice = require('../models/Invoice');
 const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
 const AdditionalWorkRequest = require('../models/AdditionalWorkRequest');
+const User = require('../models/User');
 const HttpError = require('../utils/HttpError');
 const { listPage } = require('../utils/pagination');
 
@@ -32,6 +33,26 @@ async function list(actor, query = {}) {
     const plate = query.plate.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const vehicles = await Vehicle.find({ plateNumber: { $regex: plate, $options: 'i' } }).select('_id').lean();
     filter.vehicle = { $in: vehicles.map(item => item._id) };
+  }
+  if (query.search !== undefined) {
+    if (typeof query.search !== 'string' || query.search.trim().length > 100) throw new HttpError(400, 'Search must be at most 100 characters.');
+    const term = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (term) {
+    const regex = new RegExp(term, 'i');
+    const [vehicles, clients, bookings, invoices, work] = await Promise.all([
+      Vehicle.find({ $or: [{ make: regex }, { model: regex }, { plateNumber: regex }, ...(Number.isInteger(Number(term)) ? [{ year: Number(term) }] : [])] }).select('_id').lean(),
+      actor.role === 'client' ? Promise.resolve([]) : User.find({ role: 'client', fullName: regex }).select('_id').lean(),
+      Booking.find({ 'estimatedServiceItems.name': regex }).select('_id').lean(),
+      Invoice.find({ $or: [{ 'originalServiceItems.name': regex }, { 'additionalWorkItems.name': regex }] }).select('booking').lean(),
+      AdditionalWorkRequest.find({ status: 'performed', clientDecision: 'approved', 'approvedItems.name': regex }).select('booking').lean(),
+    ]);
+    const searchOr = [];
+    if (vehicles.length) searchOr.push({ vehicle: { $in: vehicles.map(item => item._id) } });
+    if (clients.length) searchOr.push({ client: { $in: clients.map(item => item._id) } });
+    const bookingIds = [...bookings, ...invoices, ...work].map(item => item.booking || item._id).filter(Boolean);
+    if (bookingIds.length) searchOr.push({ _id: { $in: bookingIds } });
+    filter.$or = searchOr.length ? searchOr : [{ _id: { $in: [] } }];
+    }
   }
   const result = await listPage(Booking, filter, query, () => Booking.find(filter)
     .sort({ releasedAt: query.order === 'oldest' ? 1 : -1, _id: query.order === 'oldest' ? 1 : -1 }).populate([

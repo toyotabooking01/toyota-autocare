@@ -18,7 +18,7 @@ import { validateForm } from '../utils/validationRules'
 const grid = formWorkspaceGrid
 const labels = { firstName: 'First Name', lastName: 'Last Name', middleName: 'Middle Name / Initial (optional)',
   email: 'Email Address', phone: 'Philippine Mobile Number', address: 'Address (optional)', make: 'Make', model: 'Model', year: 'Year', variant: 'Variant', plateNumber: 'Plate Number', currentMileage: 'Current mileage (optional)' }
-export default function NewWalkInForm({ role = 'staff', services = [], loading, refreshKey, onRefresh, onBusy, onComplete }) {
+export default function NewWalkInForm({ role = 'staff', embedded = false, services = [], loading, refreshKey, onRefresh, onBusy, onComplete, onFooterActionChange }) {
   const [customer, setCustomer] = useState({ firstName: '', lastName: '', middleName: '', suffix: '', email: '', phone: '', address: '' })
   const [vehicle, setVehicle] = useState({ make: 'Toyota', model: '', year: '', variant: '', plateNumber: '', transmission: '', currentMileage: '' })
   const catalog = useToyotaCatalog()
@@ -132,13 +132,31 @@ export default function NewWalkInForm({ role = 'staff', services = [], loading, 
       } finally { inFlight.current = false; setBusy(false); onBusy(false) }
     })
   }
+  const submitRef = useRef(submit)
+  const nextRef = useRef(next)
+  useEffect(() => { submitRef.current = submit })
+  useEffect(() => { nextRef.current = next })
+  useEffect(() => {
+    if (!embedded || completed) {
+      onFooterActionChange?.(null)
+      return undefined
+    }
+    onFooterActionChange?.({
+      showBack: step > 0,
+      onBack: () => setStep(value => Math.max(0, value - 1)),
+      primaryLabel: step === 3 ? 'Create Booking' : 'Continue',
+      disabled: busy || accountBusy || loading || (step === 0 && !clientAccountLinked),
+      onClick: () => step === 3 ? submitRef.current() : nextRef.current(),
+    })
+    return () => onFooterActionChange?.(null)
+  }, [embedded, step, completed, busy, accountBusy, loading, clientAccountLinked, onFooterActionChange])
   function field(key, isVehicle = false) {
     const values = isVehicle ? vehicle : customer
     const update = isVehicle ? setVehicle : setCustomer
     const validation = isVehicle ? vehicleValidation : customerValidation
     const maxLength = { firstName: 40, lastName: 40, middleName: 30, email: 254, phone: 13, address: 300, make: 80, model: 80, plateNumber: 8 }[key]
     const isPlate = key === 'plateNumber'
-    return <TextField key={key} fullWidth size="small" label={labels[key]} required={!['middleName', 'address', 'currentMileage'].includes(key)}
+    return <TextField key={key} className={key === 'address' ? 'walk-in-address-field' : undefined} fullWidth size="small" label={labels[key]} required={!['middleName', 'address', 'currentMileage'].includes(key)}
       type={key === 'year' ? 'number' : key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
       value={values[key]} {...validation.field(key, key === 'email' ? 'If this email is not yet registered, a Client account will be created and temporary login credentials will be sent to this address.' : undefined)} disabled={busy || accountBusy || (!isVehicle && clientAccountLinked)}
       slotProps={{ htmlInput: {
@@ -157,9 +175,9 @@ export default function NewWalkInForm({ role = 'staff', services = [], loading, 
       <Typography>Booking reference: {completed.item._id}</Typography>
       <Stack direction="row" spacing={1}><Button component={Link} to={`/${role}/bookings?open=${completed.item._id}`}>View Booking</Button><Button component={Link} to={`/${role}/job-orders`}>Continue to Job Coordination</Button></Stack>
     </Stack> : <Stack spacing={3}>
-      <Stepper activeStep={step} alternativeLabel>{['Customer / Client Account', 'Vehicle', 'Services & Time', 'Review'].map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
+      <Stepper activeStep={step} alternativeLabel sx={{ mb: embedded ? 1 : 0 }}>{['Customer / Client Account', 'Vehicle', 'Services & Time', 'Review'].map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
       {error && <Alert severity="error">{error}</Alert>}
-      {step === 0 && <><Alert severity="info">A Client account is required for every Walk-In customer. Enter the customer's email to link an existing account or create a new one.</Alert>
+      {step === 0 && <><Alert severity="info">A Client account is required. Enter an email to link or create one.</Alert>
         <Box sx={grid}>{field('firstName')}{field('lastName')}{field('middleName')}
           <TextField select size="small" label="Suffix (optional)" value={customer.suffix} {...customerValidation.field('suffix')} disabled={busy || accountBusy || clientAccountLinked}
             onChange={event => setCustomer({ ...customer, suffix: event.target.value })}>
@@ -216,10 +234,10 @@ export default function NewWalkInForm({ role = 'staff', services = [], loading, 
           bookingType: 'walk-in', bookingDate: selectedDate, bookingTime: slot?.time, concern: otherService ? concern.trim() : '' }} />
         <Alert severity="info">Creates a vehicle and Checked-In booking for the linked Client account.</Alert>
       </Stack>}
-      <Stack direction="row" justifyContent="space-between"><Button disabled={busy || step === 0} onClick={() => setStep(step - 1)}>Back</Button>
+      {!embedded && <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>{step > 0 ? <Button disabled={busy} onClick={() => setStep(value => value - 1)}>Back</Button> : <Box />}
         {step < 3 ? <Button variant="contained" disabled={busy || accountBusy || loading || (step === 0 && !clientAccountLinked)} onClick={next}>Continue</Button>
           : <Button variant="contained" disabled={busy} onClick={submit}>{busy ? 'Creating…' : 'Create Walk-In Booking'}</Button>}
-      </Stack>
+      </Stack>}
     </Stack>}
   </FormWorkspace>
   </>

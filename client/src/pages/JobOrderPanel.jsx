@@ -9,14 +9,12 @@ import StatusChip from '../components/StatusChip'
 import api from '../services/api'
 import { message } from './useCatalog'
 import { dateLabel } from './bookingDisplay'
-import DirectionsCarOutlined from '@mui/icons-material/DirectionsCarOutlined'
-import PersonOutlined from '@mui/icons-material/PersonOutlined'
-import BuildOutlined from '@mui/icons-material/BuildOutlined'
+import { Car, User, Wrench } from 'iconoir-react'
 import PaymentPanel from '../components/PaymentPanel'
 import AdditionalWorkPanel from '../components/AdditionalWorkPanel'
 import { releaseBlockReason } from '../utils/paymentRelease'
 
-const sectionIcon = Icon => <Icon sx={{ fontSize: 16, verticalAlign: '-3px', mr: .75, color: 'text.secondary' }} />
+const sectionIcon = Icon => <Icon width={16} height={16} strokeWidth={1.7} style={{ verticalAlign: '-3px', marginRight: 6, color: 'var(--muted)' }} />
 
 const nextAction = {
   mechanic_assigned: { role: 'mechanic', path: 'start', label: 'Start Service' },
@@ -152,7 +150,7 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     {notice && <Alert severity="success">{notice}</Alert>}
     <DetailSection title="Job overview">
       <DetailInfo items={[
-        ['Job Order status', compact ? <StatusChip status={job.status === 'in_progress' ? status : job.status} />
+        ['Job Order status', compact ? <StatusChip minimal status={job.status === 'in_progress' ? status : job.status} />
           : job.status === 'in_progress' ? 'In Progress' : job.status === 'completed' ? 'Completed' : 'Pending'],
         ['Schedule', job.booking ? `${dateLabel(job.booking.bookingDate)} · ${job.booking.bookingTime}` : null],
         ['Assigned mechanic', job.mechanic?.fullName], ['Bay', job.serviceBay?.name],
@@ -164,13 +162,13 @@ export default function JobOrderPanel({ job, role, onChanged, showHeader = true,
     </DetailSection>
     {job.activity?.length > 0 && !compact && <DetailSection title="Activity"><DetailInfo items={job.activity.slice(-8).reverse().map(entry => [entry.action.replaceAll('_', ' ').replaceAll('-', ' '), `${entry.performedBy?.fullName || 'User'} (${entry.performedByRole}) · ${new Date(entry.performedAt).toLocaleString()}`])} /></DetailSection>}
     <DetailGrid>
-      <DetailSection title={compact ? <>{sectionIcon(DirectionsCarOutlined)}Vehicle</> : 'Vehicle'}><DetailVehicle vehicle={job.booking?.vehicle} /></DetailSection>
-      <DetailSection title={compact ? <>{sectionIcon(PersonOutlined)}Customer</> : 'Customer'}><DetailInfo items={[["Customer", job.booking?.client?.fullName]]} /></DetailSection>
+      <DetailSection title={compact ? <>{sectionIcon(Car)}Vehicle</> : 'Vehicle'}><DetailVehicle vehicle={job.booking?.vehicle} showCatalogImage={!compact} /></DetailSection>
+      <DetailSection title={compact ? <>{sectionIcon(User)}Customer</> : 'Customer'}><DetailInfo items={[["Customer", job.booking?.client?.fullName]]} /></DetailSection>
     </DetailGrid>
     {job.customerConcern && !compact && <DetailSection title="Customer concern"><DetailInfo items={[["Concern", job.customerConcern]]} /></DetailSection>}
     <DetailGrid>
       <ServiceEstimate services={job.booking?.services} />
-      <DetailSection title={compact ? <>{sectionIcon(BuildOutlined)}Service progress</> : 'Service progress'}>
+      <DetailSection title={compact ? <>{sectionIcon(Wrench)}Service progress</> : 'Service progress'}>
     <Box><Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Estimated service duration</Typography>
       <Typography sx={{ fontSize: 13 }}>{estimatedDuration ? `Current estimate: ${estimatedDuration} minutes` : 'Current estimate: Not recorded'}</Typography>
       {job.booking?.initialEstimatedDurationMinutes && job.booking.initialEstimatedDurationMinutes !== estimatedDuration

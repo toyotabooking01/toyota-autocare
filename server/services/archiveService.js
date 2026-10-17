@@ -115,8 +115,18 @@ async function list(category, query = {}) {
   if (category === 'history') {
     const filter = { status: { $in: historicalBookingStatuses } };
     if (pattern) {
-      const vehicles = await Vehicle.find({ plateNumber: pattern }).select('_id').lean();
-      filter.vehicle = { $in: vehicles.map(item => item._id) };
+      const [vehicles, clients, services] = await Promise.all([
+        Vehicle.find({ $or: [{ plateNumber: pattern }, { make: pattern }, { model: pattern }] }).select('_id').lean(),
+        User.find({ fullName: pattern, role: 'client' }).select('_id').lean(),
+        Service.find({ name: pattern }).select('_id').lean(),
+      ]);
+      filter.$or = [
+        { vehicle: { $in: vehicles.map(item => item._id) } },
+        { client: { $in: clients.map(item => item._id) } },
+        { services: { $in: services.map(item => item._id) } },
+      ];
+      const rawSearch = query.search?.trim();
+      if (mongoose.isObjectIdOrHexString(rawSearch)) filter.$or.push({ _id: rawSearch });
     }
     return listPage(Booking, filter, query, () => Booking.find(filter)
       .select('bookingDate bookingTime status bookingType client vehicle services releasedAt')
@@ -137,7 +147,7 @@ async function list(category, query = {}) {
     const filter = { isArchived: archived };
     if (pattern) {
       const owners = await User.find({ fullName: pattern }).select('_id').lean();
-      filter.$or = [{ plateNumber: pattern }, { model: pattern }, { owner: { $in: owners.map(item => item._id) } }];
+      filter.$or = [{ plateNumber: pattern }, { make: pattern }, { model: pattern }, { owner: { $in: owners.map(item => item._id) } }];
     }
     const result = await listPage(Vehicle, filter, query, () => Vehicle.find(filter)
       .select('make model year variant plateNumber owner isArchived archivedAt archivedBy archiveReason restoredAt')
@@ -146,9 +156,9 @@ async function list(category, query = {}) {
     return addCounts(result, 'vehicles');
   }
   const filter = { isArchived: archived };
-  if (pattern) filter.name = pattern;
+  if (pattern) filter.$or = [{ name: pattern }, { type: pattern }];
   const result = await listPage(Service, filter, query, () => Service.find(filter)
-    .select('name description estimatedDuration estimatedPrice maintenanceReminderInterval maintenanceIntervalKm isActive isOtherService isArchived archivedAt archivedBy archiveReason restoredAt')
+    .select('name description type estimatedDuration estimatedPrice maintenanceReminderInterval maintenanceIntervalKm isActive isOtherService isArchived archivedAt archivedBy archiveReason restoredAt')
     .populate('archivedBy', 'fullName').sort({ archivedAt: -1, name: 1, _id: 1 }));
   return addCounts(result, 'services');
 }
@@ -185,7 +195,7 @@ async function get(category, rawId) {
   const query = Model.findById(recordId);
   if (category === 'users') query.select('fullName email phone role employeeId staffId status availability isArchived archivedAt archivedBy archivedByRole archiveReason restoredAt restoredBy restoredByRole archiveActivity createdAt');
   else if (category === 'vehicles') query.select('make model year variant plateNumber owner currentMileage isArchived archivedAt archivedBy archivedByRole archiveReason restoredAt restoredBy restoredByRole archiveActivity');
-  else query.select('name description estimatedDuration estimatedPrice maintenanceReminderInterval maintenanceIntervalKm isActive isOtherService isArchived archivedAt archivedBy archivedByRole archiveReason restoredAt restoredBy restoredByRole archiveActivity');
+  else query.select('name description type estimatedDuration estimatedPrice maintenanceReminderInterval maintenanceIntervalKm checklistTemplate isActive isOtherService isArchived archivedAt archivedBy archivedByRole archiveReason restoredAt restoredBy restoredByRole archiveActivity');
   query.populate([{ path: 'archivedBy', select: 'fullName' }, { path: 'restoredBy', select: 'fullName' },
     { path: 'archiveActivity.actor', select: 'fullName' }, ...(category === 'vehicles' ? [{ path: 'owner', select: 'fullName status isArchived' }] : [])]);
   const item = await query.lean();

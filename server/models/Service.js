@@ -6,6 +6,7 @@ const serviceSchema = new mongoose.Schema({
   // Sparse index protects new/renamed services without forcing legacy duplicates to migrate.
   nameKey: { type: String, select: false, unique: true, sparse: true },
   description: { type: String, trim: true, maxlength: 3000, default: '' },
+  type: { type: String, enum: ['Maintenance', 'Diagnostic'], required: true, default: 'Maintenance' },
   estimatedDuration: { type: Number, required: true, min: 1, validate: Number.isInteger }, // minutes
   estimatedPrice: { type: Number, required: true, min: 0 }, // PHP
   checklistTemplate: {

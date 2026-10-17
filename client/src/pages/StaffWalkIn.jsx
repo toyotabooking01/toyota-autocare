@@ -3,7 +3,7 @@ import FormWorkspace from '../components/FormWorkspace'
 import { formWorkspaceGrid } from '../layouts/workspaceDimensions'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Step, StepLabel, Stepper, TextField, Typography } from '@mui/material'
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined'
 import RadioButtonUncheckedOutlined from '@mui/icons-material/RadioButtonUncheckedOutlined'
@@ -18,8 +18,8 @@ import BookingDateTimePicker from '../components/BookingDateTimePicker'
 import WalkInVehicleDialog from './WalkInVehicleDialog'
 
 const steps = ['Customer', 'Vehicle', 'Services', 'Date & Time', 'Review']
-const choiceStyle = { p: 2, border: '1px solid var(--line)', borderRadius: 2, cursor: 'pointer', minWidth: 0, textAlign: 'left' }
-export default function StaffWalkIn({ role = 'staff' }) {
+const choiceStyle = { p: 1.25, border: '1px solid var(--line)', borderRadius: 2, cursor: 'pointer', minWidth: 0, textAlign: 'left' }
+export default function StaffWalkIn({ role = 'staff', embedded = false, onComplete, onBusy, onFooterActionChange }) {
   const confirm = useConfirmation()
   const [step, setStep] = useState(0)
   const [customerType, setCustomerType] = useState('existing')
@@ -102,10 +102,11 @@ export default function StaffWalkIn({ role = 'staff' }) {
     if (!validation.validate()) { setStep(({ client: 0, vehicle: 1, services: 2, schedule: 3 })[validation.firstError()] ?? 0); return }
     return confirm('Create this walk-in service booking?', async () => {
       if (!validation.validate()) { setStep(({ client: 0, vehicle: 1, services: 2, schedule: 3 })[validation.firstError()] ?? 0); return }
-      setSaving(true); setError('')
+      setSaving(true); onBusy?.(true); setError('')
       try {
         const response = await api.post('/bookings/walk-in', { client: client._id, vehicle: vehicleId, services: serviceIds, schedule: slot.scheduleId, concern })
         setCompleted(response.data.item)
+        onComplete?.(response.data.item)
       } catch (requestError) {
         validation.receive(requestError)
         const fields = requestError.response?.data?.errors || {}
@@ -118,33 +119,52 @@ export default function StaffWalkIn({ role = 'staff' }) {
           setError(Object.keys(fields).length ? '' : message(requestError))
           setStep(3); setRefresh(value => value + 1)
         } else { setError(Object.keys(fields).length ? '' : message(requestError)); if (requestError.response?.status === 400) setRefresh(value => value + 1) }
-      } finally { setSaving(false) }
+      } finally { setSaving(false); onBusy?.(false) }
     })
   }
+  const submitRef = useRef(submit)
+  const continueRef = useRef(continueStep)
+  useEffect(() => { submitRef.current = submit })
+  useEffect(() => { continueRef.current = continueStep })
+  useEffect(() => {
+    if (!embedded || customerType === 'new') return undefined
+    if (completed) {
+      onFooterActionChange?.(null)
+      return undefined
+    }
+    onFooterActionChange?.({
+      showBack: step > 0,
+      onBack: () => setStep(value => Math.max(0, value - 1)),
+      primaryLabel: step === 4 ? 'Create Booking' : 'Continue',
+      disabled: saving || (step === 0 ? !client : step === 4 ? !client || !vehicle || !slot || !chosen.length : !canContinue),
+      onClick: () => step === 4 ? submitRef.current() : continueRef.current(),
+    })
+    return () => onFooterActionChange?.(null)
+  }, [embedded, customerType, step, completed, saving, client, vehicle, slot, chosen.length, canContinue, onFooterActionChange])
   return <>
-    <PageHeading title="Walk-In Service" subtitle="Create a checked-in service visit for an existing or new customer." preview={false} />
+    {!embedded && <PageHeading title="Walk-In Service" subtitle="Create a checked-in service visit for an existing or new customer." preview={false} />}
     <ToggleButtonGroup exclusive value={customerType} aria-label="Customer type" size="small" sx={{ mb: 2 }} disabled={saving || Boolean(completed)}
       onChange={(_, value) => { if (value) { setCustomerType(value); setError('') } }}>
       <ToggleButton value="existing">Existing Customer</ToggleButton><ToggleButton value="new">New Walk-In Customer</ToggleButton>
     </ToggleButtonGroup>
     <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
-      {customerType === 'existing' ? 'Customer already exists in the system.' : 'Create a walk-in customer record and service request.'}
+      {customerType === 'existing' ? (embedded ? 'Search existing customer.' : 'Customer already exists in the system.') : (embedded ? 'Create a customer account and service request.' : 'Create a walk-in customer record and service request.')}
     </Typography>
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    {customerType === 'new' ? <NewWalkInForm role={role} services={services} loading={loading} refreshKey={refresh} onRefresh={() => setRefresh(value => value + 1)} onBusy={setSaving} onComplete={setCompleted} /> : <FormWorkspace>
+    {customerType === 'new' ? <NewWalkInForm role={role} embedded={embedded} services={services} loading={loading} refreshKey={refresh} onRefresh={() => setRefresh(value => value + 1)} onBusy={busy => { setSaving(busy); onBusy?.(busy) }} onComplete={item => { setCompleted(item); onComplete?.(item) }} onFooterActionChange={onFooterActionChange} /> : <FormWorkspace>
       {loading ? <Stack alignItems="center" sx={{ py: 8 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading walk-in options…</Typography></Stack>
         : completed ? <Stack spacing={2} alignItems="flex-start" sx={{ py: 4 }}>
           <Alert severity="success">Walk-in booking created successfully. The customer is checked in.</Alert>
           <Typography sx={{ fontSize: 13, overflowWrap: 'anywhere' }}>Reference: {completed._id}</Typography>
           <Stack direction="row" spacing={1}><Button component={Link} to={`/${role}/bookings?open=${completed._id}`} variant="contained">View Booking</Button><Button component={Link} to={`/${role}/job-orders`}>Continue to Job Coordination</Button></Stack>
         </Stack> : <>
-          <Stepper activeStep={step} alternativeLabel sx={{ mb: 4, display: { xs: 'none', sm: 'flex' } }}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
+          <Stepper activeStep={step} alternativeLabel sx={{ mb: embedded ? 2.5 : 4, display: { xs: 'none', sm: 'flex' } }}>{steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
           <Typography sx={{ display: { sm: 'none' }, fontSize: 12, color: 'text.secondary', mb: 2 }}>Step {step + 1} of 5 · {steps[step]}</Typography>
           {step === 0 && <>{validation.errors.client && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.client}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 1 }}>Find the customer</Typography>
-            <TextField name="customerSearch" label="Search customer by name, email, or phone" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => { setSearch(event.target.value); setSearching(event.target.value.trim().length >= 2); setClients([]); setClient(null); setVehicleId(''); setVehicles([]) }} fullWidth size="small" helperText="Enter at least two characters. Active online and walk-in customers appear." />
+            <TextField name="customerSearch" label="Search customer by name, email, or phone" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => { setSearch(event.target.value); setSearching(event.target.value.trim().length >= 2); setClients([]); setClient(null); setVehicleId(''); setVehicles([]) }} fullWidth size="small" helperText="Enter at least 2 characters." />
             {searching && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 2 }}>Searching…</Typography>}
             {search.trim().length >= 2 && !searching && !clients.length && <Alert severity="info" sx={{ mt: 2 }}>No active customer found. Choose New Walk-In Customer to create one.</Alert>}
-            <Stack spacing={1} sx={{ mt: 2 }}>{clients.map(item => <Paper key={item._id} component="button" type="button" variant="outlined" onClick={() => chooseClient(item)} aria-pressed={client?._id === item._id} sx={{ ...choiceStyle, borderColor: client?._id === item._id ? 'primary.main' : 'var(--line)', bgcolor: client?._id === item._id ? 'var(--accent-soft)' : 'var(--surface)' }}><Typography sx={{ fontWeight: 650 }}>{item.fullName}</Typography><Typography sx={{ color: 'text.secondary', fontSize: 12 }}>{item.phone || 'No phone'} · {item.email || 'No email'} · {item.vehicleCount} vehicles · {item.isWalkInCustomer ? 'Walk-In Customer' : 'Online Client'}</Typography></Paper>)}</Stack>
+            <Stack spacing={1} sx={{ mt: 1.5 }}>{clients.map(item => <Paper key={item._id} component="button" type="button" variant="outlined" onClick={() => chooseClient(item)} aria-pressed={client?._id === item._id} sx={{ ...choiceStyle, borderColor: client?._id === item._id ? 'primary.main' : 'var(--line)', bgcolor: client?._id === item._id ? 'var(--accent-soft)' : 'var(--surface)' }}><Typography sx={{ fontWeight: 650, fontSize: 13 }}>{item.fullName}</Typography><Typography sx={{ color: 'text.secondary', fontSize: 11 }}>{item.phone || 'No phone'} · {item.email || 'No email'} · {item.vehicleCount} vehicles · {item.isWalkInCustomer ? 'Walk-In Customer' : 'Online Client'}</Typography></Paper>)}</Stack>
           </>}
           {step === 1 && <>{validation.errors.vehicle && <Alert severity="error" sx={{ mb: 2 }}>{validation.errors.vehicle}</Alert>}<Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Choose {client?.fullName}'s vehicle</Typography>
             {loadingVehicles ? <Stack direction="row" spacing={1.5} alignItems="center" role="status"><CircularProgress size={22} /><Typography sx={{ fontSize: 13, color: 'text.secondary' }}>Loading this client’s vehicles…</Typography></Stack>
@@ -165,7 +185,7 @@ export default function StaffWalkIn({ role = 'staff' }) {
           {step === 4 && <><Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, mb: 2 }}>Review walk-in</Typography>
             <Stack spacing={2}><BookingRecordDetails business total={estimate} booking={{ client, vehicle, services: chosen, bookingType: 'walk-in', bookingDate: selectedDate, bookingTime: slot?.time, concern: otherService ? concern : '' }} /></Stack>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 2 }}>Booking type: Walk-In. Created as Checked-In. Estimate uses current service prices.</Typography></>}
-          <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}><Button variant="outlined" disabled={step === 0 || saving} onClick={() => setStep(value => value - 1)}>Back</Button>{step < 4 ? <Button variant="contained" disabled={!canContinue || saving} onClick={continueStep}>Continue</Button> : <Button variant="contained" disabled={saving || !client || !vehicle || !slot || !chosen.length} onClick={submit}>{saving ? 'Creating…' : 'Create Walk-In booking'}</Button>}</Stack>
+          {!embedded && <Stack direction="row" justifyContent="space-between" sx={{ mt: 4 }}>{step > 0 ? <Button variant="outlined" disabled={saving} onClick={() => setStep(value => value - 1)}>Back</Button> : <Box />}{step < 4 ? <Button variant="contained" disabled={!canContinue || saving} onClick={continueStep}>Continue</Button> : <Button variant="contained" disabled={saving || !client || !vehicle || !slot || !chosen.length} onClick={submit}>{saving ? 'Creating…' : 'Create Walk-In booking'}</Button>}</Stack>}
         </>}
     </FormWorkspace>}
     {addingVehicle && <WalkInVehicleDialog customer={client} onClose={() => setAddingVehicle(false)} onAdded={item => {

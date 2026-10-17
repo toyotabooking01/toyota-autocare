@@ -1,4 +1,4 @@
-:root { font-family: 'Segoe UI', Arial, sans-serif; color: #111827; background: #f4f6f8; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+:root { font-family: 'Geist Variable', Geist, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111827; background: #f4f6f8; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 a { color: #2f343b; text-decoration: none; }

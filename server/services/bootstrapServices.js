@@ -14,6 +14,7 @@ async function ensureOtherService() {
   if (item) {
     let changed = false;
     if (!item.isOtherService) { item.isOtherService = true; changed = true; }
+    if (item.type !== 'Diagnostic') { item.type = 'Diagnostic'; changed = true; }
     if (!item.isActive) { item.isActive = true; changed = true; }
     if (item.isArchived) { item.isArchived = false; item.archivedAt = null; changed = true; }
     if (changed) await item.save();
@@ -21,12 +22,14 @@ async function ensureOtherService() {
   }
   try {
     return await Service.create({ name: 'Other', description: 'Diagnostic assessment for a customer-described issue.',
-      estimatedDuration: configuredDiagnosticMinutes(), estimatedPrice: 0, isOtherService: true, isActive: true });
+      estimatedDuration: configuredDiagnosticMinutes(), estimatedPrice: 0, type: 'Diagnostic', isOtherService: true, isActive: true });
   } catch (error) {
     if (error.code !== 11000) throw error;
     item = await Service.findOne({ $or: [{ isOtherService: true }, { name: /^other$/i }] });
     if (!item) throw error;
-    if (!item.isOtherService) { item.isOtherService = true; await item.save(); }
+    if (!item.isOtherService) item.isOtherService = true;
+    if (item.type !== 'Diagnostic') item.type = 'Diagnostic';
+    await item.save();
     return item;
   }
 }

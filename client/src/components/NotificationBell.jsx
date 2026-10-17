@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Badge, Box, Button, CircularProgress, IconButton, ListItemButton, Popover, Stack, Typography } from '@mui/material'
 import NotificationsNoneRounded from '@mui/icons-material/NotificationsNoneRounded'
+import { Bell } from 'iconoir-react'
 import api from '../services/api'
 import { NOTIFICATIONS_UPDATED } from '../utils/notificationEvents'
 import { notificationDestination, notificationTime } from '../utils/notificationDisplay'
@@ -88,7 +89,7 @@ export default function NotificationBell({ role }) {
     <IconButton onClick={toggle} aria-label={unread ? `View notifications, ${unread} unread` : 'View notifications'}
       aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined}
       sx={{ flexShrink: 0, bgcolor: open ? 'var(--nav-active)' : undefined, borderRadius: 1, '&:hover': { bgcolor: 'var(--nav-hover)' } }}>
-      <Badge badgeContent={unread} max={99} color="error" invisible={!unread} overlap="circular"><NotificationsNoneRounded /></Badge>
+      <Badge badgeContent={unread} max={99} color="error" invisible={!unread} overlap="circular">{role === 'admin' ? <Bell width={20} height={20} strokeWidth={1.6} /> : <NotificationsNoneRounded />}</Badge>
     </IconButton>
     <Popover open={open} anchorEl={anchor} onClose={() => setAnchor(null)}
       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} marginThreshold={16}

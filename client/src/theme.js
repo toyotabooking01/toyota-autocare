@@ -23,7 +23,7 @@ export default function createAppTheme(mode) {
       error: { main: dark ? '#ef9a9a' : '#b34242' },
     },
     typography: {
-      fontFamily: 'Inter, "Segoe UI", Arial, sans-serif',
+      fontFamily: '"Geist Variable", Geist, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       h1: { fontWeight: 700 }, h2: { fontWeight: 700 }, h3: { fontWeight: 650 },
       button: { textTransform: 'none', fontWeight: 650 },
     },

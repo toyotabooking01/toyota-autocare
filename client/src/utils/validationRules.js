@@ -34,7 +34,7 @@ export const schemas = {
   clientVehicle: { make: text('Make', 80), model: text('Model', 80), year: { ...number('Year', VEHICLE_YEAR_FLOOR, latestVehicleYear(true)), fourDigits: true }, variant: text('Variant', 120),
     plateNumber: { ...text('Plate number', 30), plate: true }, transmission: select('Transmission', ['manual', 'automatic', 'cvt']),
     currentMileage: { ...number('Current mileage', 0, 9999999), digits: true } },
-  service: { name: text('Name', 120), description: text('Description', 3000, false), estimatedDuration: number('Duration', 1, 525600),
+  service: { name: text('Name', 120), description: text('Description', 3000, false), type: select('Service type', ['Maintenance', 'Diagnostic']), estimatedDuration: number('Duration', 1, 525600),
     estimatedPrice: number('Estimated price', 0, 999999999.99, true, false), maintenanceReminderInterval: { ...number('Reminder interval', 1, 36500, false), nullable: true } },
   bay: { name: text('Name', 80), operationalStatus: select('Operational status', ['operational', 'maintenance', 'out_of_service']) },
   schedule: { date: { ...text('Date', 10), date: true }, timeSlot: { ...text('Time', 5), pattern: /^([01]\d|2[0-3]):[0-5]\d$/, hint: 'Use a valid HH:MM time.' }, maximumCapacity: number('Capacity', 1, 10000) },

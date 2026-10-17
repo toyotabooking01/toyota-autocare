@@ -1,13 +1,14 @@
 import { Box, PaginationItem } from '@mui/material'
+import { NavArrowLeft, NavArrowRight } from 'iconoir-react'
 import { visiblePageItems } from '../utils/listPagination'
 
-const PreviousLabel = () => '‹'
-const NextLabel = () => '›'
+const PreviousLabel = () => <NavArrowLeft width={16} height={16} strokeWidth={1.8} />
+const NextLabel = () => <NavArrowRight width={16} height={16} strokeWidth={1.8} />
 
 export default function ListPagination({ pagination }) {
   if (!pagination) return null
   const { page, totalItems, totalPages, busy, onPageChange } = pagination
-  if (totalPages <= 1) return null
+  if (!totalItems || totalPages < 1) return null
   const disabled = busy || !totalItems
 
   return <Box component="nav" aria-label="List pagination"

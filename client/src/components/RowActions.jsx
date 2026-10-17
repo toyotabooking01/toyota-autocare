@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Button, IconButton, Menu, MenuItem, Tooltip } from '@mui/material'
-import MoreHorizRounded from '@mui/icons-material/MoreHorizRounded'
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded'
+import { MoreHoriz } from 'iconoir-react'
 
 const compactAction = { height: 36, minHeight: 36, px: 1.5, py: .5, fontSize: 12, borderRadius: '8px', whiteSpace: 'nowrap', flexShrink: 0 }
 
@@ -25,7 +25,7 @@ export function MoreActionsMenu({ items, label, disabled = false }) {
         aria-expanded={anchor ? 'true' : undefined} aria-controls={anchor ? id : undefined} disabled={disabled}
         onClick={event => { event.stopPropagation(); setAnchor(event.currentTarget) }}
         sx={{ width: 36, height: 36, borderRadius: '8px', color: 'text.secondary', border: '1px solid var(--line)' }}>
-        <MoreHorizRounded fontSize="small" />
+        <MoreHoriz width={19} height={19} strokeWidth={1.7} aria-hidden="true" />
       </IconButton>
     </span></Tooltip>
     <Menu id={id} anchorEl={anchor} open={Boolean(anchor)} onClose={close}

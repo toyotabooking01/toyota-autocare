@@ -6,6 +6,7 @@ import PersonOutlineRounded from '@mui/icons-material/PersonOutlineRounded'
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
 import HelpOutlineRounded from '@mui/icons-material/HelpOutlineRounded'
 import LogoutRounded from '@mui/icons-material/LogoutRounded'
+import { HelpCircle, LogOut, NavArrowDown, Settings, User } from 'iconoir-react'
 import { useAuth } from '../auth/AuthContext'
 import { useConfirmation } from './ConfirmationContext'
 import { roleLabels } from '../app/navigation'
@@ -18,6 +19,9 @@ export default function ProfileMenu({ role }) {
   const [anchor, setAnchor] = useState(null)
   const close = () => setAnchor(null)
   function go(path) { close(); navigate(`/${role}/${path}`) }
+  const menuIcons = role === 'admin'
+    ? { arrow: <NavArrowDown width={18} height={18} strokeWidth={1.6} />, profile: <User width={18} height={18} strokeWidth={1.6} />, settings: <Settings width={18} height={18} strokeWidth={1.6} />, help: <HelpCircle width={18} height={18} strokeWidth={1.6} />, logout: <LogOut width={18} height={18} strokeWidth={1.6} /> }
+    : { arrow: <KeyboardArrowDownRounded fontSize="small" />, profile: <PersonOutlineRounded fontSize="small" />, settings: <SettingsOutlined fontSize="small" />, help: <HelpOutlineRounded fontSize="small" />, logout: <LogoutRounded fontSize="small" /> }
   function signOut() {
     close()
     confirm({ title: 'Sign out?', message: 'Are you sure you want to sign out of your account?', cancelLabel: 'Cancel', confirmLabel: 'Sign out' }, () => {
@@ -37,7 +41,7 @@ export default function ProfileMenu({ role }) {
         <Typography noWrap sx={{ fontSize: 12, fontWeight: 650 }}>{user.fullName}</Typography>
         <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{roleLabels[role]}</Typography>
       </Box>
-      <KeyboardArrowDownRounded fontSize="small" sx={{ color: 'text.secondary', flexShrink: 0 }} />
+      <Box sx={{ color: 'text.secondary', flexShrink: 0, display: 'flex' }}>{menuIcons.arrow}</Box>
     </Box>
     <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 1, width: 240, maxWidth: 'calc(100vw - 24px)', border: '1px solid var(--line)', boxShadow: '0 8px 24px #0002' } } }}>
@@ -46,11 +50,11 @@ export default function ProfileMenu({ role }) {
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{roleLabels[role]}</Typography></Box>
       </Box>
       <Divider />
-      <MenuItem onClick={() => go('profile')}><ListItemIcon><PersonOutlineRounded fontSize="small" /></ListItemIcon><ListItemText>My Profile</ListItemText></MenuItem>
-      <MenuItem onClick={() => go('account-settings')}><ListItemIcon><SettingsOutlined fontSize="small" /></ListItemIcon><ListItemText>Account Settings</ListItemText></MenuItem>
-      {role === 'client' && <MenuItem onClick={() => go('help-support')}><ListItemIcon><HelpOutlineRounded fontSize="small" /></ListItemIcon><ListItemText>Help &amp; Support</ListItemText></MenuItem>}
+      <MenuItem onClick={() => go('profile')}><ListItemIcon>{menuIcons.profile}</ListItemIcon><ListItemText>My Profile</ListItemText></MenuItem>
+      <MenuItem onClick={() => go('account-settings')}><ListItemIcon>{menuIcons.settings}</ListItemIcon><ListItemText>Account Settings</ListItemText></MenuItem>
+      {role === 'client' && <MenuItem onClick={() => go('help-support')}><ListItemIcon>{menuIcons.help}</ListItemIcon><ListItemText>Help &amp; Support</ListItemText></MenuItem>}
       <Divider />
-      <MenuItem onClick={signOut}><ListItemIcon><LogoutRounded fontSize="small" /></ListItemIcon><ListItemText>Sign out</ListItemText></MenuItem>
+      <MenuItem onClick={signOut}><ListItemIcon>{menuIcons.logout}</ListItemIcon><ListItemText>Sign out</ListItemText></MenuItem>
     </Menu>
   </>
 }

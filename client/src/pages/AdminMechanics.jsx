@@ -1,16 +1,14 @@
-import { DetailsButton, MoreActionsMenu } from '../components/RowActions'
-import { StatusBadge } from '../components/StatusChip'
 import ConfirmationDialog from '../components/ConfirmationDialog'
 import { useConfirmation } from '../components/ConfirmationContext'
 import useFormValidation from '../components/useFormValidation'
 import { useEffect, useState } from 'react'
-import { Alert, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material'
-import AddRounded from '@mui/icons-material/AddRounded'
+import { Alert, Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material'
+import { Plus } from 'iconoir-react'
 import api from '../services/api'
 import { PageHeading } from '../components/DashboardParts'
 import useCatalog, { message } from './useCatalog'
-import RecordList, { RecordActions, RecordPanel } from '../components/RecordList'
-import PersonRecordCard from '../components/PersonRecordCard'
+import RecordList, { RecordPanel } from '../components/RecordList'
+import AccountDirectoryRow, { AccountDirectoryHeader } from '../components/AccountDirectoryRow'
 import { REGISTRATION_MOBILE_HINT, normalizeMobile, restrictMobileInput } from '../../../shared/accountValidation.mjs'
 import { mechanicAvailabilityLabel } from '../utils/mechanicAvailability'
 import { AccountRecordDetails, AccountStatus, DetailDialog } from '../components/RecordDetails'
@@ -92,28 +90,24 @@ export default function AdminMechanics() {
     <PageHeading title="Mechanics" subtitle="Manage technician accounts and availability." preview={false} />
     {notice && <Alert severity={noticeSeverity} onClose={() => setNotice('')} sx={{ mb: 2 }}>{notice}</Alert>}
     {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 2 }}>{error}</Alert>}
-    <RecordPanel>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2.5 }}>
-        <TextField label="Search mechanics" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} sx={{ flex: 1 }} />
-        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)} sx={{ minWidth: 130 }}><MenuItem value="active">Current</MenuItem><MenuItem value="archived">Archived</MenuItem><MenuItem value="all">All</MenuItem></TextField>
-        <TextField select label="Account" size="small" value={status} onChange={event => setStatus(event.target.value)} sx={{ minWidth: 125 }}><MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
-        <TextField select label="Availability" size="small" value={availabilityFilter} onChange={event => setAvailabilityFilter(event.target.value)} sx={{ minWidth: 135 }}><MenuItem value="all">Any</MenuItem>{availability.map(value => <MenuItem key={value} value={value}>{mechanicAvailabilityLabel(value)}</MenuItem>)}</TextField>
-        <Button variant="contained" startIcon={<AddRounded />} onClick={() => openForm()}>Add mechanic</Button>
-      </Stack>
-      <RecordList items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading mechanics…</Typography></Stack>} empty="No mechanics match these filters.">
-          {item => <PersonRecordCard key={item._id} person={item} idLabel="Mechanic ID" idValue={item.employeeId} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : 'var(--surface)' }}>
-            <RecordActions statuses={<>
-              <StatusBadge size="small" label={item.isArchived ? 'Archived' : item.status} sx={{ bgcolor: item.isArchived ? 'var(--surface-soft)' : item.status === 'active' ? 'var(--green-soft)' : 'var(--amber-soft)' }} />
-              {!item.isArchived && <StatusBadge size="small" label={mechanicAvailabilityLabel(item.availability)} variant="outlined" />}
-            </>}>
-              <DetailsButton onClick={() => setSelected(item)}>Details</DetailsButton>
-              <MoreActionsMenu label={item.fullName} disabled={saving} items={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, { label: item.isArchived ? 'Restore' : 'Archive', onClick: () => setArchiveTarget(item) }]} />
-            </RecordActions>
-          </PersonRecordCard>}
+    <RecordPanel className="account-directory-panel admin-list-surface">
+      <Box className="account-directory-toolbar account-directory-toolbar--mechanics admin-list-toolbar">
+        <TextField className="account-directory-search" label="Search mechanics" size="small" value={search} slotProps={{ htmlInput: { maxLength: 100 } }} onChange={event => setSearch(event.target.value)} />
+        <TextField select label="Records" size="small" value={archive} onChange={event => setArchive(event.target.value)}><MenuItem value="active">Current</MenuItem><MenuItem value="archived">Archived</MenuItem><MenuItem value="all">All</MenuItem></TextField>
+        <TextField select label="Account" size="small" value={status} onChange={event => setStatus(event.target.value)}><MenuItem value="all">All statuses</MenuItem><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
+        <TextField select label="Availability" size="small" value={availabilityFilter} onChange={event => setAvailabilityFilter(event.target.value)}><MenuItem value="all">Any</MenuItem>{availability.map(value => <MenuItem key={value} value={value}>{mechanicAvailabilityLabel(value)}</MenuItem>)}</TextField>
+        <Button className="account-directory-add" variant="contained" startIcon={<Plus width={16} height={16} strokeWidth={1.8} />} onClick={() => openForm()}>Add Mechanics</Button>
+      </Box>
+      <AccountDirectoryHeader kind="mechanic" />
+      <RecordList className="account-directory-list" items={items} pagination={pagination} loading={loading && <Stack alignItems="center" sx={{ py: 6 }} role="status"><CircularProgress size={28} /><Typography sx={{ mt: 1 }}>Loading mechanics…</Typography></Stack>} empty="No mechanics match these filters.">
+          {item => <AccountDirectoryRow key={item._id} kind="mechanic" person={item}
+            availability={{ label: item.isArchived ? 'Archived' : item.availability === 'off_duty' ? 'Unavailable' : mechanicAvailabilityLabel(item.availability), status: item.isArchived ? 'archived' : item.availability === 'available' ? 'available' : item.availability === 'busy' ? 'busy' : 'unavailable' }}
+            onDetails={() => setSelected(item)} menuDisabled={saving}
+            menuItems={[!item.isArchived && { label: 'Edit', onClick: () => openForm(item) }, { label: item.isArchived ? 'Restore' : 'Archive', onClick: () => setArchiveTarget(item) }]} />}
       </RecordList>
     </RecordPanel>
-    <DetailDialog open={Boolean(selected)} onClose={() => setSelected(null)} title="Mechanic details" reference={selected?.employeeId || selected?._id}
-      status={selected && <AccountStatus account={selected} />}
+    <DetailDialog className="account-management-dialog" paperSx={{ width: 'min(680px, calc(100vw - 32px))', maxWidth: 680, borderRadius: '14px' }} open={Boolean(selected)} onClose={() => setSelected(null)} title="Mechanic details" reference={selected?.employeeId || selected?._id}
+      status={selected && <AccountStatus account={selected} minimal />}
       actions={selected && !selected.isArchived && <Button variant="contained" onClick={() => { openForm(selected); setSelected(null) }}>Edit</Button>}>
       {selected && <AccountRecordDetails account={selected} kind="mechanic" />}
     </DetailDialog>
@@ -128,7 +122,7 @@ export default function AdminMechanics() {
         <TextField size="small" label="Phone Number" type="tel" required disabled={saving} value={form.phone} {...validation.field('phone', REGISTRATION_MOBILE_HINT)}
           slotProps={{ htmlInput: { maxLength: 13, inputMode: 'tel' } }}
           onChange={event => change('phone', restrictMobileInput(event.target.value))} />
-        <TextField className="account-form-wide" size="small" name="employeeId" label="Mechanic ID" value={editing?._id ? editing.employeeId : idPreview.loading ? 'Generating…' : idPreview.value} slotProps={{ input: { readOnly: true } }}
+        <TextField className="account-form-wide account-id-field" size="small" name="employeeId" label="Mechanic ID" value={editing?._id ? editing.employeeId : idPreview.loading ? 'Generating…' : idPreview.value} slotProps={{ input: { readOnly: true } }}
           error={Boolean(idPreview.error)} helperText={idPreview.error || (editing?._id ? 'Assigned by the system.' : 'Auto-generated. The final ID is assigned when the account is created.')} />
         {editing?._id && <>
           <TextField size="small" select label="Account status" disabled={saving} value={form.status} {...validation.field('status')} onChange={event => change('status', event.target.value)} fullWidth><MenuItem value="active">Active</MenuItem><MenuItem value="inactive">Inactive</MenuItem></TextField>
